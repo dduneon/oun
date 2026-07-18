@@ -42,12 +42,16 @@ class HomeScreen extends StatelessWidget {
                 _TopRow(),
                 const SizedBox(height: 12),
                 const _StatChips(),
-                // 말풍선 위치(위쪽으로). 값이 작을수록 위로 올라감
+                // 말풍선 위치. 위 Spacer가 작을수록 위로 올라감
                 const Spacer(flex: 1),
                 const _SpeechBubble('오늘도 같이 힘내볼까요?'),
-                const Spacer(flex: 6),
+                const Spacer(flex: 11),
                 _Cta(onTap: _pokeCharacter),
-                const SizedBox(height: FloatingTabBar.reservedSpace),
+                // 플로팅 탭바(+안전영역) 위로 CTA가 올라오도록 여백 확보
+                SizedBox(
+                  height: MediaQuery.viewPaddingOf(context).bottom +
+                      FloatingTabBar.reservedSpace,
+                ),
               ],
             ),
           ),
