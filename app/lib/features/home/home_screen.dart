@@ -42,9 +42,10 @@ class HomeScreen extends StatelessWidget {
                 _TopRow(),
                 const SizedBox(height: 12),
                 const _StatChips(),
-                const SizedBox(height: 22),
+                // 말풍선이 캐릭터 머리 위에 오도록 비율로 배치
+                const Spacer(flex: 2),
                 const _SpeechBubble('오늘도 같이 힘내볼까요?'),
-                const Spacer(),
+                const Spacer(flex: 9),
                 _Cta(onTap: _pokeCharacter),
                 const SizedBox(height: FloatingTabBar.reservedSpace),
               ],
