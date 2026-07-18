@@ -97,7 +97,7 @@ class _CurrencyChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: OunColors.background.withValues(alpha: 0.82),
+        color: OunColors.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: OunColors.cardBorder),
       ),
@@ -144,7 +144,7 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
       decoration: BoxDecoration(
-        color: OunColors.background.withValues(alpha: 0.82),
+        color: OunColors.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: OunColors.cardBorder),
       ),
@@ -175,7 +175,7 @@ class _SpeechBubble extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: OunColors.background.withValues(alpha: 0.88),
+            color: OunColors.card,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: OunColors.cardBorder),
           ),
@@ -193,7 +193,7 @@ class _SpeechBubble extends StatelessWidget {
               width: 10,
               height: 10,
               decoration: BoxDecoration(
-                color: OunColors.background.withValues(alpha: 0.88),
+                color: OunColors.card,
                 border: Border(
                   right: BorderSide(color: OunColors.cardBorder),
                   bottom: BorderSide(color: OunColors.cardBorder),
