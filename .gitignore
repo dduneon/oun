@@ -26,5 +26,8 @@ sysinfo.txt
 app/ios/unityLibrary/
 app/android/unityLibrary/
 
+# === iOS 빌드 산출물 (xcodebuild derivedData 등) ===
+app/ios/build/
+
 # 참고: Flutter 앱(app/)의 build/, .dart_tool/ 등은 app/.gitignore가 처리
 # 참고: Unity .meta 파일은 반드시 커밋 (무시하지 않음)

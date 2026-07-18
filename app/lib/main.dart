@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 
 void main() {
   runApp(const OunApp());
@@ -61,32 +62,19 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-            // 여기에 나중에 Unity 캐릭터(UaaL)가 임베드됩니다.
+            // 홈의 캐릭터 무대: Unity(UaaL) 3D 씬을 임베드
             Expanded(
-              child: Center(
-                child: Container(
-                  margin: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Container(
                     color: const Color(0xFFF3E9DF),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE8D5C4)),
-                  ),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.pets, size: 48, color: Color(0xFFC9A88C)),
-                        SizedBox(height: 12),
-                        Text(
-                          '여기에 내 캐릭터가 나타납니다',
-                          style: TextStyle(color: Color(0xFF9C8B7D)),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          '(다음 단계: Unity 임베드)',
-                          style: TextStyle(fontSize: 12, color: Color(0xFFBBA99B)),
-                        ),
-                      ],
+                    child: EmbedUnity(
+                      onMessageFromUnity: (String message) {
+                        // Unity → Flutter 메시지 수신 (추후 상호작용에 사용)
+                        debugPrint('Unity → Flutter: $message');
+                      },
                     ),
                   ),
                 ),
