@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.learntoflutter.flutter_embed_unity_6000_0": "https://github.com/learntoflutter/flutter_embed_unity.git?path=example_unity_6000_0_project/Assets/FlutterEmbed",
     "com.unity.ai.navigation": "2.0.13",
     "com.unity.collab-proxy": "2.12.4",
     "com.unity.ide.rider": "3.0.38",
