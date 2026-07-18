@@ -8,9 +8,6 @@ import '../../theme/app_theme.dart';
 class RecordScreen extends StatelessWidget {
   const RecordScreen({super.key});
 
-  static const _week = ['월', '화', '수', '목', '금', '토', '일'];
-  static const _todayIndex = 4; // 목업: 오늘을 금요일로 가정
-
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
@@ -29,38 +26,7 @@ class RecordScreen extends StatelessWidget {
                 color: OunColors.textPrimary)),
       ),
       children: [
-        _card(
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  for (var i = 0; i < 7; i++)
-                    _DayDot(
-                      label: _week[i],
-                      done: i <= _todayIndex,
-                      isToday: i == _todayIndex,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text.rich(
-                TextSpan(
-                  style: TextStyle(fontSize: 12, color: OunColors.textMuted),
-                  children: [
-                    TextSpan(text: '이번 주 '),
-                    TextSpan(
-                        text: '5일',
-                        style: TextStyle(
-                            color: OunColors.tabAccent,
-                            fontWeight: FontWeight.w700)),
-                    TextSpan(text: ' 운동 · 연속 12일'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        const _MonthSection(),
         const _SectionHeader('오늘 기록하기', showAll: false),
         Row(
           children: [
@@ -121,15 +87,257 @@ class RecordScreen extends StatelessWidget {
     );
   }
 
-  Widget _card(Widget child) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: OunColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: OunColors.cardBorder),
+}
+
+/// 주간 스트릭 + 펼치면 월간 도트 캘린더(날짜 + 운동량 점) + 월 요약.
+/// 평소엔 주간만 보여 공간을 아끼고, '월간 보기'로 펼친다.
+class _MonthSection extends StatefulWidget {
+  const _MonthSection();
+
+  @override
+  State<_MonthSection> createState() => _MonthSectionState();
+}
+
+class _MonthSectionState extends State<_MonthSection> {
+  bool _expanded = false;
+
+  // 목데이터 (실제로는 일별 운동 시간 합계로 강도 계산)
+  static const _weekLabels = ['월', '화', '수', '목', '금', '토', '일'];
+  static const _todayWeekIndex = 4; // 이번 주 금요일
+  static const _daysInMonth = 31;
+  static const _leadingEmpty = 1; // 7/1 = 화 (월요일 시작 기준 빈칸 1)
+  static const _todayDay = 18;
+  // 31일 운동 강도 0(안 함)~4(많이)
+  static const _intensity = <int>[
+    0, 2, 1, 0, 3, 4, 2, //
+    1, 0, 2, 3, 3, 4, 0, //
+    2, 1, 0, 4, 3, 2, 1, //
+    0, 3, 4, 2, 1, 3, 2, //
+    1, 0, 4,
+  ];
+  // 강도별 색 (1~4). 0은 점 없음.
+  static const _heat = [
+    OunColors.card,
+    Color(0xFFEBCBA9),
+    Color(0xFFDDA774),
+    Color(0xFFC97F44),
+    Color(0xFFA85E28),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: OunColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: OunColors.cardBorder),
+      ),
+      child: Column(
+        children: [
+          // 주간 스트립
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (var i = 0; i < 7; i++)
+                _DayDot(
+                  label: _weekLabels[i],
+                  done: i <= _todayWeekIndex,
+                  isToday: i == _todayWeekIndex,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text.rich(
+            TextSpan(
+              style: TextStyle(fontSize: 12, color: OunColors.textMuted),
+              children: [
+                TextSpan(text: '이번 주 '),
+                TextSpan(
+                    text: '5일',
+                    style: TextStyle(
+                        color: OunColors.tabAccent,
+                        fontWeight: FontWeight.w700)),
+                TextSpan(text: ' 운동 · 연속 12일'),
+              ],
+            ),
+          ),
+          if (_expanded) _monthly(),
+          _toggle(),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggle() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.only(top: 12),
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: OunColors.cardBorder)),
         ),
-        child: child,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_expanded ? '접기' : '월간 보기',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.tabAccent)),
+            Icon(
+                _expanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: OunColors.tabAccent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _monthly() {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const Text('2025년 7월',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+            const Spacer(),
+            _navArrow(Icons.chevron_left_rounded),
+            const SizedBox(width: 6),
+            _navArrow(Icons.chevron_right_rounded),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // 월 요약
+        Row(
+          children: const [
+            Expanded(child: _MonthStat(value: '18', label: '운동한 날')),
+            _StatSep(),
+            Expanded(child: _MonthStat(value: '9.2h', label: '총 시간')),
+            _StatSep(),
+            Expanded(child: _MonthStat(value: '12일', label: '최장 연속')),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _calendarGrid(),
+      ],
+    );
+  }
+
+  Widget _navArrow(IconData icon) => Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: OunColors.card,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 18, color: OunColors.tabAccent),
       );
+
+  Widget _calendarGrid() {
+    final weeks = <Widget>[];
+    var day = 1 - _leadingEmpty;
+    final total = _leadingEmpty + _daysInMonth;
+    final weekCount = (total / 7).ceil();
+    for (var w = 0; w < weekCount; w++) {
+      final row = <Widget>[];
+      for (var i = 0; i < 7; i++) {
+        row.add(Expanded(
+          child: (day < 1 || day > _daysInMonth)
+              ? const SizedBox(height: 38)
+              : _dayCell(day),
+        ));
+        day++;
+      }
+      weeks.add(Row(children: row));
+    }
+    return Column(
+      children: [
+        Row(
+          children: [
+            for (final l in _weekLabels)
+              Expanded(
+                child: Text(l,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 9.5, color: OunColors.textFaint)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ...weeks,
+      ],
+    );
+  }
+
+  Widget _dayCell(int d) {
+    final v = _intensity[d - 1];
+    final isToday = d == _todayDay;
+    return Container(
+      height: 38,
+      margin: const EdgeInsets.all(1),
+      decoration: isToday
+          ? BoxDecoration(
+              color: OunColors.card, borderRadius: BorderRadius.circular(9))
+          : null,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('$d',
+              style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: isToday ? FontWeight.w800 : FontWeight.w400,
+                  color: OunColors.textPrimary)),
+          const SizedBox(height: 3),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: v > 0 ? _heat[v] : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 월 요약 통계 한 칸.
+class _MonthStat extends StatelessWidget {
+  const _MonthStat({required this.value, required this.label});
+  final String value;
+  final String label;
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: OunColors.textPrimary)),
+          const SizedBox(height: 2),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 9.5, color: OunColors.textMuted)),
+        ],
+      );
+}
+
+class _StatSep extends StatelessWidget {
+  const _StatSep();
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 28, color: OunColors.cardBorder);
 }
 
 /// 주간 스트릭 하루 표시. 완료일은 체크, 오늘은 링으로 강조.
