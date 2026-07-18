@@ -8,6 +8,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: RecordScreen()));
 
     expect(find.text('기록'), findsOneWidget);
-    expect(find.text('운동을 기록하고 종목별 스탯을 쌓아요'), findsOneWidget);
+    expect(find.text('최근 기록'), findsOneWidget);
+    expect(find.text('전체 보기'), findsOneWidget);
   });
 }
