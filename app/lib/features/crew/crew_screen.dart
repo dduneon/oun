@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
+import 'friend_home_screen.dart';
 
 /// 소셜 탭: 상단 세그먼트로 친구 / 크루 통합. 랭킹 없이 응원 중심 피드.
 class CrewScreen extends StatefulWidget {
@@ -151,37 +152,58 @@ class _FriendRow extends StatelessWidget {
   final String activity;
   final List<String> reactions;
 
+  void _openFriendHome(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            FriendHomeScreen(name: name, initial: initial, color: color),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(initial,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white)),
-          ),
-          const SizedBox(width: 11),
+          // 아바타 + 이름 영역: 탭하면 친구 홈으로 이동
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: OunColors.textPrimary)),
-                Text(activity,
-                    style: const TextStyle(
-                        fontSize: 11, color: OunColors.textMuted)),
-              ],
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openFriendHome(context),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration:
+                        BoxDecoration(color: color, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(initial,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: OunColors.textPrimary)),
+                        Text(activity,
+                            style: const TextStyle(
+                                fontSize: 11, color: OunColors.textMuted)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Row(
