@@ -9,6 +9,10 @@ class OunColors {
   static const textPrimary = Color(0xFF5C4033);
   static const textMuted = Color(0xFF9C8B7D);
   static const textFaint = Color(0xFFBBA99B);
+
+  // 플로팅 탭바: 선택 탭 캡슐(테라코타) + 그 위 텍스트/아이콘
+  static const tabAccent = Color(0xFFC47A45);
+  static const onTabAccent = Color(0xFFFFF7EF);
 }
 
 class AppTheme {
