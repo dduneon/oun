@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 
@@ -103,14 +104,29 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   Widget _itemCard(_Item it) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: OunColors.surface,
+    return Material(
+      color: OunColors.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: OunColors.cardBorder),
+        side: const BorderSide(color: OunColors.cardBorder),
       ),
-      child: Column(
+      child: InkWell(
+        onTap: () => OunToast.show(
+          context,
+          it.owned ? '${it.name} 입어봤어요' : '${it.name} · ${it.price} 코인',
+          kind: it.owned ? OunToastKind.success : OunToastKind.info,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: _itemCardBody(it),
+        ),
+      ),
+    );
+  }
+
+  Widget _itemCardBody(_Item it) {
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
@@ -150,25 +166,28 @@ class _ShopScreenState extends State<ShopScreen> {
                   fontWeight: FontWeight.w600,
                   color: OunColors.textPrimary)),
           const SizedBox(height: 3),
-          Row(
-            children: [
-              Container(
-                width: 13,
-                height: 13,
-                decoration: const BoxDecoration(
-                    color: OunColors.coin, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 4),
-              Text('${it.price}',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: OunColors.textPrimary)),
-            ],
-          ),
+          if (it.owned)
+            // 이미 보유한 아이템에는 가격 대신 상태를 보여준다
+            const Text('보유중',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: OunColors.textMuted))
+          else
+            Row(
+              children: [
+                const Icon(Icons.paid_rounded,
+                    size: 14, color: OunColors.coin),
+                const SizedBox(width: 4),
+                Text('${it.price}',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: OunColors.textPrimary)),
+              ],
+            ),
         ],
-      ),
-    );
+      );
   }
 }
 

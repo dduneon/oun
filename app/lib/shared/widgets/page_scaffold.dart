@@ -48,7 +48,7 @@ class PageScaffold extends StatelessWidget {
   }
 }
 
-/// 재화 잔액 칩.
+/// 재화 잔액 칩. 모든 화면에서 동일한 모양을 쓴다.
 class CoinChip extends StatelessWidget {
   const CoinChip({super.key, required this.amount});
   final String amount;
@@ -60,11 +60,12 @@ class CoinChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: OunColors.card,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: OunColors.cardBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const _Coin(),
+          const Icon(Icons.paid_rounded, size: 15, color: OunColors.coin),
           const SizedBox(width: 5),
           Text(amount,
               style: const TextStyle(
@@ -75,15 +76,4 @@ class CoinChip extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Coin extends StatelessWidget {
-  const _Coin();
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 13,
-        height: 13,
-        decoration: const BoxDecoration(
-            color: OunColors.coin, shape: BoxShape.circle),
-      );
 }

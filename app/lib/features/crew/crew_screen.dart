@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 
@@ -30,18 +31,35 @@ class _CrewScreenState extends State<CrewScreen> {
   }
 
   List<Widget> get _friends => [
-        Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-          decoration: BoxDecoration(
-              color: OunColors.card, borderRadius: BorderRadius.circular(14)),
-          child: Row(
-            children: const [
-              Icon(Icons.person_add_alt, size: 17, color: OunColors.textMuted),
-              SizedBox(width: 8),
-              Text('@닉네임으로 친구 추가',
-                  style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
-            ],
+        // 친구 추가 진입점(검색 필드 모양, 탭하면 추가 플로우 예정)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Material(
+            color: OunColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: OunColors.cardBorder),
+            ),
+            child: Builder(
+              builder: (context) => InkWell(
+                onTap: () => OunToast.show(context, '친구 추가는 곧 열려요'),
+                borderRadius: BorderRadius.circular(14),
+                child: const Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add_alt,
+                          size: 17, color: OunColors.textMuted),
+                      SizedBox(width: 8),
+                      Text('@닉네임으로 친구 추가',
+                          style: TextStyle(
+                              fontSize: 13, color: OunColors.textMuted)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
         const _FriendRow(
@@ -51,17 +69,33 @@ class _CrewScreenState extends State<CrewScreen> {
         const _FriendRow('민', Color(0xFFC99F5B), '민준', '오늘 휴식일 🌙', ['💛']),
       ];
 
-  Widget get _crewEmpty => const Padding(
-        padding: EdgeInsets.only(top: 40),
+  Widget get _crewEmpty => Padding(
+        padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            Icon(Icons.groups_outlined, size: 48, color: OunColors.textFaint),
-            SizedBox(height: 12),
-            Text('크루를 만들어 함께 목표를 세워요',
-                style: TextStyle(color: OunColors.textMuted)),
-            SizedBox(height: 4),
-            Text('(구현 예정)',
-                style: TextStyle(fontSize: 12, color: OunColors.textFaint)),
+            const Icon(Icons.groups_outlined,
+                size: 48, color: OunColors.textFaint),
+            const SizedBox(height: 12),
+            const Text('아직 소속된 크루가 없어요',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: OunColors.textPrimary)),
+            const SizedBox(height: 4),
+            const Text('크루를 만들어 함께 목표를 세워요',
+                style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
+            const SizedBox(height: 16),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: OunColors.tabAccent,
+                foregroundColor: OunColors.onTabAccent,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              onPressed: () => OunToast.show(context, '크루 만들기는 곧 열려요'),
+              child: const Text('크루 만들기',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
       );
@@ -162,6 +196,29 @@ class _FriendRow extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(r, style: const TextStyle(fontSize: 13)),
                 ),
+              // 응원 보내기 버튼
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(
+                      side: BorderSide(color: OunColors.cardBorder)),
+                  child: InkWell(
+                    onTap: () => OunToast.show(
+                      context,
+                      '$name님에게 응원을 보냈어요',
+                      kind: OunToastKind.cheer,
+                    ),
+                    customBorder: const CircleBorder(),
+                    child: const SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Icon(Icons.add_rounded,
+                          size: 16, color: OunColors.textMuted),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],

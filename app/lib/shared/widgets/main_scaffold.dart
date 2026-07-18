@@ -14,7 +14,7 @@ class MainScaffold extends StatelessWidget {
     FloatingTabItem(Icons.home_outlined, Icons.home, '홈'),
     FloatingTabItem(Icons.fitness_center_outlined, Icons.fitness_center, '기록'),
     FloatingTabItem(Icons.storefront_outlined, Icons.storefront, '상점'),
-    FloatingTabItem(Icons.groups_outlined, Icons.groups, '크루'),
+    FloatingTabItem(Icons.groups_outlined, Icons.groups, '소셜'),
     FloatingTabItem(Icons.person_outline, Icons.person, '마이'),
   ];
 
