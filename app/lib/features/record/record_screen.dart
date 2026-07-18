@@ -311,15 +311,56 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
     ('요가', Icons.self_improvement),
     ('기타', Icons.sports_gymnastics),
   ];
+  static const _bodyParts = ['상체', '하체', '전신', '코어'];
 
   late int _selected;
   int _minutes = 30;
+  // 종목별 지표
+  double _distanceKm = 3.0;
+  int _steps = 5000;
+  int _sets = 3;
+  int _bodyPart = 0;
+  // 운동 인증 사진(목업: 실제 이미지 대신 첨부 여부만 관리).
+  bool _photoAttached = false;
 
   @override
   void initState() {
     super.initState();
     final i = _types.indexWhere((t) => t.$1 == widget.preset);
     _selected = i < 0 ? 0 : i;
+  }
+
+  String get _type => _types[_selected].$1;
+
+  /// 선택 종목에 필요한 추가 지표 종류. null이면 시간만.
+  String? get _metricKind {
+    switch (_type) {
+      case '러닝':
+      case '자전거':
+        return 'distance';
+      case '걷기':
+        return 'steps';
+      case '웨이트':
+        return 'weight';
+      default:
+        return null;
+    }
+  }
+
+  /// 저장 시 요약 문구(토스트용). 지표 + 시간 (+ 사진 인증).
+  String get _summary {
+    final String base;
+    switch (_metricKind) {
+      case 'distance':
+        base = '$_type ${_distanceKm.toStringAsFixed(1)}km · $_minutes분';
+      case 'steps':
+        base = '$_type ${_steps.toString()}보 · $_minutes분';
+      case 'weight':
+        base = '$_type ${_bodyParts[_bodyPart]} $_sets세트 · $_minutes분';
+      default:
+        base = '$_type $_minutes분';
+    }
+    return _photoAttached ? '$base · 사진 인증' : base;
   }
 
   @override
@@ -354,8 +395,7 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
                     fontWeight: FontWeight.w700,
                     color: OunColors.textPrimary)),
             const SizedBox(height: 16),
-            const Text('종목',
-                style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
+            const _FieldLabel('종목'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -370,12 +410,12 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
                   ),
               ],
             ),
+            // 종목별 지표(거리/걸음/부위·세트)
+            ..._metricFields(),
             const SizedBox(height: 20),
             Row(
               children: [
-                const Text('시간',
-                    style:
-                        TextStyle(fontSize: 12, color: OunColors.textMuted)),
+                const _FieldLabel('시간'),
                 const Spacer(),
                 Text('$_minutes분',
                     style: const TextStyle(
@@ -399,7 +439,11 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
                 onChanged: (v) => setState(() => _minutes = v.round()),
               ),
             ),
+            const SizedBox(height: 16),
+            const _FieldLabel('운동 사진 (선택)'),
             const SizedBox(height: 8),
+            _photoSection(),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -411,13 +455,12 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
                       borderRadius: BorderRadius.circular(16)),
                 ),
                 onPressed: () {
-                  final name = _types[_selected].$1;
                   // pop 이후 context가 분리되므로 messenger를 먼저 확보한다.
                   final messenger = ScaffoldMessenger.of(context);
                   Navigator.of(context).pop();
                   OunToast.showWith(
                     messenger,
-                    '$name $_minutes분 기록했어요',
+                    '$_summary 기록했어요',
                     kind: OunToastKind.success,
                   );
                 },
@@ -431,6 +474,224 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
       ),
     );
   }
+
+  /// 선택 종목에 따라 달라지는 입력 필드들.
+  List<Widget> _metricFields() {
+    switch (_metricKind) {
+      case 'distance':
+        return [
+          const SizedBox(height: 20),
+          const _FieldLabel('거리'),
+          const SizedBox(height: 8),
+          _Stepper(
+            valueText: '${_distanceKm.toStringAsFixed(1)} km',
+            onMinus: () => setState(
+                () => _distanceKm = (_distanceKm - 0.5).clamp(0.5, 99.0)),
+            onPlus: () => setState(
+                () => _distanceKm = (_distanceKm + 0.5).clamp(0.5, 99.0)),
+          ),
+        ];
+      case 'steps':
+        return [
+          const SizedBox(height: 20),
+          const _FieldLabel('걸음 수'),
+          const SizedBox(height: 8),
+          _Stepper(
+            valueText: '$_steps 보',
+            onMinus: () =>
+                setState(() => _steps = (_steps - 500).clamp(0, 100000)),
+            onPlus: () =>
+                setState(() => _steps = (_steps + 500).clamp(0, 100000)),
+          ),
+        ];
+      case 'weight':
+        return [
+          const SizedBox(height: 20),
+          const _FieldLabel('부위'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < _bodyParts.length; i++)
+                _TypeChip(
+                  icon: Icons.circle,
+                  label: _bodyParts[i],
+                  selected: i == _bodyPart,
+                  onTap: () => setState(() => _bodyPart = i),
+                  showIcon: false,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _FieldLabel('세트'),
+          const SizedBox(height: 8),
+          _Stepper(
+            valueText: '$_sets 세트',
+            onMinus: () => setState(() => _sets = (_sets - 1).clamp(1, 30)),
+            onPlus: () => setState(() => _sets = (_sets + 1).clamp(1, 30)),
+          ),
+        ];
+      default:
+        return const [];
+    }
+  }
+
+  /// 운동 인증 사진 영역. 첨부 전/후 상태가 다르다.
+  /// 목업이라 실제 이미지는 없고, image_picker 연동 시 이 부분만 교체하면 된다.
+  Widget _photoSection() {
+    if (_photoAttached) {
+      return Row(
+        children: [
+          // 첨부된 사진 썸네일(자리표시)
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: OunColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: OunColors.cardBorder),
+            ),
+            child: const Icon(Icons.image_rounded,
+                size: 26, color: OunColors.tabAccent),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text('사진이 첨부되었어요',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: OunColors.textPrimary)),
+          ),
+          IconButton(
+            onPressed: () => setState(() => _photoAttached = false),
+            icon: const Icon(Icons.close_rounded,
+                size: 20, color: OunColors.textMuted),
+            tooltip: '사진 제거',
+          ),
+        ],
+      );
+    }
+    // 첨부 전: 촬영/앨범을 모달 없이 시트 안에서 바로 고른다.
+    return Row(
+      children: [
+        Expanded(
+          child: _PhotoOption(
+            icon: Icons.photo_camera_outlined,
+            label: '촬영',
+            onTap: () => setState(() => _photoAttached = true),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: _PhotoOption(
+            icon: Icons.photo_library_outlined,
+            label: '앨범',
+            onTap: () => setState(() => _photoAttached = true),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 사진 소스(촬영/앨범) 선택 버튼.
+class _PhotoOption extends StatelessWidget {
+  const _PhotoOption(
+      {required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: OunColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: OunColors.cardBorder),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          height: 48,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 19, color: OunColors.tabAccent),
+              const SizedBox(width: 7),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: OunColors.textPrimary)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 시트 안 작은 섹션 라벨.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(fontSize: 12, color: OunColors.textMuted));
+}
+
+/// – 값 + 형태의 숫자 스테퍼.
+class _Stepper extends StatelessWidget {
+  const _Stepper({
+    required this.valueText,
+    required this.onMinus,
+    required this.onPlus,
+  });
+  final String valueText;
+  final VoidCallback onMinus;
+  final VoidCallback onPlus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: OunColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: OunColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          _btn(Icons.remove_rounded, onMinus),
+          Expanded(
+            child: Text(valueText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+          ),
+          _btn(Icons.add_rounded, onPlus),
+        ],
+      ),
+    );
+  }
+
+  Widget _btn(IconData icon, VoidCallback onTap) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            width: 52,
+            height: 48,
+            child: Icon(icon, size: 20, color: OunColors.tabAccent),
+          ),
+        ),
+      );
 }
 
 class _TypeChip extends StatelessWidget {
@@ -439,11 +700,13 @@ class _TypeChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.showIcon = true,
   });
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool showIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -461,11 +724,13 @@ class _TypeChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 16,
-                color:
-                    selected ? OunColors.onTabAccent : OunColors.tabAccent),
-            const SizedBox(width: 6),
+            if (showIcon) ...[
+              Icon(icon,
+                  size: 16,
+                  color:
+                      selected ? OunColors.onTabAccent : OunColors.tabAccent),
+              const SizedBox(width: 6),
+            ],
             Text(label,
                 style: TextStyle(
                     fontSize: 12.5,
