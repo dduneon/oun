@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 class OunColors {
   static const seed = Color(0xFFE8A87C); // 메인 포인트
   static const background = Color(0xFFFDF6F0); // 스캐폴드 배경
-  static const card = Color(0xFFF3E9DF); // 카드/캐릭터 무대 (Unity 배경과 일치)
+  static const card = Color(0xFFF3E9DF); // 소프트 카드/캐릭터 무대 (Unity 배경과 일치)
+  static const surface = Color(0xFFFFFDFB); // 밝은 카드(리스트/아이템)
   static const cardBorder = Color(0xFFE8D5C4);
+  static const coin = Color(0xFFE0A94B); // 재화 코인
   static const textPrimary = Color(0xFF5C4033);
   static const textMuted = Color(0xFF9C8B7D);
   static const textFaint = Color(0xFFBBA99B);
