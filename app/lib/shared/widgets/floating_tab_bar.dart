@@ -25,6 +25,11 @@ class FloatingTabBar extends StatelessWidget {
   final ValueChanged<int> onTap;
   final List<FloatingTabItem> items;
 
+  /// 화면 하단에서 이 탭바가 차지하는 대략적 높이(안전영역 제외).
+  /// extendBody로 콘텐츠가 뒤까지 확장될 때, 하단 콘텐츠가 가려지지 않도록
+  /// 이만큼 아래 여백을 확보한다.
+  static const double reservedSpace = 84;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(

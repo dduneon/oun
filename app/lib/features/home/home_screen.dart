@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 
+import '../../shared/widgets/floating_tab_bar.dart';
 import '../../theme/app_theme.dart';
 
-/// 캐릭터 무대 홈. Unity(UaaL) 3D 씬을 임베드한다.
+/// 캐릭터 우선 홈. Unity 3D 씬이 화면 전체(풀블리드)를 채우고,
+/// 인사·상태·CTA 등 UI가 그 위에 떠 있다.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  // Flutter → Unity: OunBridge.React() 호출 → 캐릭터 반응
-  void _pokeCharacter() {
-    sendToUnity('OunBridge', 'React', 'workout');
-  }
+  void _pokeCharacter() => sendToUnity('OunBridge', 'React', 'workout');
 
   void _onUnityMessage(BuildContext context, String message) {
     debugPrint('Unity → Flutter: $message');
@@ -25,71 +24,202 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text(
-                  '오운',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: OunColors.textPrimary,
-                  ),
-                ),
-                Icon(Icons.settings_outlined, color: OunColors.textPrimary),
+    return Stack(
+      children: [
+        // 풀블리드 캐릭터
+        Positioned.fill(
+          child: EmbedUnity(
+            onMessageFromUnity: (m) => _onUnityMessage(context, m),
+          ),
+        ),
+        // 그 위에 떠 있는 UI
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Column(
+              children: [
+                _TopRow(),
+                const SizedBox(height: 12),
+                const _StatChips(),
+                const SizedBox(height: 22),
+                const _SpeechBubble('오늘도 같이 힘내볼까요?'),
+                const Spacer(),
+                _Cta(onTap: _pokeCharacter),
+                const SizedBox(height: FloatingTabBar.reservedSpace),
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '오늘의 운동, 나만의 속도로 귀엽게 차곡차곡',
-                style: TextStyle(fontSize: 14, color: OunColors.textMuted),
-              ),
-            ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('좋은 아침이에요',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: OunColors.textPrimary)),
+              SizedBox(height: 2),
+              Text('오늘도 나만의 속도로',
+                  style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
+            ],
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  color: OunColors.card,
-                  child: EmbedUnity(
-                    onMessageFromUnity: (msg) => _onUnityMessage(context, msg),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: OunColors.seed,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: _pokeCharacter,
-                child: const Text(
-                  '오늘 운동 기록하기',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-          ),
+        ),
+        const _CurrencyChip(amount: 1240),
+      ],
+    );
+  }
+}
+
+class _CurrencyChip extends StatelessWidget {
+  const _CurrencyChip({required this.amount});
+  final int amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: OunColors.background.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: OunColors.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.paid_rounded, size: 15, color: Color(0xFFE0A94B)),
+          const SizedBox(width: 5),
+          Text('$amount',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: OunColors.textPrimary)),
         ],
+      ),
+    );
+  }
+}
+
+class _StatChips extends StatelessWidget {
+  const _StatChips();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(child: _StatChip(value: '12일', label: '연속 기록')),
+        SizedBox(width: 7),
+        Expanded(child: _StatChip(value: '32분', label: '오늘 운동')),
+        SizedBox(width: 7),
+        Expanded(child: _StatChip(value: 'Lv.7', label: '지구력')),
+      ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      decoration: BoxDecoration(
+        color: OunColors.background.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: OunColors.cardBorder),
+      ),
+      child: Column(
+        children: [
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: OunColors.textPrimary)),
+          const SizedBox(height: 1),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: OunColors.textMuted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpeechBubble extends StatelessWidget {
+  const _SpeechBubble(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: OunColors.background.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: OunColors.cardBorder),
+          ),
+          child: Text(text,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: OunColors.textPrimary)),
+        ),
+        Transform.translate(
+          offset: const Offset(0, -4),
+          child: Transform.rotate(
+            angle: 0.785398,
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: OunColors.background.withValues(alpha: 0.88),
+                border: Border(
+                  right: BorderSide(color: OunColors.cardBorder),
+                  bottom: BorderSide(color: OunColors.cardBorder),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Cta extends StatelessWidget {
+  const _Cta({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: OunColors.seed,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        onPressed: onTap,
+        child: const Text('오늘 운동 기록하기',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       ),
     );
   }
