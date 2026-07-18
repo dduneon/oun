@@ -20,13 +20,14 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: tripo_mat_8fd59a77
+  m_Name: material
   m_Shader: {fileID: 4800000, guid: 60d646244f75ab84f8eb12819a6d87ff, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - TOON_OUTLINE_NORMAL
   m_InvalidKeywords:
+  - _
   - _NORMALMAP
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -76,7 +77,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: afe05768be1e04ac1a068851695d4dc0, type: 3}
+        m_Texture: {fileID: 2800000, guid: 0771e67adf06d4afea4a13aa6e3e349a, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MaskTex:
