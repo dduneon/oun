@@ -26,8 +26,31 @@ class OunApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  // Flutter → Unity: OunBridge 오브젝트의 React() 호출 → 캐릭터가 폴짝
+  void _pokeCharacter() {
+    sendToUnity('OunBridge', 'React', 'workout');
+  }
+
+  // Unity → Flutter: 캐릭터 반응 응답 수신
+  void _onUnityMessage(String message) {
+    debugPrint('Unity → Flutter: $message');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('캐릭터 반응: $message'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,10 +94,7 @@ class HomePage extends StatelessWidget {
                   child: Container(
                     color: const Color(0xFFF3E9DF),
                     child: EmbedUnity(
-                      onMessageFromUnity: (String message) {
-                        // Unity → Flutter 메시지 수신 (추후 상호작용에 사용)
-                        debugPrint('Unity → Flutter: $message');
-                      },
+                      onMessageFromUnity: _onUnityMessage,
                     ),
                   ),
                 ),
@@ -92,7 +112,7 @@ class HomePage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: _pokeCharacter,
                   child: const Text(
                     '오늘 운동 기록하기',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
