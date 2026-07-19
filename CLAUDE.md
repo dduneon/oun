@@ -18,7 +18,7 @@ oun/
 └── BUILD.md   UaaL build runbook — READ THIS before building
 ```
 
-The Flutter app embeds Unity as a library (`flutter_embed_unity`). Flutter renders ~70% of the app (navigation, feeds, shop, settings); Unity renders only the 3D character/room scene. **Server/state is always the source of truth; Unity only displays.**
+The Flutter app embeds Unity as a library (`flutter_embed_unity`). Flutter renders ~70% of the app (navigation, feeds, shop, settings); Unity renders only the 3D character scenes (home character + crew gathering). There is exactly **one** Unity engine/view (UaaL singleton), hosted app-level and reused by switching scenes — see "Flutter ↔ Unity". **Server/state is always the source of truth; Unity only displays.**
 
 ## Building & running — non-obvious, read `BUILD.md`
 
@@ -43,18 +43,19 @@ Any change under `unity/` (camera, materials, scripts, character) requires re-ex
 
 ## Flutter architecture (`app/lib`)
 
-- **Routing:** `go_router` `StatefulShellRoute.indexedStack` in `router.dart` — 5 bottom tabs (홈/기록/상점/크루/마이). IndexedStack keeps every tab (esp. the home Unity instance) alive across switches — do not replace with a rebuilding navigator; Unity only loads once and reloading is costly.
+- **Routing:** `go_router` `StatefulShellRoute.indexedStack` in `router.dart` — 5 bottom tabs (홈/기록/상점/크루/마이). IndexedStack keeps every tab alive across switches. The Unity view is **not** in a tab — it's an app-level host (see below), so it survives navigation regardless; Unity only loads once and reloading is costly.
 - **State:** Riverpod (`ProviderScope` in `main.dart`). Most screen data is currently hardcoded mock values awaiting real features/backend.
 - **Structure:** feature-first — `features/{home,record,shop,crew,my}/`, shared pieces in `shared/widgets/`, design tokens in `theme/app_theme.dart` (`OunColors` + `AppTheme`).
 - **Design system:** warm palette in `OunColors`. Background `#FDF6F0` (must match Unity camera background so the full-bleed character blends), soft cards `#F3E9DF`, list surfaces `#FFFDFB`, terracotta tab accent `#C47A45`.
 - **Bottom nav:** custom `FloatingTabBar` (floating frosted capsule, selected tab expands with a label) — not Material `NavigationBar`. `MainScaffold` uses `extendBody: true`; screens reserve `FloatingTabBar.reservedSpace` (+ safe area) at the bottom so content clears the floating bar. `PageScaffold` handles this for the non-home tabs.
-- **Home** is character-first: full-bleed `EmbedUnity` in a `Stack` with floating UI over it.
+- **Home** is character-first: the screen itself is **transparent** with floating UI; the 3D character shows through from the app-level `UnityHost` behind it (home no longer mounts its own `EmbedUnity`). Non-home tabs use `PageScaffold`'s opaque background to hide the Unity view.
 
 ## Flutter ↔ Unity messaging
 
-- Flutter → Unity: `sendToUnity('<GameObjectName>', '<Method>', '<msg>')`. The scene has an `OunBridge` GameObject (`unity/Assets/Scripts/OunBridge.cs`) whose `React(string)` is the entry point.
-- Unity → Flutter: `SendToFlutter.Send(...)` in C#, received via `EmbedUnity(onMessageFromUnity: ...)` in Dart.
-- Only **one** Unity instance is supported (plugin limitation) — it lives on the home tab. Don't add a second `EmbedUnity` (e.g. a live shop preview) without accounting for this.
+- **Single app-level host:** the one `EmbedUnity` lives in `UnityHost` (`app/lib/unity/unity_stage.dart`), placed behind the router in `app.dart` so it's mounted once for the app's lifetime. Only **one** Unity instance is supported (UaaL/plugin limitation) — never add a second `EmbedUnity`. To show 3D on another screen, switch scenes on the single view, don't spawn a new one.
+- **Scene switching:** `unitySceneProvider` (Riverpod) holds the current scene (`home`/`crew`). `UnityHost` sends `sendToUnity('OunBridge', 'LoadScene', 'home' | 'crew:<names>')` on change; `OunBridge.LoadScene` toggles `HomeRig`/`CrewRig` and reframes the camera. A route that wants a 3D scene sets the provider on enter and restores `home` on exit (see `CrewStageScreen` + the push-await in `crew_home.dart`). Screens that want Unity visible must be **transparent**; opaque screens hide it.
+- Flutter → Unity: `sendToUnity('<GameObjectName>', '<Method>', '<msg>')`. `OunBridge` (`unity/Assets/Scripts/OunBridge.cs`) is the entry point — `React(string)` (workout reaction) and `LoadScene(string)`.
+- Unity → Flutter: `SendToFlutter.Send(...)` in C#, received centrally by `UnityHost`'s `onMessageFromUnity`; app-wide toasts use `rootMessengerKey` (`shared/global_keys.dart`).
 
 ## Conventions
 
