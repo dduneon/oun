@@ -55,4 +55,43 @@ class ApiClient {
     final res = await _dio.get<Map<String, dynamic>>('/wallet');
     return res.data!['balance'] as int;
   }
+
+  /// POST /workouts → 운동 기록 제출. 검증·보상 결과({verified, reward, balance})를 돌려준다.
+  Future<WorkoutResult> createWorkout({
+    required String sport, // running | walking | weight | cycling | yoga | etc
+    required int durationSec,
+    int? distanceM,
+    int? steps,
+    String? bodyPart, // upper | lower | full | core
+    int? sets,
+    bool hasPhoto = false,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>('/workouts', data: {
+      'sport': sport,
+      'durationSec': durationSec,
+      'distanceM': ?distanceM,
+      'steps': ?steps,
+      'bodyPart': ?bodyPart,
+      'sets': ?sets,
+      'hasPhoto': hasPhoto,
+    });
+    final d = res.data!;
+    return WorkoutResult(
+      verified: d['verified'] as bool? ?? false,
+      reward: d['reward'] as int? ?? 0,
+      balance: d['balance'] as int? ?? 0,
+    );
+  }
+}
+
+/// POST /workouts 응답 요약.
+class WorkoutResult {
+  const WorkoutResult({
+    required this.verified,
+    required this.reward,
+    required this.balance,
+  });
+  final bool verified;
+  final int reward;
+  final int balance;
 }

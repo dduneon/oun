@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/providers.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
@@ -501,16 +503,29 @@ class _RecordRow extends StatelessWidget {
 
 /// 운동 기록 입력 바텀시트. 종목 선택 + 시간(분) + 강도 메모.
 /// 목업이라 저장은 스낵바로 확인만 하고 닫는다.
-class _RecordInputSheet extends StatefulWidget {
+class _RecordInputSheet extends ConsumerStatefulWidget {
   const _RecordInputSheet({this.preset, this.presetIcon});
   final String? preset;
   final IconData? presetIcon;
 
   @override
-  State<_RecordInputSheet> createState() => _RecordInputSheetState();
+  ConsumerState<_RecordInputSheet> createState() => _RecordInputSheetState();
 }
 
-class _RecordInputSheetState extends State<_RecordInputSheet> {
+class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
+  // 앱 종목/부위 라벨 → 서버 enum.
+  static const _sportApi = {
+    '러닝': 'running',
+    '걷기': 'walking',
+    '웨이트': 'weight',
+    '자전거': 'cycling',
+    '요가': 'yoga',
+    '기타': 'etc',
+  };
+  static const _bodyApi = {'상체': 'upper', '하체': 'lower', '전신': 'full', '코어': 'core'};
+
+  bool _saving = false;
+
   static const _types = [
     ('러닝', Icons.directions_run),
     ('걷기', Icons.directions_walk),
@@ -569,6 +584,47 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
         base = '$_type $_minutes분';
     }
     return _photoAttached ? '$base · 사진 인증' : base;
+  }
+
+  /// 서버에 운동 기록을 제출하고 홈 코인(walletProvider)을 갱신한다.
+  /// 서버가 꺼져 있어도 앱이 멈추지 않도록 실패는 조용히 안내만 한다.
+  Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final api = ref.read(apiClientProvider);
+    setState(() => _saving = true);
+
+    try {
+      await api.ensureSession();
+      final result = await api.createWorkout(
+        sport: _sportApi[_type] ?? 'etc',
+        durationSec: _minutes * 60,
+        distanceM: _metricKind == 'distance' ? (_distanceKm * 1000).round() : null,
+        steps: _metricKind == 'steps' ? _steps : null,
+        bodyPart: _metricKind == 'weight' ? _bodyApi[_bodyParts[_bodyPart]] : null,
+        sets: _metricKind == 'weight' ? _sets : null,
+        hasPhoto: _photoAttached,
+      );
+      // 홈 코인 등 지갑을 다시 읽어오게 한다.
+      ref.invalidate(walletProvider);
+      navigator.pop();
+      OunToast.showWith(
+        messenger,
+        result.verified
+            ? '$_summary 기록 · +${result.reward} 코인'
+            : '$_summary 기록했지만 인증되지 않았어요',
+        kind: result.verified ? OunToastKind.success : OunToastKind.info,
+        icon: result.verified ? Icons.paid_rounded : null,
+      );
+    } catch (_) {
+      // 서버 미기동/네트워크 실패: 기록 입력만 닫고 안내.
+      navigator.pop();
+      OunToast.showWith(
+        messenger,
+        '$_summary 기록 · 서버 연결 실패(오프라인)',
+        kind: OunToastKind.info,
+      );
+    }
   }
 
   @override
@@ -662,16 +718,7 @@ class _RecordInputSheetState extends State<_RecordInputSheet> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                 ),
-                onPressed: () {
-                  // pop 이후 context가 분리되므로 messenger를 먼저 확보한다.
-                  final messenger = ScaffoldMessenger.of(context);
-                  Navigator.of(context).pop();
-                  OunToast.showWith(
-                    messenger,
-                    '$_summary 기록했어요',
-                    kind: OunToastKind.success,
-                  );
-                },
+                onPressed: _saving ? null : _save,
                 child: const Text('저장하기',
                     style:
                         TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
