@@ -1,0 +1,347 @@
+// 오운(Oun) 데이터 모델 — 구현된 앱 화면 기준.
+// 재화는 CurrencyLedger에 append-only + 멱등키 + 트랜잭션으로만 증감(서버가 source of truth).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 유저 & 프로필
+// ─────────────────────────────────────────────────────────────
+
+enum Gender {
+  f // 여성 캐릭터
+  m // 남성 캐릭터
+}
+
+model User {
+  id          String   @id @default(cuid())
+  kakaoId     String?  @unique // 카카오 로그인 식별자 (dev 유저는 null)
+  nickname    String   @unique // @nickname (친구 추가·프로필)
+  displayName String
+  gender      Gender   @default(f)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ledger           CurrencyLedger[]
+  workouts         WorkoutLog[]
+  characterStat    CharacterStat?
+  characterMood    CharacterMood?
+  streak           Streak?
+  streakProtector  StreakProtector?
+  restDays         RestDay[]
+  userQuests       UserQuest[]
+  inventory        Inventory[]
+  equipped         Equipped[]
+  shopOrders       ShopOrder[]
+  userAchievements UserAchievement[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// 재화 원장 (절대 클라이언트에서 계산 금지)
+// ─────────────────────────────────────────────────────────────
+
+enum LedgerReason {
+  workout_reward
+  quest_reward
+  achievement
+  shop_purchase
+  rest_day
+  refund
+}
+
+model CurrencyLedger {
+  id             String       @id @default(cuid())
+  userId         String
+  delta          Int // 증감 (+획득 / -차감)
+  balanceAfter   Int // 이 트랜잭션 직후 잔액 = 최신 값이 현재 잔액
+  reason         LedgerReason
+  refType        String? // 연관 엔티티 종류 (workout_log / quest / shop_order ...)
+  refId          String? // 연관 엔티티 id
+  idempotencyKey String       @unique // 중복 보상/차감 차단
+  createdAt      DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 운동 기록 & 검증
+// ─────────────────────────────────────────────────────────────
+
+enum Sport {
+  running
+  walking
+  weight
+  cycling
+  yoga
+  etc
+}
+
+enum BodyPart {
+  upper
+  lower
+  full
+  core
+}
+
+enum WorkoutSource {
+  manual
+  healthkit
+  health_connect
+}
+
+enum VerifyStatus {
+  pending
+  verified
+  rejected
+}
+
+model WorkoutLog {
+  id           String        @id @default(cuid())
+  userId       String
+  sport        Sport
+  durationSec  Int
+  distanceM    Int? // 러닝/자전거
+  steps        Int? // 걷기
+  bodyPart     BodyPart? // 웨이트
+  sets         Int? // 웨이트
+  calories     Int?
+  photoRef     String? // 운동 인증 사진 (S3 키 등, 현재는 존재 여부만)
+  source       WorkoutSource @default(manual)
+  verifyStatus VerifyStatus  @default(pending)
+  rejectReason String?
+  performedAt  DateTime // 운동 수행 시각 (mood/캘린더 기준)
+  verifiedAt   DateTime?
+  createdAt    DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, performedAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 캐릭터 스탯 & mood (살아있는 캐릭터 A)
+// ─────────────────────────────────────────────────────────────
+
+// 종목별 파생 스탯을 경험치(포인트)로 누적. 레벨은 서버가 산출.
+model CharacterStat {
+  userId    String   @id
+  endurance Int      @default(0) // 러닝/걷기/자전거
+  strength  Int      @default(0) // 웨이트
+  agility   Int      @default(0) // 자전거 등
+  balance   Int      @default(0) // 요가
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Mood {
+  energetic
+  happy
+  neutral
+  hungry
+  sleepy
+}
+
+// mood는 lastWorkoutAt·streak로 산출되는 파생값. 조회 시 재계산 후 캐시.
+model CharacterMood {
+  userId        String   @id
+  mood          Mood     @default(neutral)
+  lastWorkoutAt DateTime?
+  streakActive  Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Care System (스트릭 / 보호권 / 휴식일)
+// ─────────────────────────────────────────────────────────────
+
+model Streak {
+  userId         String    @id
+  current        Int       @default(0)
+  longest        Int       @default(0)
+  lastActiveDate DateTime? // 마지막으로 스트릭이 이어진 날 (날짜 단위)
+  protectedUntil DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StreakProtector {
+  userId    String   @id
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RestDay {
+  id       String   @id @default(cuid())
+  userId   String
+  date     DateTime // 날짜 단위 (UTC 00:00)
+  rewarded Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 퀘스트 (일일/주간/도전)
+// ─────────────────────────────────────────────────────────────
+
+enum QuestKind {
+  daily
+  weekly
+  challenge
+}
+
+// 퀘스트 정의 (시드). 진행도 증가를 어떤 이벤트에 걸지 trigger로 표현.
+model QuestDef {
+  id        String    @id @default(cuid())
+  key       String    @unique // 예: daily_workout, weekly_3_workouts
+  kind      QuestKind
+  title     String
+  sub       String
+  reward    Int // 보상 코인
+  goal      Int
+  trigger   String // workout_logged | workout_minutes | workout_photo | cheer_sent | streak_days
+  icon      String? // 앱 아이콘 매핑용 키
+  sortOrder Int       @default(0)
+
+  userQuests UserQuest[]
+}
+
+enum QuestState {
+  in_progress
+  claimable
+  claimed
+}
+
+// 유저별 퀘스트 진행. periodKey로 리셋 주기를 구분(일일=날짜, 주간=ISO주, 도전=all).
+model UserQuest {
+  id         String     @id @default(cuid())
+  userId     String
+  questDefId String
+  periodKey  String // 예: 2026-07-20 / 2026-W29 / all
+  progress   Int        @default(0)
+  state      QuestState @default(in_progress)
+  claimedAt  DateTime?
+  updatedAt  DateTime   @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questDef QuestDef @relation(fields: [questDefId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questDefId, periodKey])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 상점 / 인벤토리 / 장착
+// ─────────────────────────────────────────────────────────────
+
+enum ItemCategory {
+  clothing // 의상
+  hair // 헤어
+  prop // 소품
+  furniture // 가구
+}
+
+enum ItemRarity {
+  common
+  rare
+  epic
+}
+
+// 모든 아이템은 기능 스탯 0 (순수 치장). hasSpecialFx는 시각 효과일 뿐.
+model Item {
+  key           String       @id // 예: hood_daily
+  category      ItemCategory
+  name          String
+  price         Int // 운동 재화 단위 (무과금)
+  rarity        ItemRarity   @default(common)
+  hasSpecialFx  Boolean      @default(false)
+  addressableKey String? // Unity Addressables 원격 에셋 키
+  colorHex      String? // 앱 목업 카드 색 (에셋 전까지 표현용)
+  sortOrder     Int          @default(0)
+
+  inventory  Inventory[]
+  equipped   Equipped[]
+  shopOrders ShopOrder[]
+}
+
+model Inventory {
+  id         String   @id @default(cuid())
+  userId     String
+  itemKey    String
+  acquiredAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemKey], references: [key], onDelete: Cascade)
+
+  @@unique([userId, itemKey])
+  @@index([userId])
+}
+
+// 슬롯당 하나 장착. slot은 카테고리 기준(의상/헤어/소품).
+model Equipped {
+  id      String @id @default(cuid())
+  userId  String
+  slot    String
+  itemKey String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemKey], references: [key], onDelete: Cascade)
+
+  @@unique([userId, slot])
+}
+
+model ShopOrder {
+  id             String   @id @default(cuid())
+  userId         String
+  itemKey        String
+  price          Int
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemKey], references: [key], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// 업적
+// ─────────────────────────────────────────────────────────────
+
+model AchievementDef {
+  id        String  @id @default(cuid())
+  key       String  @unique // 예: first_step, week_perfect
+  name      String
+  condition String
+  trigger   String // 조건 판정 키 (first_workout | streak_7 | photo_10 ...)
+  threshold Int     @default(1)
+  icon      String?
+  sortOrder Int     @default(0)
+
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id               String   @id @default(cuid())
+  userId           String
+  achievementDefId String
+  earnedAt         DateTime @default(now())
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement AchievementDef @relation(fields: [achievementDefId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementDefId])
+}

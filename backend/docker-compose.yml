@@ -1,0 +1,32 @@
+# 오운 로컬 개발 인프라. Postgres는 필수, Redis는 다음 단계(세션/실시간) 대비로 띄워둔다.
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: oun-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oun
+      POSTGRES_PASSWORD: oun_dev_pw
+      POSTGRES_DB: oun
+    ports:
+      - '5432:5432'
+    volumes:
+      - oun_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U oun -d oun']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: oun-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - oun_redisdata:/data
+
+volumes:
+  oun_pgdata:
+  oun_redisdata:
