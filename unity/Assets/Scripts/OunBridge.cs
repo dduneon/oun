@@ -28,6 +28,9 @@ public class OunBridge : MonoBehaviour
     [Tooltip("크루: 여러 캐릭터가 모인 그룹")]
     public GameObject crewRig;
 
+    [Tooltip("크루원 캐릭터를 인원수만큼 스폰하는 스포너(CrewRig에 부착)")]
+    public CrewStage crewStage;
+
     [Tooltip("전환 시 위치·화각을 바꿀 카메라")]
     public Camera sceneCamera;
 
@@ -58,16 +61,51 @@ public class OunBridge : MonoBehaviour
         if (homeRig != null) homeRig.SetActive(!crew);
         if (crewRig != null) crewRig.SetActive(crew);
 
+        // 크루 씬이면 크루원 목록("crew:이름,이름...")을 파싱해 인원수만큼 스폰.
+        if (crew && crewStage != null)
+        {
+            string[] members = ParseCrewMembers(arg);
+            crewStage.Spawn(members);
+        }
+        else if (!crew && crewStage != null)
+        {
+            crewStage.Clear();
+        }
+
         if (sceneCamera != null)
         {
             var t = sceneCamera.transform;
-            t.localPosition = crew ? crewCamPos : homeCamPos;
-            t.localEulerAngles = crew ? crewCamEuler : homeCamEuler;
-            sceneCamera.fieldOfView = crew ? crewCamFov : homeCamFov;
+            if (crew)
+            {
+                // 인원수가 많을수록 카메라를 조금씩 뒤로 빼 다 담는다.
+                var pos = crewCamPos;
+                if (crewStage != null)
+                {
+                    int n = ParseCrewMembers(arg).Length;
+                    pos.z = crewStage.RecommendedCamZ(n, crewCamPos.z);
+                }
+                t.localPosition = pos;
+                t.localEulerAngles = crewCamEuler;
+                sceneCamera.fieldOfView = crewCamFov;
+            }
+            else
+            {
+                t.localPosition = homeCamPos;
+                t.localEulerAngles = homeCamEuler;
+                sceneCamera.fieldOfView = homeCamFov;
+            }
         }
 
         // Flutter에 준비 완료 알림(로딩 오버레이 제거용)
         SendToFlutter.Send(crew ? "crew_ready" : "home_ready");
+    }
+
+    // "crew:지민,현우,서연" → ["지민","현우","서연"]
+    static string[] ParseCrewMembers(string arg)
+    {
+        int colon = arg.IndexOf(':');
+        if (colon < 0 || colon + 1 >= arg.Length) return new string[0];
+        return arg.Substring(colon + 1).Split(',');
     }
 
     // Flutter가 호출하는 메서드. public + string 파라미터 1개여야 UnitySendMessage로 호출된다.
