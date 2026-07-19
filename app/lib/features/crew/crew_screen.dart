@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
+import 'crew_create_sheet.dart';
+import 'crew_home.dart';
 import 'friend_home_screen.dart';
 
 /// 소셜 탭: 상단 세그먼트로 친구 / 크루 통합. 랭킹 없이 응원 중심 피드.
@@ -15,6 +17,34 @@ class CrewScreen extends StatefulWidget {
 
 class _CrewScreenState extends State<CrewScreen> {
   int _segment = 0; // 0: 친구, 1: 크루
+  // 여러 크루에 속할 수 있으므로 목록으로 관리.
+  final List<Crew> _crews = [];
+
+  Future<void> _createCrew() async {
+    final result = await showCrewCreateSheet(context);
+    if (result == null) return;
+    final crew = Crew(
+      name: result.$1,
+      goal: result.$2,
+      members: defaultCrewMembers(),
+    );
+    setState(() => _crews.add(crew));
+    if (mounted) {
+      OunToast.show(context, '${crew.name} 크루를 만들었어요',
+          kind: OunToastKind.success);
+    }
+  }
+
+  void _openCrew(Crew crew) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CrewHomeScreen(
+          crew: crew,
+          onLeave: () => setState(() => _crews.remove(crew)),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +56,48 @@ class _CrewScreenState extends State<CrewScreen> {
           onChanged: (v) => setState(() => _segment = v),
         ),
         const SizedBox(height: 14),
-        if (_segment == 0) ..._friends else _crewEmpty,
+        if (_segment == 0)
+          ..._friends
+        else if (_crews.isEmpty)
+          _crewEmpty
+        else
+          ..._crewList,
       ],
     );
   }
+
+  List<Widget> get _crewList => [
+        for (final c in _crews)
+          CrewCard(crew: c, onTap: () => _openCrew(c)),
+        const SizedBox(height: 4),
+        // 새 크루 만들기(여러 크루 가입 가능)
+        Material(
+          color: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: OunColors.cardBorder),
+          ),
+          child: InkWell(
+            onTap: _createCrew,
+            borderRadius: BorderRadius.circular(14),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 13),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_rounded, size: 19, color: OunColors.tabAccent),
+                  SizedBox(width: 7),
+                  Text('새 크루 만들기',
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: OunColors.tabAccent)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ];
 
   List<Widget> get _friends => [
         // 친구 추가 진입점(검색 필드 모양, 탭하면 추가 플로우 예정)
@@ -93,7 +161,7 @@ class _CrewScreenState extends State<CrewScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
               ),
-              onPressed: () => OunToast.show(context, '크루 만들기는 곧 열려요'),
+              onPressed: _createCrew,
               child: const Text('크루 만들기',
                   style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
             ),
