@@ -21,12 +21,53 @@ public class OunBridge : MonoBehaviour
     [Tooltip("점프에 걸리는 시간(초)")]
     public float jumpDuration = 0.45f;
 
+    [Header("씬 전환 (홈 ↔ 크루)")]
+    [Tooltip("홈: 단일 캐릭터 그룹")]
+    public GameObject homeRig;
+
+    [Tooltip("크루: 여러 캐릭터가 모인 그룹")]
+    public GameObject crewRig;
+
+    [Tooltip("전환 시 위치·화각을 바꿀 카메라")]
+    public Camera sceneCamera;
+
+    [Header("홈 카메라")]
+    public Vector3 homeCamPos = new Vector3(0f, 1.25f, -0.55f);
+    public Vector3 homeCamEuler = new Vector3(20f, 180f, 0f);
+    public float homeCamFov = 54f;
+
+    [Header("크루 카메라 (여러 캐릭터가 보이도록 뒤로)")]
+    public Vector3 crewCamPos = new Vector3(0f, 1.6f, -3.5f);
+    public Vector3 crewCamEuler = new Vector3(12f, 180f, 0f);
+    public float crewCamFov = 45f;
+
     bool isReacting;
 
     void Awake()
     {
         if (character == null) character = transform;
         if (animator == null) animator = character.GetComponentInChildren<Animator>();
+    }
+
+    // Flutter가 씬 전환 시 호출: "home" 또는 "crew:이름,이름..." 형태.
+    public void LoadScene(string arg)
+    {
+        bool crew = !string.IsNullOrEmpty(arg) && arg.StartsWith("crew");
+        Debug.Log("LoadScene: " + arg);
+
+        if (homeRig != null) homeRig.SetActive(!crew);
+        if (crewRig != null) crewRig.SetActive(crew);
+
+        if (sceneCamera != null)
+        {
+            var t = sceneCamera.transform;
+            t.localPosition = crew ? crewCamPos : homeCamPos;
+            t.localEulerAngles = crew ? crewCamEuler : homeCamEuler;
+            sceneCamera.fieldOfView = crew ? crewCamFov : homeCamFov;
+        }
+
+        // Flutter에 준비 완료 알림(로딩 오버레이 제거용)
+        SendToFlutter.Send(crew ? "crew_ready" : "home_ready");
     }
 
     // Flutter가 호출하는 메서드. public + string 파라미터 1개여야 UnitySendMessage로 호출된다.
