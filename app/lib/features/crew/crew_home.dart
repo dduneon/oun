@@ -5,7 +5,7 @@ import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 import '../../unity/unity_stage.dart';
 import 'crew_feed.dart';
-import 'crew_quests.dart';
+import 'crew_level.dart';
 import 'friend_home_screen.dart';
 
 /// 크루원 한 명(목데이터).
@@ -25,20 +25,21 @@ class CrewMember {
 
 /// 가입한 크루 하나. 여러 크루에 속할 수 있어 목록으로 관리한다.
 class Crew {
-  Crew({required this.name, required this.goal, required this.members})
-      : posts = demoCrewPosts(),
-        quests = demoCrewQuests();
+  Crew({
+    required this.name,
+    required this.goal,
+    required this.members,
+    this.totalWorkouts = 148,
+  }) : posts = demoCrewPosts();
   final String name;
   final int goal; // 1인당 주간 목표
   final List<CrewMember> members;
   final List<CrewPost> posts;
-  final List<CrewQuest> quests;
-
-  /// 내가 방장인지(목업: '나'가 leader).
-  bool get isLeader => members.any((m) => m.name == '나' && m.leader);
+  final int totalWorkouts; // 크루 누적 운동 횟수 → 레벨 계산
 
   int get weekDone => members.fold(0, (s, m) => s + m.weekCount);
   int get target => goal * members.length;
+  CrewLevelInfo get levelInfo => crewLevelOf(totalWorkouts);
 }
 
 /// 새 크루의 기본 멤버(목데이터). 실제로는 생성자 본인만 있고 초대로 늘어난다.
@@ -146,7 +147,7 @@ class CrewHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
-  int _tab = 0; // 0: 피드, 1: 퀘스트, 2: 크루원, 3: 현황
+  int _tab = 0; // 0: 피드, 1: 크루원, 2: 현황, 3: 크루 정보
 
   static const _stageHeight = 210.0;
   final _stageKey = GlobalKey();
@@ -195,11 +196,32 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
                         size: 18, color: OunColors.textPrimary),
                   ),
                 Expanded(
-                  child: Text(crew.name,
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: OunColors.textPrimary)),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(crew.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: OunColors.textPrimary)),
+                      ),
+                      const SizedBox(width: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: OunColors.tabAccent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text('Lv.${crew.levelInfo.level}',
+                            style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: OunColors.onTabAccent)),
+                      ),
+                    ],
+                  ),
                 ),
                 Container(
                   margin: const EdgeInsets.only(right: 14),
@@ -267,11 +289,11 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
       case 0:
         return _FeedTab(crew: crew);
       case 1:
-        return CrewQuestsTab(quests: crew.quests, isLeader: crew.isLeader);
-      case 2:
         return _MembersTab(crew: crew);
+      case 2:
+        return _StatusTab(crew: crew);
       default:
-        return _StatusTab(
+        return _CrewInfoTab(
             crew: crew,
             onLeave: () {
               widget.onLeave();
@@ -287,7 +309,7 @@ class _TabBar extends StatelessWidget {
   final int value;
   final ValueChanged<int> onChanged;
 
-  static const _labels = ['피드', '퀘스트', '크루원', '현황'];
+  static const _labels = ['피드', '크루원', '현황', '크루 정보'];
 
   @override
   Widget build(BuildContext context) {
@@ -372,11 +394,10 @@ class _MembersTab extends StatelessWidget {
   }
 }
 
-/// 현황 탭: 크루 공동 목표 + 관리.
+/// 현황 탭: 크루 공동 목표 + 크루원들이 이번 주 얼마나 운동했는지.
 class _StatusTab extends StatelessWidget {
-  const _StatusTab({required this.crew, required this.onLeave});
+  const _StatusTab({required this.crew});
   final Crew crew;
-  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -479,6 +500,25 @@ class _StatusTab extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// 크루 정보 탭: 크루 레벨 + 레벨 보상 + 크루 나가기.
+class _CrewInfoTab extends StatelessWidget {
+  const _CrewInfoTab({required this.crew, required this.onLeave});
+  final Crew crew;
+  final VoidCallback onLeave;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
+      children: [
+        CrewLevelCard(info: crew.levelInfo),
+        const SizedBox(height: 12),
+        CrewLevelRewardList(level: crew.levelInfo.level),
         const SizedBox(height: 20),
         Center(
           child: TextButton(
