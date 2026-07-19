@@ -37,6 +37,19 @@ final unitySceneProvider =
     NotifierProvider<UnitySceneController, UnitySceneState>(
         UnitySceneController.new);
 
+/// Unity 뷰가 차지할 화면 영역. null이면 전체 화면(홈), 사각형이면 그 박스에만
+/// 렌더(크루 무대처럼 일부 영역에 딱 맞춤).
+class UnityViewportController extends Notifier<Rect?> {
+  @override
+  Rect? build() => null;
+
+  void setRect(Rect? r) => state = r;
+}
+
+final unityViewportProvider =
+    NotifierProvider<UnityViewportController, Rect?>(
+        UnityViewportController.new);
+
 /// 앱 전역에 단 하나 존재하는 Unity 뷰.
 ///
 /// 재마운트하지 않고(= "한 번만 로드" 규칙 유지) 씬만 메시지로 전환한다.
@@ -81,6 +94,10 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   Widget build(BuildContext context) {
     ref.listen<UnitySceneState>(
         unitySceneProvider, (prev, next) => _apply(next));
-    return EmbedUnity(onMessageFromUnity: _onMessage);
+    final rect = ref.watch(unityViewportProvider);
+    final view = EmbedUnity(onMessageFromUnity: _onMessage);
+    // rect == null: 전체 화면. rect 지정 시 그 박스에만 렌더(나머지 투명).
+    if (rect == null) return view;
+    return Stack(children: [Positioned.fromRect(rect: rect, child: view)]);
   }
 }
