@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
+import '../quest/quest_screen.dart';
+import 'achievements_screen.dart';
 
 /// 마이룸·프로필·월말 리포트·설정.
 class MyScreen extends StatelessWidget {
@@ -62,12 +64,30 @@ class MyScreen extends StatelessWidget {
             border: Border.all(color: OunColors.cardBorder),
           ),
           child: Column(
-            children: const [
-              _MenuItem(Icons.cottage_outlined, '마이룸 꾸미기'),
-              _MenuItem(Icons.description_outlined, '월말 리포트'),
-              _MenuItem(Icons.shield_outlined, '기록 보호권 · 2개'),
-              _MenuItem(Icons.notifications_outlined, '알림 설정'),
-              _MenuItem(Icons.settings_outlined, '설정', last: true),
+            children: [
+              _MenuItem(
+                Icons.flag_outlined,
+                '퀘스트',
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const QuestScreen()),
+                ),
+              ),
+              _MenuItem(
+                Icons.emoji_events_outlined,
+                '업적',
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const AchievementsScreen()),
+                ),
+              ),
+              const _MenuItem(Icons.cottage_outlined, '마이룸 꾸미기'),
+              const _MenuItem(Icons.description_outlined, '월말 리포트'),
+              const _MenuItem(Icons.shield_outlined, '기록 보호권 · 2개'),
+              const _MenuItem(Icons.notifications_outlined, '알림 설정'),
+              const _MenuItem(Icons.settings_outlined, '설정', last: true),
             ],
           ),
         ),
@@ -94,17 +114,20 @@ class MyScreen extends StatelessWidget {
 }
 
 class _MenuItem extends StatelessWidget {
-  const _MenuItem(this.icon, this.label, {this.last = false});
+  const _MenuItem(this.icon, this.label, {this.last = false, this.onTap});
   final IconData icon;
   final String label;
   final bool last;
+  final void Function(BuildContext)? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => OunToast.show(context, '$label · 준비 중이에요'),
+        onTap: () => onTap != null
+            ? onTap!(context)
+            : OunToast.show(context, '$label · 준비 중이에요'),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
           decoration: BoxDecoration(

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/widgets/floating_tab_bar.dart';
 import '../../theme/app_theme.dart';
+import '../quest/quest_screen.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
 /// 상단은 인사·코인으로 최소화해 3D 캐릭터에 무대를 내주고,
@@ -108,8 +109,54 @@ class _TopRow extends StatelessWidget {
             ],
           ),
         ),
+        const _QuestButton(),
+        const SizedBox(width: 7),
         const _CoinPill(amount: '1,240'),
       ],
+    );
+  }
+}
+
+/// 퀘스트 진입 버튼. 받을 보상이 있으면 점 배지를 띄운다(목업: 항상 표시).
+class _QuestButton extends StatelessWidget {
+  const _QuestButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: OunColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: OunColors.cardBorder),
+      ),
+      child: InkWell(
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute<void>(builder: (_) => const QuestScreen()),
+        ),
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 34,
+          height: 30,
+          child: Stack(
+            children: [
+              const Center(
+                child: Icon(Icons.flag_rounded,
+                    size: 16, color: OunColors.tabAccent),
+              ),
+              Positioned(
+                top: 5,
+                right: 6,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                      color: Color(0xFFD98A88), shape: BoxShape.circle),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
