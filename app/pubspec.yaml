@@ -38,6 +38,7 @@ dependencies:
   flutter_embed_unity_6000_0_android: ^2.0.0
   flutter_riverpod: ^3.3.2
   go_router: ^17.3.0
+  dio: ^5.7.0
 
 dev_dependencies:
   flutter_test:

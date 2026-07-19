@@ -2,8 +2,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_embed_unity/flutter_embed_unity.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../shared/api/providers.dart';
 import '../../shared/widgets/floating_tab_bar.dart';
 import '../../theme/app_theme.dart';
 import '../quest/quest_screen.dart';
@@ -111,7 +113,7 @@ class _TopRow extends StatelessWidget {
         ),
         const _QuestButton(),
         const SizedBox(width: 7),
-        const _CoinPill(amount: '1,240'),
+        const _CoinPill(),
       ],
     );
   }
@@ -161,12 +163,27 @@ class _QuestButton extends StatelessWidget {
   }
 }
 
-class _CoinPill extends StatelessWidget {
-  const _CoinPill({required this.amount});
-  final String amount;
+/// 코인 잔액 필. 서버 `GET /wallet` 값을 표시하고, 로딩/오프라인 시엔
+/// 마지막 목업 값('1,240')으로 폴백한다. (MVP 단일 연동 흐름)
+class _CoinPill extends ConsumerWidget {
+  const _CoinPill();
+
+  static String _format(int n) {
+    final s = n.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final amount = ref.watch(walletProvider).maybeWhen(
+          data: _format,
+          orElse: () => '1,240',
+        );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
