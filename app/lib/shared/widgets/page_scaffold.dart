@@ -20,11 +20,14 @@ class PageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomPad =
         MediaQuery.viewPaddingOf(context).bottom + FloatingTabBar.reservedSpace;
-    return SafeArea(
-      bottom: false,
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(18, 12, 18, bottomPad),
-        children: [
+    // 불투명 배경으로 전역 Unity 뷰를 가린다(홈만 투명).
+    return ColoredBox(
+      color: OunColors.background,
+      child: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(18, 12, 18, bottomPad),
+          children: [
           Row(
             children: [
               Expanded(
@@ -42,7 +45,8 @@ class PageScaffold extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           ...children,
-        ],
+          ],
+        ),
       ),
     );
   }

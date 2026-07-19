@@ -5,27 +5,18 @@ import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/widgets/floating_tab_bar.dart';
-import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
 /// 상단은 인사·코인으로 최소화해 3D 캐릭터에 무대를 내주고,
 /// 하단 프로스티드 카드 하나에 오늘의 스탯 + CTA를 모은다.
+///
+/// Unity 뷰 자체는 앱 전역 [UnityHost]가 화면 뒤에 렌더한다. 홈 화면은
+/// 투명하게 두어 그 캐릭터가 비쳐 보이고, 그 위에 UI만 얹는다.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   void _pokeCharacter() => sendToUnity('OunBridge', 'React', 'workout');
-
-  void _onUnityMessage(BuildContext context, String message) {
-    debugPrint('Unity → Flutter: $message');
-    OunToast.show(
-      context,
-      '오운이가 반응했어요!',
-      kind: OunToastKind.cheer,
-      icon: Icons.pets_rounded,
-      duration: const Duration(seconds: 1),
-    );
-  }
 
   static String _greeting() {
     final h = DateTime.now().hour;
@@ -39,12 +30,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 풀블리드 캐릭터
-        Positioned.fill(
-          child: EmbedUnity(
-            onMessageFromUnity: (m) => _onUnityMessage(context, m),
-          ),
-        ),
+        // 캐릭터는 앱 전역 UnityHost가 이 투명 화면 뒤에 렌더한다.
         // 하단 그라데이션 스크림: 캐릭터 하반신이 배경 바닥으로 부드럽게
         // 녹아들도록 해, 카드에 다리가 딱 잘리는 느낌을 없앤다.
         Positioned(

@@ -22,6 +22,9 @@ class MainScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
+      // 투명: 홈 탭(투명 화면)에서는 뒤의 Unity가 비치고,
+      // 다른 탭은 각 화면(PageScaffold)이 불투명 배경으로 가린다.
+      backgroundColor: Colors.transparent,
       body: navigationShell,
       bottomNavigationBar: FloatingTabBar(
         currentIndex: navigationShell.currentIndex,
