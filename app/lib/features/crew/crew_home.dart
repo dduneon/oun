@@ -354,6 +354,8 @@ class _FeedTab extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
           children: [
+            _ComposeBar(crewId: crewId),
+            const SizedBox(height: 12),
             for (final p in posts)
               CrewPostCard(
                 post: p,
@@ -366,16 +368,50 @@ class _FeedTab extends ConsumerWidget {
                   ref.invalidate(crewFeedProvider(crewId));
                 },
               ),
-            const SizedBox(height: 4),
-            Center(
-              child: Text(
-                  posts.isEmpty
-                      ? '아직 글이 없어요 · 운동을 기록하면 크루에 공유돼요'
-                      : '운동을 기록하면 크루에 공유돼요',
-                  style: const TextStyle(
-                      fontSize: 11.5, color: OunColors.textFaint)),
-            ),
+            if (posts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 30),
+                child: Center(
+                  child: Text('아직 글이 없어요 · 운동 기록을 태그해 첫 글을 올려보세요',
+                      style: TextStyle(
+                          fontSize: 11.5, color: OunColors.textFaint)),
+                ),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 피드 상단 글쓰기 진입 바.
+class _ComposeBar extends ConsumerWidget {
+  const _ComposeBar({required this.crewId});
+  final String crewId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Material(
+      color: OunColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: OunColors.cardBorder),
+      ),
+      child: InkWell(
+        onTap: () => showCrewPostComposer(context, crewId),
+        borderRadius: BorderRadius.circular(14),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 17, color: OunColors.tabAccent),
+              SizedBox(width: 9),
+              Text('오늘 운동을 공유해 보세요',
+                  style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
+              Spacer(),
+              Icon(Icons.add_rounded, size: 18, color: OunColors.tabAccent),
+            ],
+          ),
         ),
       ),
     );

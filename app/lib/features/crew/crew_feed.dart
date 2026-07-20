@@ -7,6 +7,223 @@ import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
+/// 크루 피드 글쓰기 시트를 띄운다. 성공 시 true. 운동 태그는 선택.
+Future<bool> showCrewPostComposer(BuildContext context, String crewId) async {
+  final ok = await showModalBottomSheet<bool>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _PostComposer(crewId: crewId),
+  );
+  return ok ?? false;
+}
+
+class _PostComposer extends ConsumerStatefulWidget {
+  const _PostComposer({required this.crewId});
+  final String crewId;
+
+  @override
+  ConsumerState<_PostComposer> createState() => _PostComposerState();
+}
+
+class _PostComposerState extends ConsumerState<_PostComposer> {
+  final _message = TextEditingController();
+  String? _taggedId; // 선택한 운동 id (없으면 글만)
+  bool _posting = false;
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  bool get _canPost =>
+      (_message.text.trim().isNotEmpty || _taggedId != null) && !_posting;
+
+  Future<void> _post() async {
+    if (!_canPost) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    setState(() => _posting = true);
+    try {
+      await ref.read(apiClientProvider).createCrewPost(
+            widget.crewId,
+            workoutLogId: _taggedId,
+            message: _message.text.trim(),
+          );
+      ref.invalidate(crewFeedProvider(widget.crewId));
+      ref.invalidate(crewDetailProvider(widget.crewId));
+      ref.invalidate(crewsProvider);
+      navigator.pop(true);
+      OunToast.showWith(messenger, '크루에 공유했어요', kind: OunToastKind.success);
+    } catch (_) {
+      setState(() => _posting = false);
+      OunToast.showWith(messenger, '글 등록에 실패했어요', kind: OunToastKind.info);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final recent = ref.watch(recentWorkoutsProvider).value ?? const [];
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: OunColors.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                    color: OunColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const Text('크루에 글 쓰기',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _message,
+              onChanged: (_) => setState(() {}),
+              maxLength: 300,
+              maxLines: 3,
+              minLines: 2,
+              style:
+                  const TextStyle(fontSize: 14, color: OunColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: '오늘 운동 어땠나요?',
+                hintStyle: const TextStyle(color: OunColors.textFaint),
+                counterText: '',
+                filled: true,
+                fillColor: OunColors.surface,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: OunColors.cardBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: OunColors.tabAccent),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('운동 기록 태그 (선택)',
+                style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
+            const SizedBox(height: 8),
+            if (recent.isEmpty)
+              const Text('태그할 운동 기록이 아직 없어요',
+                  style:
+                      TextStyle(fontSize: 12, color: OunColors.textFaint))
+            else
+              SizedBox(
+                height: 62,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: recent.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final w = recent[i];
+                    final selected = _taggedId == w.id;
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(
+                          () => _taggedId = selected ? null : w.id),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? OunColors.tabAccent
+                              : OunColors.surface,
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                              color: selected
+                                  ? OunColors.tabAccent
+                                  : OunColors.cardBorder),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                                sportIcons[w.sport] ??
+                                    Icons.sports_gymnastics,
+                                size: 16,
+                                color: selected
+                                    ? OunColors.onTabAccent
+                                    : OunColors.tabAccent),
+                            const SizedBox(width: 7),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(workoutChipLabel(w),
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: selected
+                                            ? OunColors.onTabAccent
+                                            : OunColors.textPrimary)),
+                                Text(relativeDay(w.performedAt),
+                                    style: TextStyle(
+                                        fontSize: 9.5,
+                                        color: selected
+                                            ? OunColors.onTabAccent
+                                            : OunColors.textFaint)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: OunColors.tabAccent,
+                  foregroundColor: OunColors.onTabAccent,
+                  disabledBackgroundColor: OunColors.cardBorder,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: _canPost ? _post : null,
+                child: _posting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.4, color: OunColors.onTabAccent))
+                    : const Text('올리기',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 피드 목록의 글 카드. (서버 CrewPostData)
 class CrewPostCard extends ConsumerStatefulWidget {
   const CrewPostCard({super.key, required this.post, required this.onTap});

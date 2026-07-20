@@ -626,19 +626,12 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
   // 운동 인증 사진(목업: 실제 이미지 대신 첨부 여부만 관리).
   bool _photoAttached = false;
   bool _saving = false;
-  final _message = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     final i = _types.indexWhere((t) => t.$1 == widget.preset);
     _selected = i < 0 ? 0 : i;
-  }
-
-  @override
-  void dispose() {
-    _message.dispose();
-    super.dispose();
   }
 
   String get _type => _types[_selected].$1;
@@ -692,7 +685,6 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
         bodyPart: _metricKind == 'weight' ? _bodyApi[_bodyParts[_bodyPart]] : null,
         sets: _metricKind == 'weight' ? _sets : null,
         hasPhoto: _photoAttached,
-        message: _message.text.trim(),
       );
       invalidateAfterWorkout(ref);
       navigator.pop();
@@ -786,32 +778,6 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
                   max: 180,
                   divisions: 35,
                   onChanged: (v) => setState(() => _minutes = v.round()),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const _FieldLabel('크루에 한마디 (선택)'),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _message,
-                maxLength: 120,
-                style: const TextStyle(
-                    fontSize: 13.5, color: OunColors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: '예: 오늘 한강 뛰었어요 🌊',
-                  hintStyle: const TextStyle(color: OunColors.textFaint),
-                  counterText: '',
-                  filled: true,
-                  fillColor: OunColors.surface,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: OunColors.cardBorder),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: OunColors.tabAccent),
-                  ),
                 ),
               ),
               const SizedBox(height: 16),

@@ -94,7 +94,6 @@ class ApiClient {
     String? bodyPart,
     int? sets,
     bool hasPhoto = false,
-    String? message,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>('/workouts', data: {
       'sport': sport,
@@ -104,7 +103,6 @@ class ApiClient {
       'bodyPart': ?bodyPart,
       'sets': ?sets,
       'hasPhoto': hasPhoto,
-      if (message != null && message.isNotEmpty) 'message': message,
     });
     final d = res.data!;
     return WorkoutResult(
@@ -241,6 +239,18 @@ class ApiClient {
     return (res.data!['items'] as List)
         .map((e) => CrewPostData.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// 크루 피드에 글 작성. 운동 태그(workoutLogId)는 선택.
+  Future<void> createCrewPost(
+    String crewId, {
+    String? workoutLogId,
+    String? message,
+  }) async {
+    await _dio.post<Map<String, dynamic>>('/crews/$crewId/posts', data: {
+      'workoutLogId': ?workoutLogId,
+      if (message != null && message.isNotEmpty) 'message': message,
+    });
   }
 
   Future<CrewCommentData> commentOnPost(String postId, String text) async {
