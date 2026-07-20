@@ -7,7 +7,6 @@ import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
-import '../../unity/unity_stage.dart';
 import 'crew_create_sheet.dart';
 import 'crew_feed.dart';
 import 'crew_home.dart';
@@ -63,14 +62,11 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
   }
 
   Future<void> _openCrew(CrewCardData crew) async {
-    // 크루 홈은 진입 시 Unity를 크루 씬으로 바꾼다. 돌아오면 홈 씬으로 확실히 복구.
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => CrewHomeScreen(crewId: crew.id, name: crew.name),
       ),
     );
-    ref.read(unitySceneProvider.notifier).showHome();
-    ref.read(unityViewportProvider.notifier).setRect(null); // 전체 화면 복구
     ref.invalidate(crewsProvider);
   }
 
