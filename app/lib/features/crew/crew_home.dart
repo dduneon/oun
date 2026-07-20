@@ -6,6 +6,7 @@ import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
+import '../../unity/unity_stage.dart';
 import 'crew_feed.dart';
 import 'friend_home_screen.dart';
 import 'crew_level.dart';
@@ -93,10 +94,10 @@ class CrewCard extends StatelessWidget {
   }
 }
 
-/// 크루 홈: 상단 크루원 무대 + 피드/크루원/현황/정보 탭. (서버 상세)
+/// 크루 홈: 상단 라이브 3D 무대(크루원 캐릭터) + 피드/크루원/현황 탭. (서버 상세)
 ///
-/// 무대는 크루원 아바타가 모여 있는 Flutter 표현. (3D 크루 씬은 Unity 크루
-/// 씬 export가 준비되면 이 무대만 교체하면 된다.)
+/// 진입 즉시 전역 Unity 뷰를 크루 씬으로 전환해 무대 영역(투명)으로
+/// 캐릭터들이 비쳐 보인다. 무대는 고정 헤더, 아래 탭 콘텐츠만 스크롤.
 class CrewHomeScreen extends ConsumerStatefulWidget {
   const CrewHomeScreen({super.key, required this.crewId, required this.name});
   final String crewId;
@@ -110,6 +111,34 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   int _tab = 0; // 0: 피드, 1: 크루원, 2: 현황, 3: 크루 정보
 
   static const _stageHeight = 210.0;
+  final _stageKey = GlobalKey();
+  String? _spawnedTokens; // 무대에 이미 스폰한 토큰(중복 전환 방지)
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncStageViewport());
+  }
+
+  /// 크루원 목록이 로드되면 캐릭터 토큰으로 Unity 크루 씬을 전환한다.
+  void _syncUnity(CrewDetail detail) {
+    final tokens = detail.members.map((m) => m.charToken).join(',');
+    if (tokens == _spawnedTokens) return;
+    _spawnedTokens = tokens;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(unitySceneProvider.notifier).showCrew(tokens);
+      _syncStageViewport();
+    });
+  }
+
+  /// 무대 박스의 화면상 위치를 재서 Unity 뷰를 그 영역에만 렌더하게 한다.
+  void _syncStageViewport() {
+    final box = _stageKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final origin = box.localToGlobal(Offset.zero);
+    final size = Size(box.size.width, box.size.height + 28);
+    ref.read(unityViewportProvider.notifier).setRect(origin & size);
+  }
 
   Future<void> _leave(CrewDetail crew) async {
     try {
@@ -128,11 +157,14 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(crewDetailProvider(widget.crewId));
     final crew = async.value;
+    if (crew != null) _syncUnity(crew);
 
+    // 배경 투명: 상단 무대 영역으로 전역 Unity(크루 씬)가 비친다.
     return Scaffold(
-      backgroundColor: OunColors.background,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
+          // 상단 바 영역은 배경색으로 채운다(무대 박스만 투명 → Unity가 비침).
           ColoredBox(
             color: OunColors.background,
             child: SafeArea(
@@ -193,10 +225,24 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
               ),
             ),
           ),
-          // 크루원 무대: 아바타들이 모여 있는 표현.
+          // 라이브 3D 무대(투명 창): Unity 뷰를 이 박스 크기에 맞춰 렌더한다.
           SizedBox(
+            key: _stageKey,
             height: _stageHeight,
-            child: _CrewStage(members: crew?.members),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                    crew == null
+                        ? '크루원을 불러오는 중…'
+                        : '크루원 ${crew.members.length}명이 모여 있어요',
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: OunColors.textMuted)),
+              ),
+            ),
           ),
           // 아래 시트: 탭 + 콘텐츠 (불투명 → Unity 가림)
           Expanded(
@@ -283,99 +329,6 @@ class _TabBar extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-/// 크루원 무대: 아바타들이 바닥에 모여 있는 따뜻한 표현.
-/// (3D 크루 씬 Unity export가 준비되면 이 위젯만 교체)
-class _CrewStage extends StatelessWidget {
-  const _CrewStage({required this.members});
-  final List<CrewMemberData>? members;
-
-  @override
-  Widget build(BuildContext context) {
-    final list = members ?? const <CrewMemberData>[];
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [OunColors.background, OunColors.card],
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (members == null)
-            const CircularProgressIndicator(color: OunColors.tabAccent)
-          else
-            Padding(
-              padding: const EdgeInsets.only(bottom: 30),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 14,
-                runSpacing: 8,
-                children: [
-                  for (final m in list.take(6)) _StageAvatar(m),
-                ],
-              ),
-            ),
-          Positioned(
-            bottom: 8,
-            child: Text(
-                members == null
-                    ? '크루원을 불러오는 중…'
-                    : '크루원 ${list.length}명이 모여 있어요',
-                style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: OunColors.textMuted)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StageAvatar extends StatelessWidget {
-  const _StageAvatar(this.m);
-  final CrewMemberData m;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: avatarColor(m.nickname),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: OunColors.textPrimary.withValues(alpha: 0.12),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Text(initialOf(m.displayName),
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white)),
-        ),
-        const SizedBox(height: 5),
-        Text(m.isMe ? '나' : m.displayName,
-            style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-                color: OunColors.textPrimary)),
-      ],
     );
   }
 }
