@@ -4,6 +4,7 @@ import { LedgerService } from '../wallet/ledger.service';
 import { GameService } from '../game/game.service';
 import { QuestsService } from '../quests/quests.service';
 import { AchievementsService } from '../achievements/achievements.service';
+import { CrewsService } from '../crews/crews.service';
 import { workoutReward } from '../game/leveling';
 import { kstDayKey } from '../common/time';
 import { CreateWorkoutDto } from './dto';
@@ -26,6 +27,7 @@ export class WorkoutsService {
     private readonly game: GameService,
     private readonly quests: QuestsService,
     private readonly achievements: AchievementsService,
+    private readonly crews: CrewsService,
   ) {}
 
   /** POST /workouts — 기록 제출 → 검증 → (승인 시) 보상·스탯·스트릭·mood·퀘스트·업적. */
@@ -83,6 +85,9 @@ export class WorkoutsService {
         streakCurrent: streak.current,
       });
       await this.achievements.evaluate(tx, userId);
+
+      // 소속 크루 피드에 자동 공유("기록하면 크루에 공유")
+      await this.crews.shareWorkout(tx, userId, workout.id, dto.message);
 
       return {
         workout,

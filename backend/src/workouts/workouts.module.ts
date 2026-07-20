@@ -3,11 +3,12 @@ import { WalletModule } from '../wallet/wallet.module';
 import { GameModule } from '../game/game.module';
 import { QuestsModule } from '../quests/quests.module';
 import { AchievementsModule } from '../achievements/achievements.module';
+import { CrewsModule } from '../crews/crews.module';
 import { WorkoutsService } from './workouts.service';
 import { WorkoutsController } from './workouts.controller';
 
 @Module({
-  imports: [WalletModule, GameModule, QuestsModule, AchievementsModule],
+  imports: [WalletModule, GameModule, QuestsModule, AchievementsModule, CrewsModule],
   providers: [WorkoutsService],
   controllers: [WorkoutsController],
 })

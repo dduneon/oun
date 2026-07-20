@@ -20,9 +20,10 @@ npm run start:dev             # http://localhost:3000
 - JWT (access/refresh), 카카오 로그인 + 개발용 dev 로그인 스텁
 - Redis (다음 단계: 세션/실시간 크루 라운지 대비, 현재 미사용)
 
-## MVP 코어 범위
-인증 · 지갑(재화 원장) · 운동 기록/검증/보상 · 캐릭터 스탯/mood · 퀘스트 · 상점/인벤토리/장착 · 업적.
-소셜/크루/피드/프레즌스/WebSocket은 다음 단계.
+## 구현 범위
+인증 · 지갑(재화 원장) · 운동 기록/검증/보상 · 캐릭터 스탯/mood · 퀘스트 · 상점/인벤토리/장착 · 업적 ·
+**소셜(친구·응원) · 크루(생성·초대·피드·댓글·레벨 보상)**.
+크루 라운지 실시간 프레즌스/WebSocket, HealthKit/Health Connect 실검증은 다음 단계.
 
 ## 핵심 원칙
 - 모든 재화 증감은 `CurrencyLedger`에 append + **멱등키 + 트랜잭션**으로만 (어뷰징/중복 보상 차단).
@@ -40,4 +41,11 @@ npm run start:dev             # http://localhost:3000
 | 퀘스트 | `GET /quests`, `POST /quests/:key/claim` |
 | 상점 | `GET /shop/items`, `POST /shop/orders`, `GET /inventory`, `PUT /character/equip` |
 | 업적 | `GET /achievements` |
+| 친구 | `GET /friends`, `POST /friends`, `GET /users/:nickname/home`, `POST /users/:nickname/cheer` |
+| 크루 | `POST /crews`, `GET /crews`, `GET /crews/:id`, `POST /crews/:id/members`, `DELETE /crews/:id/members/me` |
+| 크루 피드 | `GET /crews/:id/feed`, `POST /crews/posts/:postId/comments`, `POST /crews/posts/:postId/cheer` |
+| 크루 보상 | `GET /crews/:id/rewards`, `POST /crews/:id/rewards/:level/claim` |
 | 헬스체크 | `GET /health` |
+
+> 운동이 검증되면 소속 크루 피드에 자동 공유되고, 크루 레벨(누적 운동 횟수)이 오른다.
+> 개발 편의를 위해 `prisma db seed`가 데모 친구(지민·현우·서연·민준)를 만든다 — `@jimin` 등으로 친구 추가·초대 가능.

@@ -40,6 +40,15 @@ model User {
   equipped         Equipped[]
   shopOrders       ShopOrder[]
   userAchievements UserAchievement[]
+  friendships      Friendship[]      @relation("FriendshipOwner")
+  friendOf         Friendship[]      @relation("FriendshipTarget")
+  cheersSent       Cheer[]           @relation("CheerFrom")
+  cheersReceived   Cheer[]           @relation("CheerTo")
+  crewMemberships  CrewMember[]
+  crewPosts        CrewPost[]
+  crewComments     CrewComment[]
+  crewPostCheers   CrewPostCheer[]
+  crewRewardClaims CrewRewardClaim[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -344,4 +353,122 @@ model UserAchievement {
   achievement AchievementDef @relation(fields: [achievementDefId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementDefId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 소셜: 친구 & 응원 (랭킹 없음, 칭찬·독려만)
+// ─────────────────────────────────────────────────────────────
+
+// 친구는 상호 관계 — 추가 시 양방향 두 행을 함께 만든다.
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  createdAt DateTime @default(now())
+
+  user   User @relation("FriendshipOwner", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendshipTarget", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+}
+
+// 응원 한 번(이모지). 친구 행의 반응 아이콘·응원 퀘스트/업적의 근거.
+model Cheer {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  emoji      String   @default("❤️")
+  createdAt  DateTime @default(now())
+
+  from User @relation("CheerFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("CheerTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId, createdAt])
+  @@index([fromUserId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 크루: 공동 목표 + 레벨(누적 운동) + SNS 피드
+// ─────────────────────────────────────────────────────────────
+
+model Crew {
+  id         String   @id @default(cuid())
+  name       String
+  weeklyGoal Int      @default(3) // 1인당 주간 목표 횟수
+  createdAt  DateTime @default(now())
+
+  members      CrewMember[]
+  posts        CrewPost[]
+  rewardClaims CrewRewardClaim[]
+}
+
+model CrewMember {
+  id       String   @id @default(cuid())
+  crewId   String
+  userId   String
+  role     String   @default("member") // leader | member
+  joinedAt DateTime @default(now())
+
+  crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([crewId, userId])
+  @@index([userId])
+}
+
+// 크루 피드 글. 운동 기록이 검증되면 소속 크루마다 자동 공유된다.
+// 크루 레벨의 '누적 운동 횟수' = 이 글 수.
+model CrewPost {
+  id           String   @id @default(cuid())
+  crewId       String
+  userId       String
+  workoutLogId String
+  message      String? // 기록 시 남긴 한마디
+  createdAt    DateTime @default(now())
+
+  crew     Crew            @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments CrewComment[]
+  cheers   CrewPostCheer[]
+
+  @@index([crewId, createdAt])
+}
+
+model CrewComment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  post CrewPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+// 피드 글 응원(토글). 유저당 글 하나에 한 번.
+model CrewPostCheer {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+
+  post CrewPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+// 크루 레벨 보상 수령 이력(유저별·레벨별 1회).
+model CrewRewardClaim {
+  id        String   @id @default(cuid())
+  crewId    String
+  userId    String
+  level     Int
+  createdAt DateTime @default(now())
+
+  crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([crewId, userId, level])
 }

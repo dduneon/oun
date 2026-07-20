@@ -35,3 +35,11 @@ export function kstWeekKey(d: Date): string {
 export function dayDiff(a: Date, b: Date): number {
   return Math.round((kstDateOnly(a).getTime() - kstDateOnly(b).getTime()) / 86400000);
 }
+
+/** KST 기준 이번 주 월요일 00:00(UTC 표현). 주간 집계의 시작 경계. */
+export function kstWeekStart(d: Date): Date {
+  const dayStart = kstDateOnly(d);
+  const shifted = new Date(dayStart.getTime() + KST_OFFSET_MS);
+  const weekday = shifted.getUTCDay() || 7; // 월=1 … 일=7
+  return new Date(dayStart.getTime() - (weekday - 1) * 86400000);
+}

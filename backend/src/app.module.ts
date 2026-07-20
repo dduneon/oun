@@ -11,6 +11,8 @@ import { QuestsModule } from './quests/quests.module';
 import { ShopModule } from './shop/shop.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { GameModule } from './game/game.module';
+import { SocialModule } from './social/social.module';
+import { CrewsModule } from './crews/crews.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -26,6 +28,8 @@ import { HealthController } from './health.controller';
     QuestsModule,
     ShopModule,
     AchievementsModule,
+    SocialModule,
+    CrewsModule,
   ],
   controllers: [HealthController],
 })

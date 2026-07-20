@@ -13,16 +13,19 @@ export class AchievementsService {
    * 운동/구매 등 이벤트 후 tx 안에서 호출. UNIQUE 제약으로 중복 지급 차단.
    */
   async evaluate(tx: Prisma.TransactionClient, userId: string) {
-    const [workouts, inventoryCount, streak, defs, earned] = await Promise.all([
-      tx.workoutLog.findMany({
-        where: { userId, verifyStatus: 'verified' },
-        select: { sport: true, distanceM: true, photoRef: true, performedAt: true },
-      }),
-      tx.inventory.count({ where: { userId } }),
-      tx.streak.findUnique({ where: { userId } }),
-      tx.achievementDef.findMany(),
-      tx.userAchievement.findMany({ where: { userId }, select: { achievementDefId: true } }),
-    ]);
+    const [workouts, inventoryCount, streak, defs, earned, cheerCount, crewCount] =
+      await Promise.all([
+        tx.workoutLog.findMany({
+          where: { userId, verifyStatus: 'verified' },
+          select: { sport: true, distanceM: true, photoRef: true, performedAt: true },
+        }),
+        tx.inventory.count({ where: { userId } }),
+        tx.streak.findUnique({ where: { userId } }),
+        tx.achievementDef.findMany(),
+        tx.userAchievement.findMany({ where: { userId }, select: { achievementDefId: true } }),
+        tx.cheer.count({ where: { fromUserId: userId } }),
+        tx.crewMember.count({ where: { userId } }),
+      ]);
 
     const kstHour = (d: Date) => new Date(d.getTime() + KST_OFFSET_MS).getUTCHours();
     const metrics: Record<string, number> = {
@@ -36,13 +39,15 @@ export class AchievementsService {
         .reduce((s, w) => s + (w.distanceM ?? 0), 0),
       weight_count: workouts.filter((w) => w.sport === 'weight').length,
       inventory_count: inventoryCount,
+      cheer_sent: cheerCount,
+      crew_join: crewCount,
     };
 
     const earnedSet = new Set(earned.map((e) => e.achievementDefId));
     for (const def of defs) {
       if (earnedSet.has(def.id)) continue;
       const value = metrics[def.trigger];
-      if (value === undefined) continue; // 소셜 트리거(cheer/crew)는 다음 단계
+      if (value === undefined) continue; // 정의만 있고 지표 미구현인 트리거는 건너뜀
       if (value >= def.threshold) {
         await tx.userAchievement.create({
           data: { userId, achievementDefId: def.id },

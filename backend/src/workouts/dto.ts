@@ -54,6 +54,11 @@ export class CreateWorkoutDto {
   @IsBoolean()
   hasPhoto?: boolean;
 
+  // 크루 피드에 함께 실릴 한마디(선택).
+  @IsOptional()
+  @IsString()
+  message?: string;
+
   @IsOptional()
   @IsEnum(WorkoutSource)
   source?: WorkoutSource;

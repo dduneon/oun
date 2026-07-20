@@ -87,6 +87,29 @@ export class QuestsService {
     }
   }
 
+  /** 응원 보냄 이벤트: cheer_sent 트리거 퀘스트 진행. tx 안에서 호출. */
+  async onCheer(tx: Prisma.TransactionClient, userId: string) {
+    const defs = await tx.questDef.findMany({ where: { trigger: 'cheer_sent' } });
+    const now = new Date();
+    for (const def of defs) {
+      const row = await this.ensureRow(tx, userId, def, now);
+      const nextProgress = row.progress + 1;
+      const reached = nextProgress >= def.goal;
+      await tx.userQuest.update({
+        where: { id: row.id },
+        data: {
+          progress: nextProgress,
+          state:
+            row.state === QuestState.claimed
+              ? QuestState.claimed
+              : reached
+                ? QuestState.claimable
+                : QuestState.in_progress,
+        },
+      });
+    }
+  }
+
   /** GET /quests — kind별 목록 + 진행/상태. 조회 시 현재 주기 행을 보장. */
   async list(userId: string) {
     const defs = await this.prisma.questDef.findMany({ orderBy: { sortOrder: 'asc' } });
