@@ -60,7 +60,7 @@ describe('오운 소셜·크루 (e2e)', () => {
     expect(res.body.recent.length).toBeGreaterThan(0);
   });
 
-  it('크루 생성 → 초대 → 운동이 피드에 자동 공유된다', async () => {
+  it('크루 생성 → 초대 → 운동을 태그해 직접 피드에 올린다', async () => {
     const crew = await request(app.getHttpServer())
       .post('/crews')
       .set(auth())
@@ -76,32 +76,62 @@ describe('오운 소셜·크루 (e2e)', () => {
       .send({ nickname: 'hyunwoo' })
       .expect(201);
 
-    // 운동 기록 → 자동 공유
-    await request(app.getHttpServer())
+    // 운동 기록 (이 시점엔 피드에 자동 공유되지 않는다)
+    const workout = await request(app.getHttpServer())
       .post('/workouts')
       .set(auth())
-      .send({ sport: 'running', durationSec: 1500, distanceM: 4000, message: '피드 공유 테스트' })
+      .send({ sport: 'running', durationSec: 1500, distanceM: 4000 })
       .expect(201);
+    const workoutId = workout.body.workout.id;
 
-    const feed = await request(app.getHttpServer())
+    let feed = await request(app.getHttpServer())
       .get(`/crews/${crewId}/feed`)
       .set(auth())
       .expect(200);
-    expect(feed.body.items.length).toBeGreaterThan(0);
-    const post = feed.body.items[0];
-    expect(post.message).toBe('피드 공유 테스트');
-    expect(post.author.isMe).toBe(true);
+    expect(feed.body.items).toHaveLength(0); // 자동 공유 없음
+
+    // 운동을 태그해 직접 글 작성
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/posts`)
+      .set(auth())
+      .send({ workoutLogId: workoutId, message: '오늘 한강 뛰었어요' })
+      .expect(201);
+
+    // 같은 운동 중복 공유는 거절
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/posts`)
+      .set(auth())
+      .send({ workoutLogId: workoutId })
+      .expect(409);
+
+    // 운동 태그 없이 글만도 가능
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/posts`)
+      .set(auth())
+      .send({ message: '다들 화이팅!' })
+      .expect(201);
+
+    feed = await request(app.getHttpServer())
+      .get(`/crews/${crewId}/feed`)
+      .set(auth())
+      .expect(200);
+    expect(feed.body.items).toHaveLength(2);
+    const tagged = feed.body.items.find((p: any) => p.workout != null);
+    expect(tagged.message).toBe('오늘 한강 뛰었어요');
+    expect(tagged.author.isMe).toBe(true);
+    const textOnly = feed.body.items.find((p: any) => p.workout == null);
+    expect(textOnly.message).toBe('다들 화이팅!');
 
     // 댓글 + 응원 토글
     const comment = await request(app.getHttpServer())
-      .post(`/crews/posts/${post.id}/comments`)
+      .post(`/crews/posts/${tagged.id}/comments`)
       .set(auth())
       .send({ text: '화이팅!' })
       .expect(201);
     expect(comment.body.text).toBe('화이팅!');
 
     const cheer = await request(app.getHttpServer())
-      .post(`/crews/posts/${post.id}/cheer`)
+      .post(`/crews/posts/${tagged.id}/cheer`)
       .set(auth())
       .expect(201);
     expect(cheer.body.cheered).toBe(true);

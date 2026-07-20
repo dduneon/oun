@@ -416,14 +416,14 @@ model CrewMember {
   @@index([userId])
 }
 
-// 크루 피드 글. 운동 기록이 검증되면 소속 크루마다 자동 공유된다.
-// 크루 레벨의 '누적 운동 횟수' = 이 글 수.
+// 크루 피드 글. 유저가 직접 올린다 — 자기 운동 기록을 태그(선택)하거나 글만.
+// 크루 레벨의 '누적 활동' = 이 글 수.
 model CrewPost {
   id           String   @id @default(cuid())
   crewId       String
   userId       String
-  workoutLogId String
-  message      String? // 기록 시 남긴 한마디
+  workoutLogId String? // 태그한 운동(선택). null이면 글만.
+  message      String? // 남긴 한마디
   createdAt    DateTime @default(now())
 
   crew     Crew            @relation(fields: [crewId], references: [id], onDelete: Cascade)
@@ -431,6 +431,8 @@ model CrewPost {
   comments CrewComment[]
   cheers   CrewPostCheer[]
 
+  // 같은 운동을 같은 크루에 중복 공유 방지(null은 여러 개 허용 = 글만 여러 개 가능).
+  @@unique([crewId, workoutLogId])
   @@index([crewId, createdAt])
 }
 

@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { IsInt, IsString, Length, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { CrewsService } from './crews.service';
@@ -34,6 +34,17 @@ class CommentDto {
   @IsString()
   @Length(1, 300)
   text!: string;
+}
+
+class CreatePostDto {
+  @IsOptional()
+  @IsString()
+  workoutLogId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 300)
+  message?: string;
 }
 
 @Controller('crews')
@@ -73,6 +84,15 @@ export class CrewsController {
   @Get(':id/feed')
   feed(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.crews.feed(id, user.userId);
+  }
+
+  @Post(':id/posts')
+  createPost(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CreatePostDto,
+  ) {
+    return this.crews.createPost(id, user.userId, dto);
   }
 
   @Post('posts/:postId/comments')

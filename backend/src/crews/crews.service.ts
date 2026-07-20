@@ -161,19 +161,35 @@ export class CrewsService {
     });
   }
 
-  /** 운동 검증 시 소속 크루 전체에 피드 글 자동 공유. tx 안에서 호출. */
-  async shareWorkout(
-    tx: Prisma.TransactionClient,
+  /** POST /crews/:id/posts — 유저가 직접 글 작성. 운동 태그는 선택. */
+  async createPost(
+    crewId: string,
     userId: string,
-    workoutLogId: string,
-    message?: string,
+    input: { workoutLogId?: string; message?: string },
   ) {
-    const memberships = await tx.crewMember.findMany({ where: { userId } });
-    for (const m of memberships) {
-      await tx.crewPost.create({
-        data: { crewId: m.crewId, userId, workoutLogId, message: message || null },
-      });
+    await this.membershipOf(crewId, userId);
+    const message = input.message?.trim() || null;
+    const workoutLogId = input.workoutLogId || null;
+
+    if (!workoutLogId && !message) {
+      throw new BadRequestException('내용이나 태그할 운동을 넣어주세요');
     }
+
+    if (workoutLogId) {
+      const workout = await this.prisma.workoutLog.findUnique({ where: { id: workoutLogId } });
+      if (!workout || workout.userId !== userId) {
+        throw new BadRequestException('내 운동 기록만 태그할 수 있어요');
+      }
+      const dup = await this.prisma.crewPost.findUnique({
+        where: { crewId_workoutLogId: { crewId, workoutLogId } },
+      });
+      if (dup) throw new ConflictException('이미 이 크루에 공유한 기록이에요');
+    }
+
+    const post = await this.prisma.crewPost.create({
+      data: { crewId, userId, workoutLogId, message },
+    });
+    return { id: post.id };
   }
 
   /** GET /crews/:id/feed — 피드 글 + 댓글 + 응원. */
@@ -190,14 +206,16 @@ export class CrewsService {
       take: 50,
     });
 
-    // 게시글의 운동 상세를 한 번에 로드
-    const workoutIds = posts.map((p) => p.workoutLogId);
+    // 게시글이 태그한 운동 상세를 한 번에 로드(태그 없는 글은 제외)
+    const workoutIds = posts
+      .map((p) => p.workoutLogId)
+      .filter((id): id is string => id != null);
     const workouts = await this.prisma.workoutLog.findMany({ where: { id: { in: workoutIds } } });
     const workoutMap = new Map(workouts.map((w) => [w.id, w]));
 
     return {
       items: posts.map((p) => {
-        const w = workoutMap.get(p.workoutLogId);
+        const w = p.workoutLogId ? workoutMap.get(p.workoutLogId) : undefined;
         return {
           id: p.id,
           author: {
