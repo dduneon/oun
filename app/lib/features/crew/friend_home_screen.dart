@@ -1,31 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/models.dart';
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
-/// 친구 홈: 친구의 아바타(정적 표현) + 운동량 요약 + 최근 활동 + 응원.
+/// 친구 홈: 친구의 아바타(정적 표현) + 운동량 요약 + 최근 활동 + 응원. (서버)
 ///
 /// 실시간 3D 아바타는 홈 탭의 단일 Unity 인스턴스 제약으로 띄울 수 없어,
 /// 여기서는 정적 표현(추후 서버 렌더 스냅샷으로 교체)을 쓴다.
-class FriendHomeScreen extends StatelessWidget {
+class FriendHomeScreen extends ConsumerWidget {
   const FriendHomeScreen({
     super.key,
-    required this.name,
-    required this.initial,
-    required this.color,
+    required this.nickname,
+    required this.displayName,
   });
 
-  final String name;
-  final String initial;
-  final Color color;
+  final String nickname;
+  final String displayName;
 
   static const _week = ['월', '화', '수', '목', '금', '토', '일'];
-  // 목데이터: 이번 주 운동 완료일(true) / 오늘 인덱스
-  static const _weekDone = [true, true, false, true, true, false, false];
-  static const _todayIndex = 4;
+
+  Future<void> _cheer(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(apiClientProvider).cheer(nickname, emoji: '❤️');
+      ref.invalidate(friendsProvider);
+      ref.invalidate(questsProvider);
+      if (context.mounted) {
+        OunToast.show(context, '$displayName님에게 응원을 보냈어요',
+            kind: OunToastKind.cheer);
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '응원에 실패했어요');
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(friendHomeProvider(nickname));
     return Scaffold(
       backgroundColor: OunColors.background,
       appBar: AppBar(
@@ -34,37 +48,59 @@ class FriendHomeScreen extends StatelessWidget {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         foregroundColor: OunColors.textPrimary,
-        title: Text('$name님의 홈',
+        title: Text('$displayName님의 홈',
             style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: OunColors.textPrimary)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
-        children: [
-          _avatarStage(),
-          const SizedBox(height: 14),
-          _statRow(),
-          const SizedBox(height: 22),
-          const _Label('이번 주'),
-          const SizedBox(height: 10),
-          _weekStrip(),
-          const SizedBox(height: 22),
-          const _Label('최근 활동'),
-          const SizedBox(height: 10),
-          const _ActivityRow(Icons.directions_run, '러닝', '오늘 · 5.2km', '32분'),
-          const _ActivityRow(Icons.fitness_center, '웨이트', '어제 · 상체', '45분'),
-          const _ActivityRow(Icons.directions_walk, '걷기', '3일 전 · 8,200보', '58분'),
-          const SizedBox(height: 24),
-          _cheerButton(context),
-        ],
+      body: async.when(
+        loading: () => const Center(
+            child: CircularProgressIndicator(color: OunColors.tabAccent)),
+        error: (_, _) => const Center(
+          child: Text('프로필을 불러오지 못했어요',
+              style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
+        ),
+        data: (home) => ListView(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
+          children: [
+            _avatarStage(home),
+            const SizedBox(height: 14),
+            _statRow(home),
+            const SizedBox(height: 22),
+            const _Label('이번 주'),
+            const SizedBox(height: 10),
+            _weekStrip(home),
+            const SizedBox(height: 22),
+            const _Label('최근 활동'),
+            const SizedBox(height: 10),
+            if (home.recent.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 18),
+                child: Center(
+                  child: Text('아직 기록이 없어요',
+                      style:
+                          TextStyle(fontSize: 12, color: OunColors.textFaint)),
+                ),
+              )
+            else
+              for (final w in home.recent)
+                _ActivityRow(
+                  sportIcons[w.sport] ?? Icons.sports_gymnastics,
+                  sportLabels[w.sport] ?? w.sport,
+                  '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
+                  '${w.minutes}분',
+                ),
+            const SizedBox(height: 24),
+            _cheerButton(context, ref),
+          ],
+        ),
       ),
     );
   }
 
   /// 아바타 무대(정적). 실제로는 캐릭터 렌더 스냅샷이 들어갈 자리.
-  Widget _avatarStage() {
+  Widget _avatarStage(FriendHome home) {
     return Container(
       height: 230,
       decoration: BoxDecoration(
@@ -78,41 +114,48 @@ class FriendHomeScreen extends StatelessWidget {
           Container(
             width: 96,
             height: 96,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+                color: avatarColor(nickname), shape: BoxShape.circle),
             alignment: Alignment.center,
-            child: Text(initial,
+            child: Text(initialOf(displayName),
                 style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w800,
                     color: Colors.white)),
           ),
           const SizedBox(height: 14),
-          Text('@$name',
+          Text('@$nickname',
               style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: OunColors.textPrimary)),
           const SizedBox(height: 4),
-          const Text('Lv.6 · 오늘도 운동 중',
-              style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
+          Text('Lv.${home.level} · 연속 ${home.streakCurrent}일',
+              style: const TextStyle(fontSize: 12, color: OunColors.textMuted)),
         ],
       ),
     );
   }
 
-  Widget _statRow() {
+  Widget _statRow(FriendHome home) {
     return Row(
-      children: const [
-        Expanded(child: _Stat(value: '12일', label: '연속 기록')),
-        SizedBox(width: 9),
-        Expanded(child: _Stat(value: '4일', label: '이번 주')),
-        SizedBox(width: 9),
-        Expanded(child: _Stat(value: '6.5h', label: '이번 주 시간')),
+      children: [
+        Expanded(
+            child: _Stat(value: '${home.streakCurrent}일', label: '연속 기록')),
+        const SizedBox(width: 9),
+        Expanded(child: _Stat(value: '${home.weekCount}일', label: '이번 주')),
+        const SizedBox(width: 9),
+        Expanded(
+            child: _Stat(
+                value: '${(home.weekMinutes / 60).toStringAsFixed(1)}h',
+                label: '이번 주 시간')),
       ],
     );
   }
 
-  Widget _weekStrip() {
+  Widget _weekStrip(FriendHome home) {
+    final now = DateTime.now();
+    final todayIndex = now.weekday - 1;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
       decoration: BoxDecoration(
@@ -130,15 +173,17 @@ class FriendHomeScreen extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: _weekDone[i] ? OunColors.tabAccent : OunColors.card,
+                    color: (i < home.weekDone.length && home.weekDone[i])
+                        ? OunColors.tabAccent
+                        : OunColors.card,
                     shape: BoxShape.circle,
-                    border: i == _todayIndex
+                    border: i == todayIndex
                         ? Border.all(color: OunColors.seed, width: 2)
-                        : _weekDone[i]
+                        : (i < home.weekDone.length && home.weekDone[i])
                             ? null
                             : Border.all(color: OunColors.cardBorder),
                   ),
-                  child: _weekDone[i]
+                  child: (i < home.weekDone.length && home.weekDone[i])
                       ? const Icon(Icons.check_rounded,
                           size: 15, color: OunColors.onTabAccent)
                       : null,
@@ -154,7 +199,7 @@ class FriendHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _cheerButton(BuildContext context) {
+  Widget _cheerButton(BuildContext context, WidgetRef ref) {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
@@ -165,11 +210,7 @@ class FriendHomeScreen extends StatelessWidget {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        onPressed: () => OunToast.show(
-          context,
-          '$name님에게 응원을 보냈어요',
-          kind: OunToastKind.cheer,
-        ),
+        onPressed: () => _cheer(context, ref),
         icon: const Icon(Icons.favorite_rounded, size: 18),
         label: const Text('응원 보내기',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),

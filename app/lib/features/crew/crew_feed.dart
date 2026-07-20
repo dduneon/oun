@@ -1,144 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/models.dart';
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
-/// 피드 댓글 하나.
-class CrewComment {
-  CrewComment({
-    required this.initial,
-    required this.color,
-    required this.name,
-    required this.text,
-    required this.when,
-  });
-  final String initial;
-  final Color color;
-  final String name;
-  final String text;
-  final String when;
-}
-
-/// 크루 피드 글 하나: 운동 기록 공유 + 한마디 + 인증 사진 + 응원/댓글.
-class CrewPost {
-  CrewPost({
-    required this.initial,
-    required this.color,
-    required this.name,
-    required this.when,
-    required this.icon,
-    required this.workout,
-    this.message,
-    this.hasPhoto = false,
-    this.cheers = 0,
-    required this.details,
-    required this.comments,
-  });
-
-  final String initial;
-  final Color color;
-  final String name;
-  final String when;
-  final IconData icon;
-  final String workout; // 예: '러닝 5.2km'
-  final String? message;
-  final bool hasPhoto;
-  int cheers;
-  bool cheered = false;
-
-  /// 기록 등록 시 입력한 상세(라벨, 값). 상세 화면에서 그대로 보여준다.
-  final List<(String, String)> details;
-  final List<CrewComment> comments;
-}
-
-/// 목데이터 피드. 실제로는 기록 저장 시 '크루에 공유'로 쌓인다.
-List<CrewPost> demoCrewPosts() => [
-      CrewPost(
-        initial: '지',
-        color: const Color(0xFFC9865B),
-        name: '지민',
-        when: '30분 전',
-        icon: Icons.directions_run,
-        workout: '러닝 5.2km',
-        message: '오늘 한강 뛰었어요 🌊 날씨 완전 좋음',
-        hasPhoto: true,
-        cheers: 4,
-        details: [
-          ('종목', '러닝'),
-          ('거리', '5.2 km'),
-          ('시간', '32분'),
-          ('페이스', "6'09\""),
-        ],
-        comments: [
-          CrewComment(
-              initial: '현',
-              color: const Color(0xFF7FA98C),
-              name: '현우',
-              text: '오 페이스 좋다 👏 다음엔 같이 뛰자',
-              when: '12분 전'),
-          CrewComment(
-              initial: '서',
-              color: const Color(0xFFB58BB0),
-              name: '서연',
-              text: '한강 코스 어디예요? 저도 갈래요',
-              when: '5분 전'),
-        ],
-      ),
-      CrewPost(
-        initial: '현',
-        color: const Color(0xFF7FA98C),
-        name: '현우',
-        when: '2시간 전',
-        icon: Icons.fitness_center,
-        workout: '웨이트 · 하체',
-        cheers: 3,
-        details: [
-          ('종목', '웨이트'),
-          ('부위', '하체'),
-          ('세트', '5세트'),
-          ('시간', '48분'),
-        ],
-        comments: [
-          CrewComment(
-              initial: '지',
-              color: const Color(0xFFC9865B),
-              name: '지민',
-              text: '하체 데이 고생했어 🔥',
-              when: '1시간 전'),
-        ],
-      ),
-      CrewPost(
-        initial: '서',
-        color: const Color(0xFFB58BB0),
-        name: '서연',
-        when: '어제',
-        icon: Icons.directions_walk,
-        workout: '걷기 8,200보',
-        message: '퇴근하고 한 바퀴 🚶‍♀️',
-        cheers: 5,
-        details: [
-          ('종목', '걷기'),
-          ('걸음 수', '8,200보'),
-          ('시간', '58분'),
-        ],
-        comments: [],
-      ),
-    ];
-
-/// 피드 목록의 글 카드.
-class CrewPostCard extends StatefulWidget {
+/// 피드 목록의 글 카드. (서버 CrewPostData)
+class CrewPostCard extends ConsumerStatefulWidget {
   const CrewPostCard({super.key, required this.post, required this.onTap});
-  final CrewPost post;
+  final CrewPostData post;
   final VoidCallback onTap;
 
   @override
-  State<CrewPostCard> createState() => _CrewPostCardState();
+  ConsumerState<CrewPostCard> createState() => _CrewPostCardState();
 }
 
-class _CrewPostCardState extends State<CrewPostCard> {
+class _CrewPostCardState extends ConsumerState<CrewPostCard> {
+  Future<void> _toggleCheer() async {
+    final p = widget.post;
+    try {
+      final (cheered, cheers) =
+          await ref.read(apiClientProvider).togglePostCheer(p.id);
+      setState(() {
+        p.cheered = cheered;
+        p.cheers = cheers;
+      });
+    } catch (_) {
+      if (mounted) OunToast.show(context, '응원에 실패했어요');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.post;
+    final w = p.workout;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -157,28 +54,31 @@ class _CrewPostCardState extends State<CrewPostCard> {
               children: [
                 Row(
                   children: [
-                    _Avatar(initial: p.initial, color: p.color, size: 34),
+                    PostAvatar(name: p.author.displayName, nickname: p.author.nickname, size: 34),
                     const SizedBox(width: 9),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(p.name,
+                          Text(p.author.displayName,
                               style: const TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
                                   color: OunColors.textPrimary)),
-                          Text(p.when,
+                          Text(relativeTime(p.createdAt),
                               style: const TextStyle(
                                   fontSize: 10.5,
                                   color: OunColors.textFaint)),
                         ],
                       ),
                     ),
-                    _WorkoutChip(icon: p.icon, label: p.workout),
+                    if (w != null)
+                      WorkoutChip(
+                          icon: sportIcons[w.sport] ?? Icons.sports_gymnastics,
+                          label: workoutChipLabel(w)),
                   ],
                 ),
-                if (p.message != null) ...[
+                if (p.message != null && p.message!.isNotEmpty) ...[
                   const SizedBox(height: 9),
                   Text(p.message!,
                       style: const TextStyle(
@@ -186,9 +86,9 @@ class _CrewPostCardState extends State<CrewPostCard> {
                           height: 1.5,
                           color: OunColors.textPrimary)),
                 ],
-                if (p.hasPhoto) ...[
+                if (w?.hasPhoto ?? false) ...[
                   const SizedBox(height: 9),
-                  const _PhotoPlaceholder(height: 110),
+                  const PhotoPlaceholder(height: 110),
                 ],
                 const SizedBox(height: 11),
                 Container(
@@ -199,16 +99,13 @@ class _CrewPostCardState extends State<CrewPostCard> {
                   ),
                   child: Row(
                     children: [
-                      _CheerButton(
+                      CheerButton(
                         cheered: p.cheered,
                         count: p.cheers,
-                        onTap: () => setState(() {
-                          p.cheered = !p.cheered;
-                          p.cheers += p.cheered ? 1 : -1;
-                        }),
+                        onTap: _toggleCheer,
                       ),
                       const SizedBox(width: 16),
-                      Icon(Icons.mode_comment_outlined,
+                      const Icon(Icons.mode_comment_outlined,
                           size: 15, color: OunColors.textMuted),
                       const SizedBox(width: 5),
                       Text('댓글 ${p.comments.length}',
@@ -228,17 +125,19 @@ class _CrewPostCardState extends State<CrewPostCard> {
   }
 }
 
-/// 글 상세: 기록 등록 시 입력한 상세 + 댓글 스레드 + 입력창.
-class CrewPostDetailScreen extends StatefulWidget {
+/// 글 상세: 기록 상세 + 댓글 스레드 + 입력창. 댓글은 서버에 저장된다.
+class CrewPostDetailScreen extends ConsumerStatefulWidget {
   const CrewPostDetailScreen({super.key, required this.post});
-  final CrewPost post;
+  final CrewPostData post;
 
   @override
-  State<CrewPostDetailScreen> createState() => _CrewPostDetailScreenState();
+  ConsumerState<CrewPostDetailScreen> createState() =>
+      _CrewPostDetailScreenState();
 }
 
-class _CrewPostDetailScreenState extends State<CrewPostDetailScreen> {
+class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
   final _input = TextEditingController();
+  bool _sending = false;
 
   @override
   void dispose() {
@@ -246,24 +145,47 @@ class _CrewPostDetailScreenState extends State<CrewPostDetailScreen> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      widget.post.comments.add(CrewComment(
-        initial: '나',
-        color: OunColors.tabAccent,
-        name: '나',
-        text: text,
-        when: '방금',
-      ));
-      _input.clear();
-    });
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final comment =
+          await ref.read(apiClientProvider).commentOnPost(widget.post.id, text);
+      setState(() {
+        widget.post.comments.add(comment);
+        _input.clear();
+      });
+    } catch (_) {
+      if (mounted) OunToast.show(context, '댓글 등록에 실패했어요');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _toggleCheer() async {
+    final p = widget.post;
+    try {
+      final (cheered, cheers) =
+          await ref.read(apiClientProvider).togglePostCheer(p.id);
+      setState(() {
+        p.cheered = cheered;
+        p.cheers = cheers;
+      });
+      if (cheered && mounted) {
+        OunToast.show(context, '${p.author.displayName}님에게 응원을 보냈어요',
+            kind: OunToastKind.cheer);
+      }
+    } catch (_) {
+      if (mounted) OunToast.show(context, '응원에 실패했어요');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final p = widget.post;
+    final w = p.workout;
+    final details = w == null ? const <(String, String)>[] : workoutDetails(w);
     return Scaffold(
       backgroundColor: OunColors.background,
       appBar: AppBar(
@@ -272,7 +194,7 @@ class _CrewPostDetailScreenState extends State<CrewPostDetailScreen> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         foregroundColor: OunColors.textPrimary,
-        title: Text('${p.name}님의 기록',
+        title: Text('${p.author.displayName}님의 기록',
             style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -286,27 +208,33 @@ class _CrewPostDetailScreenState extends State<CrewPostDetailScreen> {
               children: [
                 Row(
                   children: [
-                    _Avatar(initial: p.initial, color: p.color, size: 38),
+                    PostAvatar(
+                        name: p.author.displayName,
+                        nickname: p.author.nickname,
+                        size: 38),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(p.name,
+                          Text(p.author.displayName,
                               style: const TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
                                   color: OunColors.textPrimary)),
-                          Text(p.when,
+                          Text(relativeTime(p.createdAt),
                               style: const TextStyle(
                                   fontSize: 11, color: OunColors.textFaint)),
                         ],
                       ),
                     ),
-                    _WorkoutChip(icon: p.icon, label: p.workout),
+                    if (w != null)
+                      WorkoutChip(
+                          icon: sportIcons[w.sport] ?? Icons.sports_gymnastics,
+                          label: workoutChipLabel(w)),
                   ],
                 ),
-                if (p.message != null) ...[
+                if (p.message != null && p.message!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(p.message!,
                       style: const TextStyle(
@@ -314,62 +242,57 @@ class _CrewPostDetailScreenState extends State<CrewPostDetailScreen> {
                           height: 1.5,
                           color: OunColors.textPrimary)),
                 ],
-                if (p.hasPhoto) ...[
+                if (w?.hasPhoto ?? false) ...[
                   const SizedBox(height: 12),
-                  const _PhotoPlaceholder(height: 180),
+                  const PhotoPlaceholder(height: 180),
                 ],
-                const SizedBox(height: 14),
-                // 기록 상세 — 기록 등록 시 입력한 값들
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: OunColors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: OunColors.cardBorder),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('기록 상세',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: OunColors.textMuted)),
-                      const SizedBox(height: 10),
-                      for (var i = 0; i < p.details.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Text(p.details[i].$1,
-                                style: const TextStyle(
-                                    fontSize: 12.5,
-                                    color: OunColors.textMuted)),
-                            const Spacer(),
-                            Text(p.details[i].$2,
-                                style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: OunColors.textPrimary)),
-                          ],
-                        ),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  // 기록 상세 — 기록 등록 시 입력한 값들
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: OunColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: OunColors.cardBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('기록 상세',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: OunColors.textMuted)),
+                        const SizedBox(height: 10),
+                        for (var i = 0; i < details.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Text(details[i].$1,
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: OunColors.textMuted)),
+                              const Spacer(),
+                              Text(details[i].$2,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: OunColors.textPrimary)),
+                            ],
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _CheerButton(
+                    CheerButton(
                       cheered: p.cheered,
                       count: p.cheers,
-                      onTap: () => setState(() {
-                        p.cheered = !p.cheered;
-                        p.cheers += p.cheered ? 1 : -1;
-                        if (p.cheered) {
-                          OunToast.show(context, '${p.name}님에게 응원을 보냈어요',
-                              kind: OunToastKind.cheer);
-                        }
-                      }),
+                      onTap: _toggleCheer,
                     ),
                   ],
                 ),
@@ -452,7 +375,7 @@ class _CrewPostDetailScreenState extends State<CrewPostDetailScreen> {
 
 class _CommentRow extends StatelessWidget {
   const _CommentRow(this.c);
-  final CrewComment c;
+  final CrewCommentData c;
 
   @override
   Widget build(BuildContext context) {
@@ -461,7 +384,8 @@ class _CommentRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Avatar(initial: c.initial, color: c.color, size: 30),
+          PostAvatar(
+              name: c.author.displayName, nickname: c.author.nickname, size: 30),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -475,7 +399,7 @@ class _CommentRow extends StatelessWidget {
                         color: OunColors.textPrimary),
                     children: [
                       TextSpan(
-                          text: c.name,
+                          text: c.author.displayName,
                           style: const TextStyle(fontWeight: FontWeight.w700)),
                       const TextSpan(text: '  '),
                       TextSpan(text: c.text),
@@ -483,7 +407,7 @@ class _CommentRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(c.when,
+                Text(relativeTime(c.createdAt),
                     style: const TextStyle(
                         fontSize: 10, color: OunColors.textFaint)),
               ],
@@ -495,20 +419,22 @@ class _CommentRow extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar(
-      {required this.initial, required this.color, required this.size});
-  final String initial;
-  final Color color;
+/// 이니셜 아바타(닉네임 해시 색).
+class PostAvatar extends StatelessWidget {
+  const PostAvatar(
+      {super.key, required this.name, required this.nickname, required this.size});
+  final String name;
+  final String nickname;
   final double size;
 
   @override
   Widget build(BuildContext context) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration:
+            BoxDecoration(color: avatarColor(nickname), shape: BoxShape.circle),
         alignment: Alignment.center,
-        child: Text(initial,
+        child: Text(initialOf(name),
             style: TextStyle(
                 fontSize: size * 0.36,
                 fontWeight: FontWeight.w800,
@@ -516,8 +442,8 @@ class _Avatar extends StatelessWidget {
       );
 }
 
-class _WorkoutChip extends StatelessWidget {
-  const _WorkoutChip({required this.icon, required this.label});
+class WorkoutChip extends StatelessWidget {
+  const WorkoutChip({super.key, required this.icon, required this.label});
   final IconData icon;
   final String label;
 
@@ -543,8 +469,8 @@ class _WorkoutChip extends StatelessWidget {
       );
 }
 
-class _PhotoPlaceholder extends StatelessWidget {
-  const _PhotoPlaceholder({required this.height});
+class PhotoPlaceholder extends StatelessWidget {
+  const PhotoPlaceholder({super.key, required this.height});
   final double height;
 
   @override
@@ -572,9 +498,9 @@ class _PhotoPlaceholder extends StatelessWidget {
       );
 }
 
-class _CheerButton extends StatelessWidget {
-  const _CheerButton(
-      {required this.cheered, required this.count, required this.onTap});
+class CheerButton extends StatelessWidget {
+  const CheerButton(
+      {super.key, required this.cheered, required this.count, required this.onTap});
   final bool cheered;
   final int count;
   final VoidCallback onTap;

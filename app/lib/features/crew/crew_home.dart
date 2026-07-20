@@ -1,59 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/models.dart';
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 import '../../unity/unity_stage.dart';
 import 'crew_feed.dart';
-import 'crew_level.dart';
 import 'friend_home_screen.dart';
+import 'crew_level.dart';
 
-/// 크루원 한 명(목데이터).
-class CrewMember {
-  const CrewMember(this.initial, this.color, this.name, this.weekCount,
-      {this.leader = false, this.isFemale = true});
-  final String initial;
-  final Color color;
-  final String name;
-  final int weekCount; // 이번 주 운동 횟수
-  final bool leader;
-  final bool isFemale; // 이 크루원이 고른 캐릭터 종류
-
-  /// Unity 크루 씬에 넘길 토큰('f'/'m').
-  String get charToken => isFemale ? 'f' : 'm';
-}
-
-/// 가입한 크루 하나. 여러 크루에 속할 수 있어 목록으로 관리한다.
-class Crew {
-  Crew({
-    required this.name,
-    required this.goal,
-    required this.members,
-    this.totalWorkouts = 148,
-  }) : posts = demoCrewPosts();
-  final String name;
-  final int goal; // 1인당 주간 목표
-  final List<CrewMember> members;
-  final List<CrewPost> posts;
-  final int totalWorkouts; // 크루 누적 운동 횟수 → 레벨 계산
-
-  int get weekDone => members.fold(0, (s, m) => s + m.weekCount);
-  int get target => goal * members.length;
-  CrewLevelInfo get levelInfo => crewLevelOf(totalWorkouts);
-}
-
-/// 새 크루의 기본 멤버(목데이터). 실제로는 생성자 본인만 있고 초대로 늘어난다.
-List<CrewMember> defaultCrewMembers() => const [
-      CrewMember('나', Color(0xFFC47A45), '나', 4, leader: true),
-      CrewMember('지', Color(0xFFC9865B), '지민', 5),
-      CrewMember('현', Color(0xFF7FA98C), '현우', 3, isFemale: false),
-      CrewMember('서', Color(0xFFB58BB0), '서연', 2),
-    ];
-
-/// 크루 목록의 카드 한 장(소셜 탭 크루 세그먼트에 표시).
+/// 크루 목록의 카드 한 장(소셜 탭 크루 세그먼트에 표시). (서버 CrewCardData)
 class CrewCard extends StatelessWidget {
   const CrewCard({super.key, required this.crew, required this.onTap});
-  final Crew crew;
+  final CrewCardData crew;
   final VoidCallback onTap;
 
   @override
@@ -97,7 +58,7 @@ class CrewCard extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: OunColors.textPrimary)),
                           const SizedBox(height: 2),
-                          Text('멤버 ${crew.members.length}명',
+                          Text('멤버 ${crew.memberCount}명 · Lv.${crew.level.level}',
                               style: const TextStyle(
                                   fontSize: 11.5, color: OunColors.textMuted)),
                         ],
@@ -133,14 +94,14 @@ class CrewCard extends StatelessWidget {
   }
 }
 
-/// 크루 홈: 상단 라이브 3D 무대(크루원 캐릭터) + 피드/크루원/현황 탭.
+/// 크루 홈: 상단 라이브 3D 무대(크루원 캐릭터) + 피드/크루원/현황 탭. (서버 상세)
 ///
 /// 진입 즉시 전역 Unity 뷰를 크루 씬으로 전환해 무대 영역(투명)으로
 /// 캐릭터들이 비쳐 보인다. 무대는 고정 헤더, 아래 탭 콘텐츠만 스크롤.
 class CrewHomeScreen extends ConsumerStatefulWidget {
-  const CrewHomeScreen({super.key, required this.crew, required this.onLeave});
-  final Crew crew;
-  final VoidCallback onLeave;
+  const CrewHomeScreen({super.key, required this.crewId, required this.name});
+  final String crewId;
+  final String name; // 로딩 중 표시용 초기 이름
 
   @override
   ConsumerState<CrewHomeScreen> createState() => _CrewHomeScreenState();
@@ -151,22 +112,26 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
 
   static const _stageHeight = 210.0;
   final _stageKey = GlobalKey();
+  String? _spawnedTokens; // 무대에 이미 스폰한 토큰(중복 전환 방지)
 
   @override
   void initState() {
     super.initState();
-    // 진입 시 Unity를 크루 씬으로 전환 (복구는 호출측 push-await에서).
-    // 각 크루원이 고른 캐릭터 종류를 토큰으로 전달 → 인원수만큼 해당 캐릭터 스폰.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncStageViewport());
+  }
+
+  /// 크루원 목록이 로드되면 캐릭터 토큰으로 Unity 크루 씬을 전환한다.
+  void _syncUnity(CrewDetail detail) {
+    final tokens = detail.members.map((m) => m.charToken).join(',');
+    if (tokens == _spawnedTokens) return;
+    _spawnedTokens = tokens;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final tokens = widget.crew.members.map((m) => m.charToken).join(',');
       ref.read(unitySceneProvider.notifier).showCrew(tokens);
       _syncStageViewport();
     });
   }
 
   /// 무대 박스의 화면상 위치를 재서 Unity 뷰를 그 영역에만 렌더하게 한다.
-  /// 아래 시트의 둥근 모서리 뒤가 검게 비지 않도록, 뷰포트를 시트 안쪽으로
-  /// 조금 더(코너 반경만큼) 확장해 그 밑도 Unity가 채우게 한다.
   void _syncStageViewport() {
     final box = _stageKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
@@ -175,9 +140,25 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
     ref.read(unityViewportProvider.notifier).setRect(origin & size);
   }
 
+  Future<void> _leave(CrewDetail crew) async {
+    try {
+      await ref.read(apiClientProvider).leaveCrew(crew.id);
+      ref.invalidate(crewsProvider);
+      if (mounted) {
+        Navigator.of(context).pop();
+        OunToast.show(context, '${crew.name}에서 나왔어요');
+      }
+    } catch (_) {
+      if (mounted) OunToast.show(context, '크루 나가기에 실패했어요');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final crew = widget.crew;
+    final async = ref.watch(crewDetailProvider(widget.crewId));
+    final crew = async.value;
+    if (crew != null) _syncUnity(crew);
+
     // 배경 투명: 상단 무대 영역으로 전역 Unity(크루 씬)가 비친다.
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -195,49 +176,51 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
                     icon: const Icon(Icons.arrow_back_ios_new_rounded,
                         size: 18, color: OunColors.textPrimary),
                   ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(crew.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: OunColors.textPrimary)),
-                      ),
-                      const SizedBox(width: 7),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: OunColors.tabAccent,
-                          borderRadius: BorderRadius.circular(8),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(crew?.name ?? widget.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: OunColors.textPrimary)),
                         ),
-                        child: Text('Lv.${crew.levelInfo.level}',
-                            style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: OunColors.onTabAccent)),
+                        const SizedBox(width: 7),
+                        if (crew != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: OunColors.tabAccent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text('Lv.${crew.level.level}',
+                                style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: OunColors.onTabAccent)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (crew != null)
+                    Container(
+                      margin: const EdgeInsets.only(right: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: OunColors.card.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: OunColors.cardBorder),
                       ),
-                    ],
-                  ),
-                ),
-                Container(
-                  margin: const EdgeInsets.only(right: 14),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: OunColors.card.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: OunColors.cardBorder),
-                  ),
-                  child: Text('이번 주 ${crew.weekDone}/${crew.target}',
-                      style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: OunColors.tabAccent)),
-                ),
+                      child: Text('이번 주 ${crew.weekDone}/${crew.target}',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: OunColors.tabAccent)),
+                    ),
                 ],
               ),
             ),
@@ -250,7 +233,10 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
               alignment: Alignment.bottomCenter,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text('크루원 ${crew.members.length}명이 모여 있어요',
+                child: Text(
+                    crew == null
+                        ? '크루원을 불러오는 중…'
+                        : '크루원 ${crew.members.length}명이 모여 있어요',
                     style: const TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
@@ -274,7 +260,13 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
                       onChanged: (v) => setState(() => _tab = v),
                     ),
                   ),
-                  Expanded(child: _content(crew)),
+                  Expanded(
+                    child: crew == null
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                                color: OunColors.tabAccent))
+                        : _content(crew),
+                  ),
                 ],
               ),
             ),
@@ -284,22 +276,16 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
     );
   }
 
-  Widget _content(Crew crew) {
+  Widget _content(CrewDetail crew) {
     switch (_tab) {
       case 0:
-        return _FeedTab(crew: crew);
+        return _FeedTab(crewId: crew.id);
       case 1:
         return _MembersTab(crew: crew);
       case 2:
         return _StatusTab(crew: crew);
       default:
-        return _CrewInfoTab(
-            crew: crew,
-            onLeave: () {
-              widget.onLeave();
-              Navigator.of(context).pop();
-              OunToast.show(context, '${crew.name}에서 나왔어요');
-            });
+        return _CrewInfoTab(crew: crew, onLeave: () => _leave(crew));
     }
   }
 }
@@ -347,48 +333,117 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-/// 피드 탭: SNS처럼 크루원들의 운동 공유 글.
-class _FeedTab extends StatelessWidget {
-  const _FeedTab({required this.crew});
-  final Crew crew;
+/// 피드 탭: SNS처럼 크루원들의 운동 공유 글. (서버 피드)
+class _FeedTab extends ConsumerWidget {
+  const _FeedTab({required this.crewId});
+  final String crewId;
 
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
-      children: [
-        for (final p in crew.posts)
-          CrewPostCard(
-            post: p,
-            onTap: () => Navigator.of(context, rootNavigator: true).push(
-              MaterialPageRoute<void>(
-                builder: (_) => CrewPostDetailScreen(post: p),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(crewFeedProvider(crewId));
+    return async.when(
+      loading: () => const Center(
+          child: CircularProgressIndicator(color: OunColors.tabAccent)),
+      error: (_, _) => const Center(
+        child: Text('피드를 불러오지 못했어요',
+            style: TextStyle(fontSize: 12, color: OunColors.textFaint)),
+      ),
+      data: (posts) => RefreshIndicator(
+        color: OunColors.tabAccent,
+        onRefresh: () async => ref.invalidate(crewFeedProvider(crewId)),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
+          children: [
+            for (final p in posts)
+              CrewPostCard(
+                post: p,
+                onTap: () async {
+                  await Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CrewPostDetailScreen(post: p),
+                    ),
+                  );
+                  ref.invalidate(crewFeedProvider(crewId));
+                },
               ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                  posts.isEmpty
+                      ? '아직 글이 없어요 · 운동을 기록하면 크루에 공유돼요'
+                      : '운동을 기록하면 크루에 공유돼요',
+                  style: const TextStyle(
+                      fontSize: 11.5, color: OunColors.textFaint)),
             ),
-          ),
-        const SizedBox(height: 4),
-        const Center(
-          child: Text('운동을 기록하면 크루에 공유할 수 있어요',
-              style: TextStyle(fontSize: 11.5, color: OunColors.textFaint)),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
 /// 크루원 탭: 멤버 관리 + 초대.
-class _MembersTab extends StatelessWidget {
+class _MembersTab extends ConsumerWidget {
   const _MembersTab({required this.crew});
-  final Crew crew;
+  final CrewDetail crew;
+
+  Future<void> _invite(BuildContext context, WidgetRef ref) async {
+    final nickname = await showNicknameInputSheet(
+      context,
+      title: '크루원 초대하기',
+      hint: '@닉네임 입력',
+      action: '초대',
+    );
+    if (nickname == null || nickname.isEmpty) return;
+    try {
+      final name =
+          await ref.read(apiClientProvider).inviteToCrew(crew.id, nickname);
+      ref.invalidate(crewDetailProvider(crew.id));
+      ref.invalidate(crewsProvider);
+      if (context.mounted) {
+        OunToast.show(context, '$name님을 초대했어요', kind: OunToastKind.success);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        OunToast.show(context, '초대에 실패했어요. 닉네임을 확인해 주세요');
+      }
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
       children: [
         for (final m in crew.members) _MemberRow(m),
         const SizedBox(height: 8),
-        _InviteRow(),
+        Material(
+          color: OunColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: OunColors.cardBorder),
+          ),
+          child: InkWell(
+            onTap: () => _invite(context, ref),
+            borderRadius: BorderRadius.circular(14),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_add_alt,
+                      size: 17, color: OunColors.tabAccent),
+                  SizedBox(width: 8),
+                  Text('크루원 초대하기',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: OunColors.textPrimary)),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -397,7 +452,7 @@ class _MembersTab extends StatelessWidget {
 /// 현황 탭: 크루 공동 목표 + 크루원들이 이번 주 얼마나 운동했는지.
 class _StatusTab extends StatelessWidget {
   const _StatusTab({required this.crew});
-  final Crew crew;
+  final CrewDetail crew;
 
   @override
   Widget build(BuildContext context) {
@@ -441,7 +496,7 @@ class _StatusTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Text('멤버 ${crew.members.length}명 · 1인당 주 ${crew.goal}회 목표',
+              Text('멤버 ${crew.members.length}명 · 1인당 주 ${crew.weeklyGoal}회 목표',
                   style: const TextStyle(
                       fontSize: 11.5, color: OunColors.textMuted)),
             ],
@@ -471,8 +526,9 @@ class _StatusTab extends StatelessWidget {
                   child: Row(
                     children: [
                       SizedBox(
-                        width: 44,
-                        child: Text(m.name,
+                        width: 52,
+                        child: Text(m.displayName,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -482,10 +538,14 @@ class _StatusTab extends StatelessWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
-                            value: (m.weekCount / crew.goal).clamp(0.0, 1.0),
+                            value: crew.weeklyGoal == 0
+                                ? 0
+                                : (m.weekCount / crew.weeklyGoal)
+                                    .clamp(0.0, 1.0),
                             minHeight: 7,
                             backgroundColor: OunColors.card,
-                            valueColor: AlwaysStoppedAnimation<Color>(m.color),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                avatarColor(m.nickname)),
                           ),
                         ),
                       ),
@@ -505,20 +565,44 @@ class _StatusTab extends StatelessWidget {
   }
 }
 
-/// 크루 정보 탭: 크루 레벨 + 레벨 보상 + 크루 나가기.
-class _CrewInfoTab extends StatelessWidget {
+/// 크루 정보 탭: 크루 레벨 + 레벨 보상 + 크루 나가기. (서버 보상 수령)
+class _CrewInfoTab extends ConsumerWidget {
   const _CrewInfoTab({required this.crew, required this.onLeave});
-  final Crew crew;
+  final CrewDetail crew;
   final VoidCallback onLeave;
 
+  Future<void> _claim(
+      BuildContext context, WidgetRef ref, int level) async {
+    try {
+      final (coins, _) =
+          await ref.read(apiClientProvider).claimCrewReward(crew.id, level);
+      ref.invalidate(crewRewardsProvider(crew.id));
+      ref.invalidate(walletProvider);
+      if (context.mounted) {
+        OunToast.show(
+          context,
+          coins > 0 ? '+$coins 코인!' : '보상 획득!',
+          kind: OunToastKind.success,
+          icon: coins > 0 ? Icons.paid_rounded : Icons.emoji_events,
+        );
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '보상 수령에 실패했어요');
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rewards = ref.watch(crewRewardsProvider(crew.id)).value ?? [];
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
       children: [
-        CrewLevelCard(info: crew.levelInfo),
+        CrewLevelCard(info: crew.level),
         const SizedBox(height: 12),
-        CrewLevelRewardList(level: crew.levelInfo.level),
+        CrewLevelRewardList(
+          rewards: rewards,
+          onClaim: (r) => _claim(context, ref, r.level),
+        ),
         const SizedBox(height: 20),
         Center(
           child: TextButton(
@@ -534,7 +618,7 @@ class _CrewInfoTab extends StatelessWidget {
 
 class _MemberRow extends StatelessWidget {
   const _MemberRow(this.m);
-  final CrewMember m;
+  final CrewMemberData m;
 
   @override
   Widget build(BuildContext context) {
@@ -545,32 +629,22 @@ class _MemberRow extends StatelessWidget {
         onTap: () => Navigator.of(context, rootNavigator: true).push(
           MaterialPageRoute<void>(
             builder: (_) => FriendHomeScreen(
-                name: m.name, initial: m.initial, color: m.color),
+                nickname: m.nickname, displayName: m.displayName),
           ),
         ),
         child: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(color: m.color, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text(m.initial,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white)),
-            ),
+            PostAvatar(name: m.displayName, nickname: m.nickname, size: 38),
             const SizedBox(width: 11),
             Expanded(
               child: Row(
                 children: [
-                  Text(m.name,
+                  Text(m.isMe ? '나' : m.displayName,
                       style: const TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
                           color: OunColors.textPrimary)),
-                  if (m.leader) ...[
+                  if (m.role == 'leader') ...[
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -601,32 +675,126 @@ class _MemberRow extends StatelessWidget {
   }
 }
 
-class _InviteRow extends StatelessWidget {
+/// 닉네임 입력 바텀시트(친구 추가/크루 초대 공용).
+Future<String?> showNicknameInputSheet(
+  BuildContext context, {
+  required String title,
+  required String hint,
+  required String action,
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _NicknameSheet(title: title, hint: hint, action: action),
+  );
+}
+
+class _NicknameSheet extends StatefulWidget {
+  const _NicknameSheet(
+      {required this.title, required this.hint, required this.action});
+  final String title;
+  final String hint;
+  final String action;
+
+  @override
+  State<_NicknameSheet> createState() => _NicknameSheetState();
+}
+
+class _NicknameSheetState extends State<_NicknameSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: OunColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: OunColors.cardBorder),
-      ),
-      child: InkWell(
-        onTap: () => OunToast.show(context, '초대 링크 공유는 곧 열려요'),
-        borderRadius: BorderRadius.circular(14),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.person_add_alt, size: 17, color: OunColors.tabAccent),
-              SizedBox(width: 8),
-              Text('크루원 초대하기',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: OunColors.textPrimary)),
-            ],
-          ),
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final canSubmit = _controller.text.trim().isNotEmpty;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: OunColors.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                    color: OunColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            Text(widget.title,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => canSubmit
+                  ? Navigator.of(context).pop(_controller.text.trim())
+                  : null,
+              maxLength: 20,
+              style:
+                  const TextStyle(fontSize: 14, color: OunColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                hintStyle: const TextStyle(color: OunColors.textFaint),
+                counterText: '',
+                prefixText: '@ ',
+                prefixStyle:
+                    const TextStyle(color: OunColors.tabAccent, fontSize: 14),
+                filled: true,
+                fillColor: OunColors.surface,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: OunColors.cardBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: OunColors.tabAccent),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: OunColors.tabAccent,
+                  foregroundColor: OunColors.onTabAccent,
+                  disabledBackgroundColor: OunColors.cardBorder,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: canSubmit
+                    ? () => Navigator.of(context).pop(_controller.text.trim())
+                    : null,
+                child: Text(widget.action,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/models.dart';
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 import '../../unity/unity_stage.dart';
 import 'crew_create_sheet.dart';
+import 'crew_feed.dart';
 import 'crew_home.dart';
 import 'friend_home_screen.dart';
 
-/// 소셜 탭: 상단 세그먼트로 친구 / 크루 통합. 랭킹 없이 응원 중심 피드.
+/// 소셜 탭: 상단 세그먼트로 친구 / 크루 통합. 랭킹 없이 응원 중심. (서버)
 class CrewScreen extends ConsumerStatefulWidget {
   const CrewScreen({super.key});
 
@@ -19,36 +23,55 @@ class CrewScreen extends ConsumerStatefulWidget {
 
 class _CrewScreenState extends ConsumerState<CrewScreen> {
   int _segment = 0; // 0: 친구, 1: 크루
-  // 여러 크루에 속할 수 있으므로 목록으로 관리.
-  final List<Crew> _crews = [];
 
   Future<void> _createCrew() async {
     final result = await showCrewCreateSheet(context);
     if (result == null) return;
-    final crew = Crew(
-      name: result.$1,
-      goal: result.$2,
-      members: defaultCrewMembers(),
-    );
-    setState(() => _crews.add(crew));
-    if (mounted) {
-      OunToast.show(context, '${crew.name} 크루를 만들었어요',
-          kind: OunToastKind.success);
+    try {
+      final crew =
+          await ref.read(apiClientProvider).createCrew(result.$1, result.$2);
+      ref.invalidate(crewsProvider);
+      if (mounted) {
+        OunToast.show(context, '${crew.name} 크루를 만들었어요',
+            kind: OunToastKind.success);
+      }
+    } catch (_) {
+      if (mounted) OunToast.show(context, '크루 생성에 실패했어요');
     }
   }
 
-  Future<void> _openCrew(Crew crew) async {
+  Future<void> _addFriend() async {
+    final nickname = await showNicknameInputSheet(
+      context,
+      title: '친구 추가하기',
+      hint: '닉네임 입력',
+      action: '추가',
+    );
+    if (nickname == null || nickname.isEmpty) return;
+    try {
+      final name = await ref.read(apiClientProvider).addFriend(nickname);
+      ref.invalidate(friendsProvider);
+      if (mounted) {
+        OunToast.show(context, '$name님과 친구가 되었어요',
+            kind: OunToastKind.success);
+      }
+    } catch (_) {
+      if (mounted) {
+        OunToast.show(context, '친구 추가에 실패했어요. 닉네임을 확인해 주세요');
+      }
+    }
+  }
+
+  Future<void> _openCrew(CrewCardData crew) async {
     // 크루 홈은 진입 시 Unity를 크루 씬으로 바꾼다. 돌아오면 홈 씬으로 확실히 복구.
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) => CrewHomeScreen(
-          crew: crew,
-          onLeave: () => setState(() => _crews.remove(crew)),
-        ),
+        builder: (_) => CrewHomeScreen(crewId: crew.id, name: crew.name),
       ),
     );
     ref.read(unitySceneProvider.notifier).showHome();
     ref.read(unityViewportProvider.notifier).setRect(null); // 전체 화면 복구
+    ref.invalidate(crewsProvider);
   }
 
   @override
@@ -61,51 +84,16 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
           onChanged: (v) => setState(() => _segment = v),
         ),
         const SizedBox(height: 14),
-        if (_segment == 0)
-          ..._friends
-        else if (_crews.isEmpty)
-          _crewEmpty
-        else
-          ..._crewList,
+        if (_segment == 0) _friendsSection() else _crewsSection(),
       ],
     );
   }
 
-  List<Widget> get _crewList => [
-        for (final c in _crews)
-          CrewCard(crew: c, onTap: () => _openCrew(c)),
-        const SizedBox(height: 4),
-        // 새 크루 만들기(여러 크루 가입 가능)
-        Material(
-          color: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: OunColors.cardBorder),
-          ),
-          child: InkWell(
-            onTap: _createCrew,
-            borderRadius: BorderRadius.circular(14),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 13),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_rounded, size: 19, color: OunColors.tabAccent),
-                  SizedBox(width: 7),
-                  Text('새 크루 만들기',
-                      style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: OunColors.tabAccent)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ];
-
-  List<Widget> get _friends => [
-        // 친구 추가 진입점(검색 필드 모양, 탭하면 추가 플로우 예정)
+  Widget _friendsSection() {
+    final async = ref.watch(friendsProvider);
+    return Column(
+      children: [
+        // 친구 추가 진입점
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Material(
@@ -114,36 +102,106 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
               borderRadius: BorderRadius.circular(14),
               side: const BorderSide(color: OunColors.cardBorder),
             ),
-            child: Builder(
-              builder: (context) => InkWell(
-                onTap: () => OunToast.show(context, '친구 추가는 곧 열려요'),
-                borderRadius: BorderRadius.circular(14),
-                child: const Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.person_add_alt,
-                          size: 17, color: OunColors.textMuted),
-                      SizedBox(width: 8),
-                      Text('@닉네임으로 친구 추가',
-                          style: TextStyle(
-                              fontSize: 13, color: OunColors.textMuted)),
-                    ],
-                  ),
+            child: InkWell(
+              onTap: _addFriend,
+              borderRadius: BorderRadius.circular(14),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_add_alt,
+                        size: 17, color: OunColors.textMuted),
+                    SizedBox(width: 8),
+                    Text('@닉네임으로 친구 추가',
+                        style:
+                            TextStyle(fontSize: 13, color: OunColors.textMuted)),
+                  ],
                 ),
               ),
             ),
           ),
         ),
-        const _FriendRow(
-            '지', Color(0xFFC9865B), '지민', '러닝 5.2km · 오늘 완료', ['👏', '❤️']),
-        const _FriendRow('현', Color(0xFF7FA98C), '현우', '웨이트 · 3일 연속', ['🔥']),
-        const _FriendRow('서', Color(0xFFB58BB0), '서연', '걷기 1만보 달성', ['👏', '🎉']),
-        const _FriendRow('민', Color(0xFFC99F5B), '민준', '오늘 휴식일 🌙', ['💛']),
-      ];
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.4, color: OunColors.tabAccent))),
+          ),
+          error: (_, _) => const _ErrorHint('친구 목록을 불러오지 못했어요'),
+          data: (friends) {
+            if (friends.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Center(
+                  child: Text('아직 친구가 없어요 · @닉네임으로 추가해 보세요',
+                      style: TextStyle(
+                          fontSize: 12.5, color: OunColors.textFaint)),
+                ),
+              );
+            }
+            return Column(
+              children: [for (final f in friends) _FriendRow(f)],
+            );
+          },
+        ),
+      ],
+    );
+  }
 
-  Widget get _crewEmpty => Padding(
+  Widget _crewsSection() {
+    final async = ref.watch(crewsProvider);
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+            child: CircularProgressIndicator(color: OunColors.tabAccent)),
+      ),
+      error: (_, _) => const _ErrorHint('크루를 불러오지 못했어요'),
+      data: (crews) {
+        if (crews.isEmpty) return _crewEmpty();
+        return Column(
+          children: [
+            for (final c in crews)
+              CrewCard(crew: c, onTap: () => _openCrew(c)),
+            const SizedBox(height: 4),
+            Material(
+              color: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: OunColors.cardBorder),
+              ),
+              child: InkWell(
+                onTap: _createCrew,
+                borderRadius: BorderRadius.circular(14),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 13),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_rounded,
+                          size: 19, color: OunColors.tabAccent),
+                      SizedBox(width: 7),
+                      Text('새 크루 만들기',
+                          style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: OunColors.tabAccent)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _crewEmpty() => Padding(
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
@@ -171,6 +229,20 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
                   style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
             ),
           ],
+        ),
+      );
+}
+
+class _ErrorHint extends StatelessWidget {
+  const _ErrorHint(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: Text(text,
+              style:
+                  const TextStyle(fontSize: 12.5, color: OunColors.textFaint)),
         ),
       );
 }
@@ -216,26 +288,35 @@ class _Segment extends StatelessWidget {
   }
 }
 
-class _FriendRow extends StatelessWidget {
-  const _FriendRow(
-      this.initial, this.color, this.name, this.activity, this.reactions);
-  final String initial;
-  final Color color;
-  final String name;
-  final String activity;
-  final List<String> reactions;
+class _FriendRow extends ConsumerWidget {
+  const _FriendRow(this.friend);
+  final Friend friend;
 
   void _openFriendHome(BuildContext context) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            FriendHomeScreen(name: name, initial: initial, color: color),
+        builder: (_) => FriendHomeScreen(
+            nickname: friend.nickname, displayName: friend.displayName),
       ),
     );
   }
 
+  Future<void> _cheer(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(apiClientProvider).cheer(friend.nickname, emoji: '👏');
+      ref.invalidate(friendsProvider);
+      ref.invalidate(questsProvider);
+      if (context.mounted) {
+        OunToast.show(context, '${friend.displayName}님에게 응원을 보냈어요',
+            kind: OunToastKind.cheer);
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '응원에 실패했어요');
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
@@ -247,29 +328,21 @@ class _FriendRow extends StatelessWidget {
               onTap: () => _openFriendHome(context),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration:
-                        BoxDecoration(color: color, shape: BoxShape.circle),
-                    alignment: Alignment.center,
-                    child: Text(initial,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white)),
-                  ),
+                  PostAvatar(
+                      name: friend.displayName,
+                      nickname: friend.nickname,
+                      size: 40),
                   const SizedBox(width: 11),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name,
+                        Text(friend.displayName,
                             style: const TextStyle(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w600,
                                 color: OunColors.textPrimary)),
-                        Text(activity,
+                        Text(friendActivityLine(friend),
                             style: const TextStyle(
                                 fontSize: 11, color: OunColors.textMuted)),
                       ],
@@ -281,7 +354,7 @@ class _FriendRow extends StatelessWidget {
           ),
           Row(
             children: [
-              for (final r in reactions)
+              for (final r in friend.reactions)
                 Container(
                   margin: const EdgeInsets.only(left: 6),
                   width: 28,
@@ -299,11 +372,7 @@ class _FriendRow extends StatelessWidget {
                   shape: const CircleBorder(
                       side: BorderSide(color: OunColors.cardBorder)),
                   child: InkWell(
-                    onTap: () => OunToast.show(
-                      context,
-                      '$name님에게 응원을 보냈어요',
-                      kind: OunToastKind.cheer,
-                    ),
+                    onTap: () => _cheer(context, ref),
                     customBorder: const CircleBorder(),
                     child: const SizedBox(
                       width: 28,
