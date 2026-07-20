@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 
-/// 운동 기록·입력. 주간 스트릭 + 종목 퀵스타트 + 최근 기록.
+String _monthKey(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}';
+
+/// 운동 기록·입력. 주간 스트릭 + 종목 퀵스타트 + 최근 기록. (서버 데이터)
 class RecordScreen extends StatelessWidget {
   const RecordScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
     return PageScaffold(
       title: '기록',
       trailing: Container(
@@ -21,8 +26,8 @@ class RecordScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: OunColors.cardBorder),
         ),
-        child: const Text('7월',
-            style: TextStyle(
+        child: Text('${now.month}월',
+            style: const TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
                 color: OunColors.textPrimary)),
@@ -69,10 +74,8 @@ class RecordScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
           ),
         ),
-        const _SectionHeader('최근 기록'),
-        const _RecordRow(Icons.directions_run, '러닝', '오늘 · 5.2km', '32분'),
-        const _RecordRow(Icons.fitness_center, '웨이트', '어제 · 상체', '45분'),
-        const _RecordRow(Icons.directions_walk, '걷기', '2일 전 · 8,200보', '58분'),
+        const _SectionHeader('최근 기록', showAll: false),
+        const _RecentRecords(),
       ],
     );
   }
@@ -81,42 +84,79 @@ class RecordScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       // 루트 네비게이터에 띄워야 플로팅 탭바 위로 올라온다.
-      // (기본값은 브랜치 네비게이터라 탭바에 가려짐)
       useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _RecordInputSheet(preset: preset, presetIcon: icon),
     );
   }
-
 }
 
-/// 주간 스트릭 + 펼치면 월간 도트 캘린더(날짜 + 운동량 점) + 월 요약.
-/// 평소엔 주간만 보여 공간을 아끼고, '월간 보기'로 펼친다.
-class _MonthSection extends StatefulWidget {
+/// 최근 기록 목록(서버).
+class _RecentRecords extends ConsumerWidget {
+  const _RecentRecords();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(recentWorkoutsProvider);
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+            child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.4, color: OunColors.tabAccent))),
+      ),
+      error: (_, _) => const _EmptyHint('기록을 불러오지 못했어요'),
+      data: (items) {
+        if (items.isEmpty) {
+          return const _EmptyHint('첫 운동을 기록해 보세요');
+        }
+        return Column(
+          children: [
+            for (final w in items.take(5))
+              _RecordRow(
+                sportIcons[w.sport] ?? Icons.sports_gymnastics,
+                sportLabels[w.sport] ?? w.sport,
+                '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
+                '${w.minutes}분',
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(text,
+              style:
+                  const TextStyle(fontSize: 12, color: OunColors.textFaint)),
+        ),
+      );
+}
+
+/// 주간 스트립 + 펼치면 월간 도트 캘린더 + 월 요약. (서버 캘린더/요약)
+class _MonthSection extends ConsumerStatefulWidget {
   const _MonthSection();
 
   @override
-  State<_MonthSection> createState() => _MonthSectionState();
+  ConsumerState<_MonthSection> createState() => _MonthSectionState();
 }
 
-class _MonthSectionState extends State<_MonthSection> {
+class _MonthSectionState extends ConsumerState<_MonthSection> {
   bool _expanded = false;
+  DateTime _month = DateTime.now(); // 월간 보기에서 넘겨보는 달
 
-  // 목데이터 (실제로는 일별 운동 시간 합계로 강도 계산)
   static const _weekLabels = ['월', '화', '수', '목', '금', '토', '일'];
-  static const _todayWeekIndex = 4; // 이번 주 금요일
-  static const _daysInMonth = 31;
-  static const _leadingEmpty = 1; // 7/1 = 화 (월요일 시작 기준 빈칸 1)
-  static const _todayDay = 18;
-  // 31일 운동 강도 0(안 함)~4(많이)
-  static const _intensity = <int>[
-    0, 2, 1, 0, 3, 4, 2, //
-    1, 0, 2, 3, 3, 4, 0, //
-    2, 1, 0, 4, 3, 2, 1, //
-    0, 3, 4, 2, 1, 3, 2, //
-    1, 0, 4,
-  ];
   // 강도별 색 (1~4). 0은 점 없음.
   static const _heat = [
     OunColors.card,
@@ -128,6 +168,24 @@ class _MonthSectionState extends State<_MonthSection> {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final currentKey = _monthKey(now);
+    final calendar = ref.watch(calendarProvider(currentKey)).value ?? [];
+    final profile = ref.watch(profileProvider).value;
+
+    // 이번 주(월~일) 완료 여부: 이번 달 캘린더에서 계산
+    final doneDates = calendar.where((d) => d.intensity > 0).map((d) => d.date).toSet();
+    final todayIdx = now.weekday - 1;
+    final monday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: todayIdx));
+    final weekDone = List<bool>.generate(7, (i) {
+      final d = monday.add(Duration(days: i));
+      final key =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      return doneDates.contains(key);
+    });
+    final weekCount = weekDone.where((b) => b).length;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -144,23 +202,24 @@ class _MonthSectionState extends State<_MonthSection> {
               for (var i = 0; i < 7; i++)
                 _DayDot(
                   label: _weekLabels[i],
-                  done: i <= _todayWeekIndex,
-                  isToday: i == _todayWeekIndex,
+                  done: weekDone[i],
+                  isToday: i == todayIdx,
                 ),
             ],
           ),
           const SizedBox(height: 12),
-          const Text.rich(
+          Text.rich(
             TextSpan(
-              style: TextStyle(fontSize: 12, color: OunColors.textMuted),
+              style: const TextStyle(fontSize: 12, color: OunColors.textMuted),
               children: [
-                TextSpan(text: '이번 주 '),
+                const TextSpan(text: '이번 주 '),
                 TextSpan(
-                    text: '5일',
-                    style: TextStyle(
+                    text: '$weekCount일',
+                    style: const TextStyle(
                         color: OunColors.tabAccent,
                         fontWeight: FontWeight.w700)),
-                TextSpan(text: ' 운동 · 연속 12일'),
+                TextSpan(
+                    text: ' 운동 · 연속 ${profile?.streakCurrent ?? 0}일'),
               ],
             ),
           ),
@@ -202,61 +261,87 @@ class _MonthSectionState extends State<_MonthSection> {
   }
 
   Widget _monthly() {
+    final key = _monthKey(_month);
+    final calendar = ref.watch(calendarProvider(key)).value ?? [];
+    final summary = ref.watch(monthSummaryProvider(key)).value;
+    final intensityByDay = {
+      for (final d in calendar) int.parse(d.date.substring(8)): d.intensity,
+    };
+
     return Column(
       children: [
         const SizedBox(height: 16),
         Row(
           children: [
-            const Text('2025년 7월',
-                style: TextStyle(
+            Text('${_month.year}년 ${_month.month}월',
+                style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: OunColors.textPrimary)),
             const Spacer(),
-            _navArrow(Icons.chevron_left_rounded),
+            _navArrow(Icons.chevron_left_rounded,
+                () => setState(() => _month = DateTime(_month.year, _month.month - 1))),
             const SizedBox(width: 6),
-            _navArrow(Icons.chevron_right_rounded),
+            _navArrow(Icons.chevron_right_rounded,
+                () => setState(() => _month = DateTime(_month.year, _month.month + 1))),
           ],
         ),
         const SizedBox(height: 12),
         // 월 요약
         Row(
-          children: const [
-            Expanded(child: _MonthStat(value: '18', label: '운동한 날')),
-            _StatSep(),
-            Expanded(child: _MonthStat(value: '9.2h', label: '총 시간')),
-            _StatSep(),
-            Expanded(child: _MonthStat(value: '12일', label: '최장 연속')),
+          children: [
+            Expanded(
+                child: _MonthStat(
+                    value: '${summary?.workoutDays ?? 0}', label: '운동한 날')),
+            const _StatSep(),
+            Expanded(
+                child: _MonthStat(
+                    value:
+                        '${((summary?.totalMinutes ?? 0) / 60).toStringAsFixed(1)}h',
+                    label: '총 시간')),
+            const _StatSep(),
+            Expanded(
+                child: _MonthStat(
+                    value: '${summary?.longestStreak ?? 0}일', label: '최장 연속')),
           ],
         ),
         const SizedBox(height: 14),
-        _calendarGrid(),
+        _calendarGrid(intensityByDay),
       ],
     );
   }
 
-  Widget _navArrow(IconData icon) => Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: OunColors.card,
-          borderRadius: BorderRadius.circular(8),
+  Widget _navArrow(IconData icon, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: OunColors.card,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: OunColors.tabAccent),
         ),
-        child: Icon(icon, size: 18, color: OunColors.tabAccent),
       );
 
-  Widget _calendarGrid() {
+  Widget _calendarGrid(Map<int, int> intensityByDay) {
+    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+    final leadingEmpty = DateTime(_month.year, _month.month, 1).weekday - 1;
+    final now = DateTime.now();
+    final todayDay =
+        (_month.year == now.year && _month.month == now.month) ? now.day : -1;
+
     final weeks = <Widget>[];
-    var day = 1 - _leadingEmpty;
-    final total = _leadingEmpty + _daysInMonth;
+    var day = 1 - leadingEmpty;
+    final total = leadingEmpty + daysInMonth;
     final weekCount = (total / 7).ceil();
     for (var w = 0; w < weekCount; w++) {
       final row = <Widget>[];
       for (var i = 0; i < 7; i++) {
         row.add(Expanded(
-          child: (day < 1 || day > _daysInMonth)
+          child: (day < 1 || day > daysInMonth)
               ? const SizedBox(height: 38)
-              : _dayCell(day),
+              : _dayCell(day, intensityByDay[day] ?? 0, day == todayDay),
         ));
         day++;
       }
@@ -281,9 +366,7 @@ class _MonthSectionState extends State<_MonthSection> {
     );
   }
 
-  Widget _dayCell(int d) {
-    final v = _intensity[d - 1];
-    final isToday = d == _todayDay;
+  Widget _dayCell(int d, int v, bool isToday) {
     return Container(
       height: 38,
       margin: const EdgeInsets.all(1),
@@ -304,7 +387,7 @@ class _MonthSectionState extends State<_MonthSection> {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: v > 0 ? _heat[v] : Colors.transparent,
+              color: v > 0 ? _heat[v.clamp(0, 4)] : Colors.transparent,
               shape: BoxShape.circle,
             ),
           ),
@@ -437,7 +520,7 @@ class _SectionHeader extends StatelessWidget {
             ),
             if (showAll)
               GestureDetector(
-                onTap: () {}, // TODO: 전체 기록 목록
+                onTap: () {},
                 child: const Text('전체 보기',
                     style:
                         TextStyle(fontSize: 11.5, color: OunColors.textMuted)),
@@ -501,8 +584,7 @@ class _RecordRow extends StatelessWidget {
   }
 }
 
-/// 운동 기록 입력 바텀시트. 종목 선택 + 시간(분) + 강도 메모.
-/// 목업이라 저장은 스낵바로 확인만 하고 닫는다.
+/// 운동 기록 입력 바텀시트. 저장 시 서버에 제출하고 보상을 안내한다.
 class _RecordInputSheet extends ConsumerStatefulWidget {
   const _RecordInputSheet({this.preset, this.presetIcon});
   final String? preset;
@@ -524,8 +606,6 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
   };
   static const _bodyApi = {'상체': 'upper', '하체': 'lower', '전신': 'full', '코어': 'core'};
 
-  bool _saving = false;
-
   static const _types = [
     ('러닝', Icons.directions_run),
     ('걷기', Icons.directions_walk),
@@ -545,12 +625,20 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
   int _bodyPart = 0;
   // 운동 인증 사진(목업: 실제 이미지 대신 첨부 여부만 관리).
   bool _photoAttached = false;
+  bool _saving = false;
+  final _message = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     final i = _types.indexWhere((t) => t.$1 == widget.preset);
     _selected = i < 0 ? 0 : i;
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
   }
 
   String get _type => _types[_selected].$1;
@@ -570,7 +658,7 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
     }
   }
 
-  /// 저장 시 요약 문구(토스트용). 지표 + 시간 (+ 사진 인증).
+  /// 저장 시 요약 문구(토스트용).
   String get _summary {
     final String base;
     switch (_metricKind) {
@@ -583,30 +671,30 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
       default:
         base = '$_type $_minutes분';
     }
-    return _photoAttached ? '$base · 사진 인증' : base;
+    return base;
   }
 
-  /// 서버에 운동 기록을 제출하고 홈 코인(walletProvider)을 갱신한다.
-  /// 서버가 꺼져 있어도 앱이 멈추지 않도록 실패는 조용히 안내만 한다.
+  /// 서버에 운동 기록을 제출하고 화면 데이터를 일괄 갱신한다.
   Future<void> _save() async {
+    if (_saving) return;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final api = ref.read(apiClientProvider);
     setState(() => _saving = true);
 
     try {
-      await api.ensureSession();
       final result = await api.createWorkout(
         sport: _sportApi[_type] ?? 'etc',
         durationSec: _minutes * 60,
-        distanceM: _metricKind == 'distance' ? (_distanceKm * 1000).round() : null,
+        distanceM:
+            _metricKind == 'distance' ? (_distanceKm * 1000).round() : null,
         steps: _metricKind == 'steps' ? _steps : null,
         bodyPart: _metricKind == 'weight' ? _bodyApi[_bodyParts[_bodyPart]] : null,
         sets: _metricKind == 'weight' ? _sets : null,
         hasPhoto: _photoAttached,
+        message: _message.text.trim(),
       );
-      // 홈 코인 등 지갑을 다시 읽어오게 한다.
-      ref.invalidate(walletProvider);
+      invalidateAfterWorkout(ref);
       navigator.pop();
       OunToast.showWith(
         messenger,
@@ -617,13 +705,9 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
         icon: result.verified ? Icons.paid_rounded : null,
       );
     } catch (_) {
-      // 서버 미기동/네트워크 실패: 기록 입력만 닫고 안내.
       navigator.pop();
-      OunToast.showWith(
-        messenger,
-        '$_summary 기록 · 서버 연결 실패(오프라인)',
-        kind: OunToastKind.info,
-      );
+      OunToast.showWith(messenger, '기록 저장에 실패했어요. 서버 연결을 확인해 주세요',
+          kind: OunToastKind.info);
     }
   }
 
@@ -638,93 +722,128 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 그랩 핸들
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                    color: OunColors.cardBorder,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const Text('운동 기록하기',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: OunColors.textPrimary)),
-            const SizedBox(height: 16),
-            const _FieldLabel('종목'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < _types.length; i++)
-                  _TypeChip(
-                    icon: _types[i].$2,
-                    label: _types[i].$1,
-                    selected: i == _selected,
-                    onTap: () => setState(() => _selected = i),
-                  ),
-              ],
-            ),
-            // 종목별 지표(거리/걸음/부위·세트)
-            ..._metricFields(),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                const _FieldLabel('시간'),
-                const Spacer(),
-                Text('$_minutes분',
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: OunColors.textPrimary)),
-              ],
-            ),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: OunColors.tabAccent,
-                inactiveTrackColor: OunColors.card,
-                thumbColor: OunColors.tabAccent,
-                overlayColor: OunColors.tabAccent.withValues(alpha: 0.15),
-              ),
-              child: Slider(
-                value: _minutes.toDouble(),
-                min: 5,
-                max: 180,
-                divisions: 35,
-                onChanged: (v) => setState(() => _minutes = v.round()),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const _FieldLabel('운동 사진 (선택)'),
-            const SizedBox(height: 8),
-            _photoSection(),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: OunColors.tabAccent,
-                  foregroundColor: OunColors.onTabAccent,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 그랩 핸들
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                      color: OunColors.cardBorder,
+                      borderRadius: BorderRadius.circular(2)),
                 ),
-                onPressed: _saving ? null : _save,
-                child: const Text('저장하기',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               ),
-            ),
-          ],
+              const Text('운동 기록하기',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: OunColors.textPrimary)),
+              const SizedBox(height: 16),
+              const _FieldLabel('종목'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < _types.length; i++)
+                    _TypeChip(
+                      icon: _types[i].$2,
+                      label: _types[i].$1,
+                      selected: i == _selected,
+                      onTap: () => setState(() => _selected = i),
+                    ),
+                ],
+              ),
+              // 종목별 지표(거리/걸음/부위·세트)
+              ..._metricFields(),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const _FieldLabel('시간'),
+                  const Spacer(),
+                  Text('$_minutes분',
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: OunColors.textPrimary)),
+                ],
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: OunColors.tabAccent,
+                  inactiveTrackColor: OunColors.card,
+                  thumbColor: OunColors.tabAccent,
+                  overlayColor: OunColors.tabAccent.withValues(alpha: 0.15),
+                ),
+                child: Slider(
+                  value: _minutes.toDouble(),
+                  min: 5,
+                  max: 180,
+                  divisions: 35,
+                  onChanged: (v) => setState(() => _minutes = v.round()),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const _FieldLabel('크루에 한마디 (선택)'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _message,
+                maxLength: 120,
+                style: const TextStyle(
+                    fontSize: 13.5, color: OunColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: '예: 오늘 한강 뛰었어요 🌊',
+                  hintStyle: const TextStyle(color: OunColors.textFaint),
+                  counterText: '',
+                  filled: true,
+                  fillColor: OunColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: OunColors.cardBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: OunColors.tabAccent),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const _FieldLabel('운동 사진 (선택)'),
+              const SizedBox(height: 8),
+              _photoSection(),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: OunColors.tabAccent,
+                    foregroundColor: OunColors.onTabAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: OunColors.onTabAccent))
+                      : const Text('저장하기',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -793,12 +912,11 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
   }
 
   /// 운동 인증 사진 영역. 첨부 전/후 상태가 다르다.
-  /// 목업이라 실제 이미지는 없고, image_picker 연동 시 이 부분만 교체하면 된다.
+  /// image_picker 연동 시 이 부분만 교체하면 된다.
   Widget _photoSection() {
     if (_photoAttached) {
       return Row(
         children: [
-          // 첨부된 사진 썸네일(자리표시)
           Container(
             width: 64,
             height: 64,
@@ -827,7 +945,6 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
         ],
       );
     }
-    // 첨부 전: 촬영/앨범을 모달 없이 시트 안에서 바로 고른다.
     return Row(
       children: [
         Expanded(

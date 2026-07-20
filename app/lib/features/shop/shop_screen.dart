@@ -1,35 +1,114 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/models.dart';
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 
-/// 커스터마이징 상점 (무과금, 운동 재화). 캐릭터 미리보기 + 카테고리 + 아이템 그리드.
-class ShopScreen extends StatefulWidget {
+/// 커스터마이징 상점 (무과금, 운동 재화). 서버 아이템/보유/구매.
+class ShopScreen extends ConsumerStatefulWidget {
   const ShopScreen({super.key});
 
   @override
-  State<ShopScreen> createState() => _ShopScreenState();
+  ConsumerState<ShopScreen> createState() => _ShopScreenState();
 }
 
-class _ShopScreenState extends State<ShopScreen> {
+class _ShopScreenState extends ConsumerState<ShopScreen> {
   int _category = 0;
-  static const _categories = ['의상', '헤어', '소품', '가구'];
-
-  static const _items = [
-    _Item('데일리 후드', 120, Color(0xFFD9B38C), owned: true),
-    _Item('러너 티셔츠', 90, Color(0xFFB8C4A9)),
-    _Item('니트 가디건', 210, Color(0xFFE0A9A0)),
-    _Item('바람막이', 180, Color(0xFFA9BBD0)),
-    _Item('후리스 조끼', 150, Color(0xFFD6C08A)),
-    _Item('트랙 자켓', 240, Color(0xFFC9A9CE)),
+  // (표시명, 서버 카테고리)
+  static const _categories = [
+    ('의상', 'clothing'),
+    ('헤어', 'hair'),
+    ('소품', 'prop'),
+    ('가구', 'furniture'),
   ];
+
+  Future<void> _onTapItem(ShopItem it) async {
+    final api = ref.read(apiClientProvider);
+    if (it.owned) {
+      // 이미 보유 → 바로 장착(입어보기)
+      try {
+        await api.equipItem(it.key);
+        if (mounted) {
+          OunToast.show(context, '${it.name} 입었어요', kind: OunToastKind.success);
+        }
+      } catch (_) {
+        if (mounted) OunToast.show(context, '장착에 실패했어요');
+      }
+      return;
+    }
+
+    // 구매 확인
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: OunColors.background,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(it.name,
+            style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: OunColors.textPrimary)),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.paid_rounded, size: 16, color: OunColors.coin),
+            const SizedBox(width: 5),
+            Text('${it.price} 코인으로 구매할까요?',
+                style: const TextStyle(
+                    fontSize: 13.5, color: OunColors.textPrimary)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소',
+                style: TextStyle(color: OunColors.textMuted)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: OunColors.tabAccent,
+              foregroundColor: OunColors.onTabAccent,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('구매'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await api.orderItem(it.key);
+      ref.invalidate(walletProvider);
+      ref.invalidate(shopItemsProvider);
+      ref.invalidate(achievementsProvider);
+      if (mounted) {
+        OunToast.show(context, '${it.name} 구매했어요', kind: OunToastKind.success);
+      }
+    } on Exception catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().contains('409') ? '코인이 부족해요' : '구매에 실패했어요';
+      OunToast.show(context, msg);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final coin = ref.watch(walletProvider).maybeWhen(
+          data: comma,
+          orElse: () => '—',
+        );
+    final itemsAsync =
+        ref.watch(shopItemsProvider(_categories[_category].$2));
+
     return PageScaffold(
       title: '상점',
-      trailing: const CoinChip(amount: '1,240'),
+      trailing: CoinChip(amount: coin),
       children: [
         // 캐릭터 미리보기 (라이브 프리뷰 연동 예정)
         Container(
@@ -53,14 +132,32 @@ class _ShopScreenState extends State<ShopScreen> {
         const SizedBox(height: 14),
         _segment(),
         const SizedBox(height: 14),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 0.82,
-          children: [for (final it in _items) _itemCard(it)],
+        itemsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.4, color: OunColors.tabAccent))),
+          ),
+          error: (_, _) => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text('아이템을 불러오지 못했어요',
+                  style: TextStyle(fontSize: 12, color: OunColors.textFaint)),
+            ),
+          ),
+          data: (items) => GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 0.82,
+            children: [for (final it in items) _itemCard(it)],
+          ),
         ),
       ],
     );
@@ -85,7 +182,7 @@ class _ShopScreenState extends State<ShopScreen> {
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
-                    _categories[i],
+                    _categories[i].$1,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -103,7 +200,7 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _itemCard(_Item it) {
+  Widget _itemCard(ShopItem it) {
     return Material(
       color: OunColors.surface,
       shape: RoundedRectangleBorder(
@@ -111,11 +208,7 @@ class _ShopScreenState extends State<ShopScreen> {
         side: const BorderSide(color: OunColors.cardBorder),
       ),
       child: InkWell(
-        onTap: () => OunToast.show(
-          context,
-          it.owned ? '${it.name} 입어봤어요' : '${it.name} · ${it.price} 코인',
-          kind: it.owned ? OunToastKind.success : OunToastKind.info,
-        ),
+        onTap: () => _onTapItem(it),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(10),
@@ -125,7 +218,7 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _itemCardBody(_Item it) {
+  Widget _itemCardBody(ShopItem it) {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -135,7 +228,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
-                        color: it.color,
+                        color: colorFromHex(it.colorHex),
                         borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -168,7 +261,7 @@ class _ShopScreenState extends State<ShopScreen> {
           const SizedBox(height: 3),
           if (it.owned)
             // 이미 보유한 아이템에는 가격 대신 상태를 보여준다
-            const Text('보유중',
+            const Text('보유중 · 탭해서 입기',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -189,12 +282,4 @@ class _ShopScreenState extends State<ShopScreen> {
         ],
       );
   }
-}
-
-class _Item {
-  const _Item(this.name, this.price, this.color, {this.owned = false});
-  final String name;
-  final int price;
-  final Color color;
-  final bool owned;
 }

@@ -1,39 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/models.dart';
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../theme/app_theme.dart';
 
-/// 업적 하나: 조건을 달성하면 영구히 남는 뱃지.
-class Achievement {
-  const Achievement(this.icon, this.name, this.condition, {this.earned = false});
-  final IconData icon;
-  final String name;
-  final String condition;
-  final bool earned;
-}
-
-// 목데이터. 실제로는 서버가 달성 여부를 판정한다.
-const _achievements = [
-  Achievement(Icons.directions_walk, '첫 걸음', '첫 운동 기록', earned: true),
-  Achievement(Icons.local_fire_department, '일주일 개근', '7일 연속 기록', earned: true),
-  Achievement(Icons.wb_twilight, '아침형 인간', '아침 운동 5회', earned: true),
-  Achievement(Icons.photo_camera, '인증왕', '인증 사진 10장', earned: true),
-  Achievement(Icons.calendar_month, '한 달 개근', '30일 연속 기록'),
-  Achievement(Icons.directions_run, '러너', '누적 러닝 50km'),
-  Achievement(Icons.fitness_center, '철의 의지', '웨이트 30회'),
-  Achievement(Icons.groups, '크루 데뷔', '첫 크루 가입', earned: true),
-  Achievement(Icons.favorite, '응원단장', '응원 100회 보내기'),
-  Achievement(Icons.checkroom, '멋쟁이', '아이템 10개 보유'),
-  Achievement(Icons.nightlight_round, '올빼미', '밤 운동 5회'),
-  Achievement(Icons.emoji_events, '백일의 약속', '100일 연속 기록'),
-];
-
-/// 업적 화면: 달성/미달성 뱃지 그리드.
-class AchievementsScreen extends StatelessWidget {
+/// 업적 화면: 달성/미달성 뱃지 그리드. 달성 여부는 서버가 판정한다.
+class AchievementsScreen extends ConsumerWidget {
   const AchievementsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final earned = _achievements.where((a) => a.earned).length;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(achievementsProvider);
     return Scaffold(
       backgroundColor: OunColors.background,
       appBar: AppBar(
@@ -48,72 +27,83 @@ class AchievementsScreen extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: OunColors.textPrimary)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
-        children: [
-          // 요약 카드
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: OunColors.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: OunColors.cardBorder),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: OunColors.tabAccent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: const Icon(Icons.emoji_events_rounded,
-                      size: 23, color: OunColors.tabAccent),
+      body: async.when(
+        loading: () => const Center(
+            child: CircularProgressIndicator(color: OunColors.tabAccent)),
+        error: (_, _) => const Center(
+          child: Text('업적을 불러오지 못했어요',
+              style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
+        ),
+        data: (data) {
+          final (earned, total, items) = data;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
+            children: [
+              // 요약 카드
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: OunColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: OunColors.cardBorder),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('$earned개 달성',
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: OunColors.textPrimary)),
-                      Text('전체 ${_achievements.length}개 중',
-                          style: const TextStyle(
-                              fontSize: 11.5, color: OunColors.textMuted)),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 90,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: LinearProgressIndicator(
-                      value: earned / _achievements.length,
-                      minHeight: 8,
-                      backgroundColor: OunColors.card,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                          OunColors.tabAccent),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: OunColors.tabAccent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Icon(Icons.emoji_events_rounded,
+                          size: 23, color: OunColors.tabAccent),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('$earned개 달성',
+                              style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: OunColors.textPrimary)),
+                          Text('전체 $total개 중',
+                              style: const TextStyle(
+                                  fontSize: 11.5, color: OunColors.textMuted)),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 90,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: LinearProgressIndicator(
+                          value: total == 0 ? 0 : earned / total,
+                          minHeight: 8,
+                          backgroundColor: OunColors.card,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              OunColors.tabAccent),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.86,
-            children: [for (final a in _achievements) _Badge(a)],
-          ),
-        ],
+              ),
+              const SizedBox(height: 16),
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.86,
+                children: [for (final a in items) _Badge(a)],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -146,7 +136,7 @@ class _Badge extends StatelessWidget {
                   : OunColors.cardBorder.withValues(alpha: 0.6),
               shape: BoxShape.circle,
             ),
-            child: Icon(a.icon,
+            child: Icon(iconFor(a.icon, fallback: Icons.emoji_events),
                 size: 21,
                 color: a.earned ? OunColors.onTabAccent : OunColors.textFaint),
           ),

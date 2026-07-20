@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 import '../quest/quest_screen.dart';
 import 'achievements_screen.dart';
 
-/// 마이룸·프로필·월말 리포트·설정.
-class MyScreen extends StatelessWidget {
+/// 마이룸·프로필·월말 리포트·설정. 프로필은 서버 값.
+class MyScreen extends ConsumerWidget {
   const MyScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(profileProvider).value;
+    final coin = ref.watch(walletProvider).maybeWhen(
+          data: comma,
+          orElse: () => '—',
+        );
+
     return PageScaffold(
       title: '마이',
       children: [
@@ -28,29 +37,42 @@ class MyScreen extends StatelessWidget {
               Container(
                 width: 56,
                 height: 56,
-                decoration: const BoxDecoration(
-                    color: OunColors.card, shape: BoxShape.circle),
-                child: const Icon(Icons.person,
-                    size: 30, color: OunColors.textFaint),
+                decoration: BoxDecoration(
+                    color: profile == null
+                        ? OunColors.card
+                        : avatarColor(profile.nickname),
+                    shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: profile == null
+                    ? const Icon(Icons.person,
+                        size: 30, color: OunColors.textFaint)
+                    : Text(initialOf(profile.displayName),
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
               ),
               const SizedBox(width: 13),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('@oun_dduneon',
-                        style: TextStyle(
+                    Text('@${profile?.nickname ?? '…'}',
+                        style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: OunColors.textPrimary)),
-                    SizedBox(height: 3),
-                    Text('Lv.7 · 연속 12일',
-                        style: TextStyle(
+                    const SizedBox(height: 3),
+                    Text(
+                        profile == null
+                            ? ''
+                            : 'Lv.${profile.level} · 연속 ${profile.streakCurrent}일',
+                        style: const TextStyle(
                             fontSize: 12, color: OunColors.textMuted)),
                   ],
                 ),
               ),
-              const CoinChip(amount: '1,240'),
+              CoinChip(amount: coin),
             ],
           ),
         ),
@@ -85,7 +107,8 @@ class MyScreen extends StatelessWidget {
               ),
               const _MenuItem(Icons.cottage_outlined, '마이룸 꾸미기'),
               const _MenuItem(Icons.description_outlined, '월말 리포트'),
-              const _MenuItem(Icons.shield_outlined, '기록 보호권 · 2개'),
+              _MenuItem(Icons.shield_outlined,
+                  '기록 보호권 · ${profile?.streakProtectors ?? 0}개'),
               const _MenuItem(Icons.notifications_outlined, '알림 설정'),
               const _MenuItem(Icons.settings_outlined, '설정', last: true),
             ],
@@ -93,18 +116,21 @@ class MyScreen extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         // 푸터: 버전 · 로그아웃
-        const Center(
+        Center(
           child: Column(
             children: [
-              Text('오운 v0.1.0',
+              const Text('오운 v0.1.0',
                   style: TextStyle(fontSize: 11, color: OunColors.textFaint)),
-              SizedBox(height: 8),
-              Text('로그아웃',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: OunColors.textMuted,
-                      decoration: TextDecoration.underline,
-                      decorationColor: OunColors.textMuted)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => ref.read(authProvider.notifier).logout(),
+                child: const Text('로그아웃',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: OunColors.textMuted,
+                        decoration: TextDecoration.underline,
+                        decorationColor: OunColors.textMuted)),
+              ),
             ],
           ),
         ),

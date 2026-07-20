@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/api/providers.dart';
+import '../../shared/format.dart';
 import '../../shared/widgets/floating_tab_bar.dart';
 import '../../theme/app_theme.dart';
 import '../quest/quest_screen.dart';
@@ -119,12 +120,16 @@ class _TopRow extends StatelessWidget {
   }
 }
 
-/// 퀘스트 진입 버튼. 받을 보상이 있으면 점 배지를 띄운다(목업: 항상 표시).
-class _QuestButton extends StatelessWidget {
+/// 퀘스트 진입 버튼. 받을 보상이 있으면(서버 판단) 점 배지를 띄운다.
+class _QuestButton extends ConsumerWidget {
   const _QuestButton();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasClaimable = ref.watch(questsProvider).maybeWhen(
+          data: (b) => b.hasClaimable,
+          orElse: () => false,
+        );
     return Material(
       color: OunColors.card,
       shape: RoundedRectangleBorder(
@@ -145,7 +150,8 @@ class _QuestButton extends StatelessWidget {
                 child: Icon(Icons.flag_rounded,
                     size: 16, color: OunColors.tabAccent),
               ),
-              Positioned(
+              if (hasClaimable)
+                Positioned(
                 top: 5,
                 right: 6,
                 child: Container(
@@ -163,26 +169,15 @@ class _QuestButton extends StatelessWidget {
   }
 }
 
-/// 코인 잔액 필. 서버 `GET /wallet` 값을 표시하고, 로딩/오프라인 시엔
-/// 마지막 목업 값('1,240')으로 폴백한다. (MVP 단일 연동 흐름)
+/// 코인 잔액 필. 서버 `GET /wallet` 값 그대로 표시(로딩 중엔 '—').
 class _CoinPill extends ConsumerWidget {
   const _CoinPill();
-
-  static String _format(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-      buf.write(s[i]);
-    }
-    return buf.toString();
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final amount = ref.watch(walletProvider).maybeWhen(
-          data: _format,
-          orElse: () => '1,240',
+          data: comma,
+          orElse: () => '—',
         );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
@@ -207,14 +202,16 @@ class _CoinPill extends ConsumerWidget {
   }
 }
 
-/// 하단 프로스티드 카드: 오늘 스탯 3종 + 기록 CTA.
-class _TodayCard extends StatelessWidget {
+/// 하단 프로스티드 카드: 오늘 스탯 3종(서버 값) + 기록 CTA.
+class _TodayCard extends ConsumerWidget {
   const _TodayCard({required this.onRecord, required this.onPoke});
   final VoidCallback onRecord;
   final VoidCallback onPoke;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(profileProvider).value;
+    final todayMin = ref.watch(todayMinutesProvider).value;
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -235,13 +232,25 @@ class _TodayCard extends StatelessWidget {
           ),
           child: Column(
             children: [
-              const Row(
+              Row(
                 children: [
-                  Expanded(child: _Stat(value: '12일', label: '연속 기록')),
-                  _StatDivider(),
-                  Expanded(child: _Stat(value: '32분', label: '오늘 운동')),
-                  _StatDivider(),
-                  Expanded(child: _Stat(value: 'Lv.7', label: '지구력')),
+                  Expanded(
+                      child: _Stat(
+                          value: profile == null
+                              ? '—'
+                              : '${profile.streakCurrent}일',
+                          label: '연속 기록')),
+                  const _StatDivider(),
+                  Expanded(
+                      child: _Stat(
+                          value: todayMin == null ? '—' : '$todayMin분',
+                          label: '오늘 운동')),
+                  const _StatDivider(),
+                  Expanded(
+                      child: _Stat(
+                          value:
+                              profile == null ? '—' : 'Lv.${profile.level}',
+                          label: '지구력')),
                 ],
               ),
               const SizedBox(height: 14),
