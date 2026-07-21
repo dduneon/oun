@@ -31,6 +31,10 @@ public class OunBridge : MonoBehaviour
     [Tooltip("크루원 캐릭터를 인원수만큼 스폰하는 스포너(CrewRig에 부착)")]
     public CrewStage crewStage;
 
+    [Tooltip("홈 캐릭터(사용자 본인 아바타)를 토큰으로 스폰하는 스포너(HomeRig에 부착). " +
+             "크루와 같은 프리팹/규칙을 써 홈↔크루 캐릭터가 일치한다. z는 홈 카메라에 맞춰 원점 근처로.")]
+    public CrewStage homeStage;
+
     [Tooltip("전환 시 위치·화각을 바꿀 카메라")]
     public Camera sceneCamera;
 
@@ -52,7 +56,15 @@ public class OunBridge : MonoBehaviour
         if (animator == null) animator = character.GetComponentInChildren<Animator>();
     }
 
-    // Flutter가 씬 전환 시 호출: "home" 또는 "crew:이름,이름..." 형태.
+    void Start()
+    {
+        // Unity 엔진 준비 완료를 Flutter에 알린다. Flutter는 이 신호를 받고
+        // 현재 씬(사용자 토큰 포함)을 최초로 보내온다("home:m" 등). 이렇게 해야
+        // 엔진 로드 전에 보낸 메시지가 유실되는 문제 없이 첫 스폰이 이뤄진다.
+        SendToFlutter.Send("unity_ready");
+    }
+
+    // Flutter가 씬 전환 시 호출: "home[:토큰]" 또는 "crew:토큰,토큰..." 형태.
     public void LoadScene(string arg)
     {
         bool crew = !string.IsNullOrEmpty(arg) && arg.StartsWith("crew");
@@ -61,15 +73,27 @@ public class OunBridge : MonoBehaviour
         if (homeRig != null) homeRig.SetActive(!crew);
         if (crewRig != null) crewRig.SetActive(crew);
 
-        // 크루 씬이면 크루원 목록("crew:이름,이름...")을 파싱해 인원수만큼 스폰.
-        if (crew && crewStage != null)
+        if (crew)
         {
-            string[] members = ParseCrewMembers(arg);
-            crewStage.Spawn(members);
+            // 크루 씬: "crew:토큰,토큰..."을 파싱해 인원수만큼 스폰.
+            if (crewStage != null) crewStage.Spawn(ParseCrewMembers(arg));
         }
-        else if (!crew && crewStage != null)
+        else
         {
-            crewStage.Clear();
+            if (crewStage != null) crewStage.Clear();
+            // 홈 씬: 사용자 본인 아바타 1명을 토큰으로 스폰해 크루와 같은 캐릭터를 쓴다.
+            // (고정 캐릭터를 없앤 대신 여기서 동적으로 세운다. 토큰 없으면 여성 폴백)
+            if (homeStage != null)
+            {
+                homeStage.Spawn(new string[] { ParseHomeToken(arg) });
+                // 스폰된 아바타를 React()/손흔들기 대상으로 다시 연결해야 홈 반응이 산다.
+                var spawned = homeStage.FirstSpawned;
+                if (spawned != null)
+                {
+                    character = spawned.transform;
+                    animator = spawned.GetComponentInChildren<Animator>();
+                }
+            }
         }
 
         if (sceneCamera != null)
@@ -106,6 +130,14 @@ public class OunBridge : MonoBehaviour
         int colon = arg.IndexOf(':');
         if (colon < 0 || colon + 1 >= arg.Length) return new string[0];
         return arg.Substring(colon + 1).Split(',');
+    }
+
+    // "home:m" → "m", "home" → "f"(폴백). 크루원 토큰과 같은 규칙('m'/'f').
+    static string ParseHomeToken(string arg)
+    {
+        int colon = arg.IndexOf(':');
+        if (colon < 0 || colon + 1 >= arg.Length) return "f";
+        return arg.Substring(colon + 1).Trim();
     }
 
     // Flutter가 호출하는 메서드. public + string 파라미터 1개여야 UnitySendMessage로 호출된다.

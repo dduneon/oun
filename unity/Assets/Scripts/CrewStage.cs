@@ -22,6 +22,9 @@ public class CrewStage : MonoBehaviour
 
     readonly List<GameObject> _spawned = new List<GameObject>();
 
+    // 스폰된 첫 캐릭터. 홈처럼 1명일 때 OunBridge가 React/손흔들기 대상으로 연결한다.
+    public GameObject FirstSpawned => _spawned.Count > 0 ? _spawned[0] : null;
+
     // 각 크루원이 고른 캐릭터 종류('f'/'m')로 스폰. Flutter가 "crew:f,m,f..."로 보낸다.
     // (나중에는 종류뿐 아니라 아바타 config 전체를 받아 의상·헤어까지 개별 적용)
     public void Spawn(string[] tokens)

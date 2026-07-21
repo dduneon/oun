@@ -128,6 +128,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 207147541}
+  - component: {fileID: 207147542}
   m_Layer: 0
   m_Name: HomeRig
   m_TagString: Untagged
@@ -147,10 +148,26 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1853081018}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &207147542
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 207147540}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0756fe2633d64536a8d5f2a81b4d739, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CrewStage
+  femalePrefab: {fileID: 7530087732812887146, guid: 379e685d632ab4d98a4236334c3e220a, type: 3}
+  malePrefab: {fileID: 3364450761645295480, guid: f427b1950edfe4c59b65e77fbf5f64cd, type: 3}
+  spacing: 0.7
+  z: -2.973
+  maxWidth: 2.2
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -555,6 +572,7 @@ MonoBehaviour:
   homeRig: {fileID: 207147540}
   crewRig: {fileID: 845719444}
   crewStage: {fileID: 845719446}
+  homeStage: {fileID: 207147542}
   sceneCamera: {fileID: 330585545}
   homeCamPos: {x: 0, y: 1.25, z: -0.55}
   homeCamEuler: {x: 20, y: 180, z: 0}
@@ -644,7 +662,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 207147541}
+    m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 7191103227384229584, guid: 379e685d632ab4d98a4236334c3e220a, type: 3}
       propertyPath: m_LocalPosition.x
@@ -690,6 +708,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: female
       objectReference: {fileID: 0}
+    - target: {fileID: 7530087732812887146, guid: 379e685d632ab4d98a4236334c3e220a, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -703,6 +725,7 @@ SceneRoots:
   - {fileID: 410087041}
   - {fileID: 832575519}
   - {fileID: 2231911409657954338}
+  - {fileID: 5503643380549175042}
   - {fileID: 1932720345}
   - {fileID: 845719445}
   - {fileID: 207147541}
