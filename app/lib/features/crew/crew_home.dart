@@ -113,11 +113,82 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   static const _stageHeight = 210.0;
   final _stageKey = GlobalKey();
   String? _spawnedTokens; // 무대에 이미 스폰한 토큰(중복 전환 방지)
+  // 이 화면을 감싸는 두 전환 애니메이션.
+  //  - primary(animation): 이 화면 자신의 진입/복귀 슬라이드
+  //  - secondary(secondaryAnimation): 위에 다른 화면(댓글 등)이 덮일 때의 밀림
+  // 둘 중 하나라도 진행 중이면 무대 박스에 transform이 걸려 좌표가 밀린다.
+  Animation<double>? _primaryAnim;
+  Animation<double>? _secondaryAnim;
+  bool _revealed = false; // 무대 공개 여부(false면 불투명 덮개로 Unity를 가림).
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncStageViewport());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    final primary = route?.animation;
+    final secondary = route?.secondaryAnimation;
+    if (primary != _primaryAnim) {
+      _primaryAnim?.removeStatusListener(_onRouteAnim);
+      _primaryAnim = primary;
+      _primaryAnim?.addStatusListener(_onRouteAnim);
+    }
+    if (secondary != _secondaryAnim) {
+      _secondaryAnim?.removeStatusListener(_onRouteAnim);
+      _secondaryAnim = secondary;
+      _secondaryAnim?.addStatusListener(_onRouteAnim);
+    }
+    _refreshSettled();
+  }
+
+  /// 완전 안착 = 진입 전환이 끝났고(primary) 위를 덮은 화면도 없다(secondary).
+  /// 이때만 무대 박스가 transform 없이 최종 위치에 있으므로 측정이 안전하다.
+  bool get _pageSettled {
+    final primaryDone = _primaryAnim == null || _primaryAnim!.isCompleted;
+    final secondaryIdle = _secondaryAnim == null || _secondaryAnim!.isDismissed;
+    return primaryDone && secondaryIdle;
+  }
+
+  /// 이 화면이 빠져나가는 중(복귀 슬라이드가 뒤로 진행/종료)인지.
+  bool get _isLeaving {
+    final p = _primaryAnim;
+    return p != null &&
+        (p.status == AnimationStatus.reverse ||
+            p.status == AnimationStatus.dismissed);
+  }
+
+  void _onRouteAnim(AnimationStatus _) => _refreshSettled();
+
+  /// 어떤 전환이든(진입·복귀·덮임·열림) 상태가 바뀔 때 호출.
+  /// 원칙: 전환·이탈 중엔 무대를 즉시 덮고, 완전 안착했을 때만 rect를 먼저
+  /// 적용한 뒤 다음 프레임에 공개해 검은 프레임이 새지 않게 한다.
+  /// (crew→home 씬 교체 자체는 UnityHost의 준비-완료 가림막이 숨기므로 여기선
+  ///  씬을 건드리지 않는다. 이탈 중엔 크루 씬을 그대로 두고 덮어만 둔다.)
+  void _refreshSettled() {
+    if (!mounted) return;
+
+    // 진입 중·덮임/열림 중·이탈 중: 그냥 덮어둔다.
+    if (!_pageSettled || _isLeaving) {
+      if (_revealed) setState(() => _revealed = false);
+      return;
+    }
+
+    // 완전 안착: rect를 먼저 적용하고(덮인 상태 유지), 그 다음 프레임에 공개한다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isLeaving || !_pageSettled) return;
+      _syncStageViewport();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_isLeaving && _pageSettled && !_revealed) {
+          setState(() => _revealed = true);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _primaryAnim?.removeStatusListener(_onRouteAnim);
+    _secondaryAnim?.removeStatusListener(_onRouteAnim);
+    super.dispose();
   }
 
   /// 크루원 목록이 로드되면 캐릭터 토큰으로 Unity 크루 씬을 전환한다.
@@ -132,7 +203,9 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   }
 
   /// 무대 박스의 화면상 위치를 재서 Unity 뷰를 그 영역에만 렌더하게 한다.
+  /// 전환(진입이든 덮임이든) 도중이면 좌표가 밀리므로 재지 않는다(안착 후 다시 불린다).
   void _syncStageViewport() {
+    if (!mounted || !_pageSettled) return;
     final box = _stageKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final origin = box.localToGlobal(Offset.zero);
@@ -229,24 +302,47 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
           SizedBox(
             key: _stageKey,
             height: _stageHeight,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                    crew == null
-                        ? '크루원을 불러오는 중…'
-                        : '크루원 ${crew.members.length}명이 모여 있어요',
-                    style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: OunColors.textMuted)),
-              ),
+            child: Stack(
+              children: [
+                // 전환 중엔 불투명 배경으로 무대 구멍을 막아 아래 화면(과 Unity의
+                // rect 변경/씬 전환 순간)이 비치지 않게 하고, 안착 후에만 페이드로
+                // 무대를 드러낸다. 덮을 땐 즉시(duration 0), 열 땐 부드럽게.
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: _revealed ? 0 : 1,
+                      duration: _revealed
+                          ? const Duration(milliseconds: 240)
+                          : Duration.zero,
+                      child: const ColoredBox(color: OunColors.background),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                        crew == null
+                            ? '크루원을 불러오는 중…'
+                            : '크루원 ${crew.members.length}명이 모여 있어요',
+                        style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: OunColors.textMuted)),
+                  ),
+                ),
+              ],
             ),
           ),
           // 아래 시트: 탭 + 콘텐츠 (불투명 → Unity 가림)
+          // ColoredBox로 뒤를 불투명하게 받쳐, 둥근 상단 모서리 틈으로 Unity가
+          // 비쳐 전환 중 좌하·우하가 검게 깜빡이는 것을 막는다(정착 시엔 Unity
+          // 배경과 같은 색이라 티가 나지 않는다).
           Expanded(
-            child: Container(
+            child: ColoredBox(
+              color: OunColors.background,
+              child: Container(
               decoration: const BoxDecoration(
                 color: OunColors.background,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -269,6 +365,7 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ],

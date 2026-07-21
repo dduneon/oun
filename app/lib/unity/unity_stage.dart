@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/api/providers.dart';
 import '../shared/global_keys.dart';
 import '../shared/widgets/oun_toast.dart';
+import '../theme/app_theme.dart';
 
 /// Unity가 보여줄 씬. 엔진은 하나뿐이라 씬을 전환하며 재사용한다.
 enum UnityScene { home, crew }
@@ -63,8 +67,43 @@ class UnityHost extends ConsumerStatefulWidget {
 }
 
 class _UnityHostState extends ConsumerState<UnityHost> {
+  // 씬 전환 진행 중(LoadScene을 보냈고 아직 *_ready를 못 받음)이면 Unity 뷰 위를
+  // 불투명하게 가린다. Unity 같은 네이티브 플랫폼 뷰는 씬/카메라 전환·리사이즈
+  // 순간(줌·검은 프레임)이 Flutter 위젯으로 가려도 삐져나오므로, Unity 뷰와 같은
+  // 서브트리에서 바로 위를 덮어 원천적으로 가린다.
+  bool _busy = false;
+  Timer? _busyTimeout; // *_ready가 안 오는 최악의 경우 대비 안전 해제.
+
+  @override
+  void dispose() {
+    _busyTimeout?.cancel();
+    super.dispose();
+  }
+
+  void _setBusy(bool v) {
+    _busyTimeout?.cancel();
+    if (v) {
+      // 준비 완료 신호가 유실돼도 영구히 가려지지 않도록 안전장치.
+      _busyTimeout = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted && _busy) setState(() => _busy = false);
+      });
+    }
+    if (mounted && _busy != v) setState(() => _busy = v);
+  }
+
   void _onMessage(String message) {
     debugPrint('Unity → Flutter: $message');
+    // 씬 로드 완료 → 가림막 해제.
+    if (message == 'crew_ready' || message == 'home_ready') {
+      _setBusy(false);
+      return;
+    }
+    // Unity 엔진 준비 완료 → 현재 씬을 (사용자 토큰 포함해) 최초 1회 전송.
+    // 엔진 로드 전에 보낸 메시지는 유실되므로 이 신호를 받고 나서 스폰을 시작한다.
+    if (message == 'unity_ready') {
+      _apply(ref.read(unitySceneProvider));
+      return;
+    }
     // 캐릭터 반응(react) → 전역 메신저로 토스트
     if (message.startsWith('reacted')) {
       final messenger = rootMessengerKey.currentState;
@@ -81,23 +120,55 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   }
 
   /// 씬 상태 변화를 Unity로 보낸다.
-  /// Unity 측 OunBridge.LoadScene(string)에서 'home' / 'crew:이름,이름...'을 처리한다.
+  /// Unity 측 OunBridge.LoadScene(string)에서 'home:토큰' / 'crew:토큰,...'을 처리한다.
   void _apply(UnitySceneState s) {
+    // 씬/카메라가 바뀌는 순간이 보이지 않도록, 준비 완료(*_ready)까지 가린다.
+    _setBusy(true);
     final arg = switch (s.scene) {
-      UnityScene.home => 'home',
+      // 홈도 크루처럼 사용자 본인 아바타 토큰으로 스폰 → 홈↔크루 캐릭터 일치.
+      UnityScene.home => 'home:${_homeToken()}',
       UnityScene.crew => s.payload.isEmpty ? 'crew' : 'crew:${s.payload}',
     };
     sendToUnity('OunBridge', 'LoadScene', arg);
   }
 
+  /// 현재 사용자 본인의 캐릭터 토큰('m'/'f'). 크루원 charToken과 같은 규칙.
+  /// 프로필이 아직 없으면 여성 폴백(로드되면 리스너가 다시 보낸다).
+  String _homeToken() =>
+      ref.read(authProvider).profile?.gender == 'm' ? 'm' : 'f';
+
   @override
   Widget build(BuildContext context) {
     ref.listen<UnitySceneState>(
         unitySceneProvider, (prev, next) => _apply(next));
+    // 프로필(성별)이 로드/변경되면 홈 씬일 때 아바타를 다시 스폰한다.
+    ref.listen<AuthState>(authProvider, (prev, next) {
+      if (prev?.profile?.gender != next.profile?.gender &&
+          ref.read(unitySceneProvider).scene == UnityScene.home) {
+        _apply(ref.read(unitySceneProvider));
+      }
+    });
     final rect = ref.watch(unityViewportProvider);
     final view = EmbedUnity(onMessageFromUnity: _onMessage);
+    // 씬 전환 중 Unity 뷰 바로 위를 덮는 가림막(전환 중 즉시 불투명, 완료 후 페이드).
+    final cover = IgnorePointer(
+      child: AnimatedOpacity(
+        opacity: _busy ? 1 : 0,
+        duration:
+            _busy ? Duration.zero : const Duration(milliseconds: 180),
+        child: const ColoredBox(color: OunColors.background),
+      ),
+    );
     // rect == null: 전체 화면. rect 지정 시 그 박스에만 렌더(나머지 투명).
-    if (rect == null) return view;
-    return Stack(children: [Positioned.fromRect(rect: rect, child: view)]);
+    if (rect == null) {
+      return Stack(children: [
+        Positioned.fill(child: view),
+        Positioned.fill(child: cover),
+      ]);
+    }
+    return Stack(children: [
+      Positioned.fromRect(rect: rect, child: view),
+      Positioned.fromRect(rect: rect, child: cover),
+    ]);
   }
 }
