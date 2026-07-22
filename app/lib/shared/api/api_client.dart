@@ -214,9 +214,31 @@ class ApiClient {
 
   // ── 크루 ──────────────────────────────────────────────
 
-  Future<CrewDetail> createCrew(String name, int weeklyGoal) async {
-    final res = await _dio
-        .post<Map<String, dynamic>>('/crews', data: {'name': name, 'weeklyGoal': weeklyGoal});
+  Future<CrewDetail> createCrew(
+    String name, {
+    String? description,
+    required bool isPublic,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>('/crews', data: {
+      'name': name,
+      if (description != null && description.isNotEmpty) 'description': description,
+      'isPublic': isPublic,
+    });
+    return CrewDetail.fromJson(res.data!);
+  }
+
+  /// 크루 설정(이름·소개·공개여부) 변경. 방장만. 넘긴 값만 바뀐다.
+  Future<CrewDetail> updateCrew(
+    String crewId, {
+    String? name,
+    String? description,
+    bool? isPublic,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>('/crews/$crewId', data: {
+      'name': ?name,
+      'description': ?description,
+      'isPublic': ?isPublic,
+    });
     return CrewDetail.fromJson(res.data!);
   }
 
@@ -232,10 +254,61 @@ class ApiClient {
     return CrewDetail.fromJson(res.data!);
   }
 
+  // ── 크루 탐방 / 가입 신청 ──────────────────────────────
+
+  /// 공개 크루 탐방. q로 이름 검색.
+  Future<List<CrewSummary>> discoverCrews({String? q}) async {
+    final res = await _dio.get<Map<String, dynamic>>('/crews/discover',
+        queryParameters: {if (q != null && q.isNotEmpty) 'q': q});
+    return (res.data!['items'] as List)
+        .map((e) => CrewSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 공개 크루에 가입 신청.
+  Future<void> requestJoinCrew(String crewId) async {
+    await _dio.post<Map<String, dynamic>>('/crews/$crewId/join-request');
+  }
+
+  /// 방장: 대기중 가입 신청 목록.
+  Future<List<CrewJoinRequestItem>> crewJoinRequests(String crewId) async {
+    final res =
+        await _dio.get<Map<String, dynamic>>('/crews/$crewId/join-requests');
+    return (res.data!['items'] as List)
+        .map((e) => CrewJoinRequestItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 방장: 가입 신청 승인/거절.
+  Future<void> respondJoinRequest(
+      String crewId, String requestId, bool accept) async {
+    final action = accept ? 'accept' : 'reject';
+    await _dio.post<Map<String, dynamic>>(
+        '/crews/$crewId/join-requests/$requestId/$action');
+  }
+
+  // ── 크루 초대 ──────────────────────────────────────────
+
+  /// 방장: @nickname 초대(대기중 초대 생성). 상대가 수락해야 가입된다.
   Future<String> inviteToCrew(String crewId, String nickname) async {
     final res = await _dio
-        .post<Map<String, dynamic>>('/crews/$crewId/members', data: {'nickname': nickname});
+        .post<Map<String, dynamic>>('/crews/$crewId/invite', data: {'nickname': nickname});
     return res.data!['displayName'] as String;
+  }
+
+  /// 내가 받은 대기중 초대 목록.
+  Future<List<CrewInvitation>> myCrewInvitations() async {
+    final res = await _dio.get<Map<String, dynamic>>('/crews/invitations');
+    return (res.data!['items'] as List)
+        .map((e) => CrewInvitation.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 초대 수락/거절.
+  Future<void> respondCrewInvitation(String invitationId, bool accept) async {
+    final action = accept ? 'accept' : 'decline';
+    await _dio
+        .post<Map<String, dynamic>>('/crews/invitations/$invitationId/$action');
   }
 
   Future<void> leaveCrew(String crewId) async {

@@ -310,33 +310,30 @@ class CrewLevel {
       );
 }
 
-/// GET /crews 카드 한 장.
+/// GET /crews 카드 한 장(내가 속한 크루).
 class CrewCardData {
   const CrewCardData({
     required this.id,
     required this.name,
-    required this.weeklyGoal,
+    required this.description,
+    required this.isPublic,
     required this.memberCount,
-    required this.weekDone,
-    required this.target,
     required this.level,
   });
 
   final String id;
   final String name;
-  final int weeklyGoal;
+  final String? description;
+  final bool isPublic;
   final int memberCount;
-  final int weekDone;
-  final int target;
   final CrewLevel level;
 
   factory CrewCardData.fromJson(Map<String, dynamic> j) => CrewCardData(
         id: j['id'] as String,
         name: j['name'] as String,
-        weeklyGoal: j['weeklyGoal'] as int,
+        description: j['description'] as String?,
+        isPublic: j['isPublic'] as bool? ?? true,
         memberCount: j['memberCount'] as int,
-        weekDone: j['weekDone'] as int,
-        target: j['target'] as int,
         level: CrewLevel.fromJson(j['level'] as Map<String, dynamic>),
       );
 }
@@ -349,7 +346,6 @@ class CrewMemberData {
     required this.gender,
     required this.role,
     required this.isMe,
-    required this.weekCount,
   });
 
   final String nickname;
@@ -357,7 +353,8 @@ class CrewMemberData {
   final String gender;
   final String role; // leader | member
   final bool isMe;
-  final int weekCount;
+
+  bool get isLeader => role == 'leader';
 
   /// Unity 크루 씬 캐릭터 토큰.
   String get charToken => gender == 'm' ? 'm' : 'f';
@@ -368,7 +365,6 @@ class CrewMemberData {
         gender: j['gender'] as String,
         role: j['role'] as String,
         isMe: j['isMe'] as bool,
-        weekCount: j['weekCount'] as int,
       );
 }
 
@@ -377,31 +373,113 @@ class CrewDetail {
   const CrewDetail({
     required this.id,
     required this.name,
-    required this.weeklyGoal,
+    required this.description,
+    required this.isPublic,
+    required this.isLeader,
+    required this.pendingRequestCount,
     required this.members,
-    required this.weekDone,
-    required this.target,
     required this.level,
   });
 
   final String id;
   final String name;
-  final int weeklyGoal;
+  final String? description;
+  final bool isPublic;
+  final bool isLeader; // 내가 방장인지(설정·초대·신청 관리 권한)
+  final int pendingRequestCount; // 방장에게 온 대기중 가입 신청 수
   final List<CrewMemberData> members;
-  final int weekDone;
-  final int target;
   final CrewLevel level;
 
   factory CrewDetail.fromJson(Map<String, dynamic> j) => CrewDetail(
         id: j['id'] as String,
         name: j['name'] as String,
-        weeklyGoal: j['weeklyGoal'] as int,
+        description: j['description'] as String?,
+        isPublic: j['isPublic'] as bool? ?? true,
+        isLeader: j['isLeader'] as bool? ?? false,
+        pendingRequestCount: j['pendingRequestCount'] as int? ?? 0,
         members: (j['members'] as List)
             .map((e) => CrewMemberData.fromJson(e as Map<String, dynamic>))
             .toList(),
-        weekDone: j['weekDone'] as int,
-        target: j['target'] as int,
         level: CrewLevel.fromJson(j['level'] as Map<String, dynamic>),
+      );
+}
+
+/// GET /crews/discover 의 공개 크루 한 장.
+class CrewSummary {
+  const CrewSummary({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.memberCount,
+    required this.level,
+    required this.requested,
+  });
+
+  final String id;
+  final String name;
+  final String? description;
+  final int memberCount;
+  final CrewLevel level;
+  final bool requested; // 내가 이미 가입 신청했는지
+
+  factory CrewSummary.fromJson(Map<String, dynamic> j) => CrewSummary(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        description: j['description'] as String?,
+        memberCount: j['memberCount'] as int,
+        level: CrewLevel.fromJson(j['level'] as Map<String, dynamic>),
+        requested: j['requested'] as bool? ?? false,
+      );
+}
+
+/// GET /crews/invitations 의 받은 초대 한 건.
+class CrewInvitation {
+  const CrewInvitation({
+    required this.id,
+    required this.crewId,
+    required this.crewName,
+    required this.crewDescription,
+    required this.memberCount,
+    required this.invitedByName,
+  });
+
+  final String id;
+  final String crewId;
+  final String crewName;
+  final String? crewDescription;
+  final int memberCount;
+  final String? invitedByName;
+
+  factory CrewInvitation.fromJson(Map<String, dynamic> j) => CrewInvitation(
+        id: j['id'] as String,
+        crewId: j['crewId'] as String,
+        crewName: j['crewName'] as String,
+        crewDescription: j['crewDescription'] as String?,
+        memberCount: j['memberCount'] as int,
+        invitedByName: j['invitedByName'] as String?,
+      );
+}
+
+/// GET /crews/:id/join-requests 의 대기중 가입 신청 한 건(방장 화면).
+class CrewJoinRequestItem {
+  const CrewJoinRequestItem({
+    required this.id,
+    required this.nickname,
+    required this.displayName,
+    required this.gender,
+  });
+
+  final String id;
+  final String nickname;
+  final String displayName;
+  final String gender;
+
+  factory CrewJoinRequestItem.fromJson(Map<String, dynamic> j) =>
+      CrewJoinRequestItem(
+        id: j['id'] as String,
+        nickname: j['nickname'] as String,
+        displayName: j['displayName'] as String,
+        gender: j['gender'] as String,
       );
 }
 

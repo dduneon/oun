@@ -8,6 +8,7 @@ import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 import 'crew_create_sheet.dart';
+import 'crew_discover.dart';
 import 'crew_feed.dart';
 import 'crew_home.dart';
 import 'friend_home_screen.dart';
@@ -27,8 +28,11 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
     final result = await showCrewCreateSheet(context);
     if (result == null) return;
     try {
-      final crew =
-          await ref.read(apiClientProvider).createCrew(result.$1, result.$2);
+      final crew = await ref.read(apiClientProvider).createCrew(
+            result.name,
+            description: result.description,
+            isPublic: result.isPublic,
+          );
       ref.invalidate(crewsProvider);
       if (mounted) {
         OunToast.show(context, '${crew.name} 크루를 만들었어요',
@@ -37,6 +41,12 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
     } catch (_) {
       if (mounted) OunToast.show(context, '크루 생성에 실패했어요');
     }
+  }
+
+  void _openDiscover() {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(builder: (_) => const CrewDiscoverScreen()),
+    );
   }
 
   Future<void> _addFriend() async {
@@ -153,50 +163,80 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
 
   Widget _crewsSection() {
     final async = ref.watch(crewsProvider);
-    return async.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 60),
-        child: Center(
-            child: CircularProgressIndicator(color: OunColors.tabAccent)),
-      ),
-      error: (_, _) => const _ErrorHint('크루를 불러오지 못했어요'),
-      data: (crews) {
-        if (crews.isEmpty) return _crewEmpty();
-        return Column(
-          children: [
-            for (final c in crews)
-              CrewCard(crew: c, onTap: () => _openCrew(c)),
-            const SizedBox(height: 4),
-            Material(
-              color: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: OunColors.cardBorder),
-              ),
-              child: InkWell(
-                onTap: _createCrew,
-                borderRadius: BorderRadius.circular(14),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 13),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_rounded,
-                          size: 19, color: OunColors.tabAccent),
-                      SizedBox(width: 7),
-                      Text('새 크루 만들기',
-                          style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: OunColors.tabAccent)),
-                    ],
-                  ),
+    return Column(
+      children: [
+        _InvitationsSection(onChanged: () => ref.invalidate(crewsProvider)),
+        async.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 60),
+            child: Center(
+                child: CircularProgressIndicator(color: OunColors.tabAccent)),
+          ),
+          error: (_, _) => const _ErrorHint('크루를 불러오지 못했어요'),
+          data: (crews) {
+            if (crews.isEmpty) return _crewEmpty();
+            return Column(
+              children: [
+                for (final c in crews)
+                  CrewCard(crew: c, onTap: () => _openCrew(c)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _outlineAction(
+                        icon: Icons.travel_explore_rounded,
+                        label: '크루 찾기',
+                        onTap: _openDiscover,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _outlineAction(
+                        icon: Icons.add_rounded,
+                        label: '새 크루 만들기',
+                        onTap: _createCrew,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-          ],
-        );
-      },
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _outlineAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: OunColors.cardBorder),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: OunColors.tabAccent),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: OunColors.tabAccent)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -211,25 +251,184 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
                 style: TextStyle(
                     fontWeight: FontWeight.w600, color: OunColors.textPrimary)),
             const SizedBox(height: 4),
-            const Text('크루를 만들어 함께 목표를 세워요',
+            const Text('크루를 찾아 가입 신청하거나 직접 만들어 보세요',
                 style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
             const SizedBox(height: 16),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: OunColors.tabAccent,
-                foregroundColor: OunColors.onTabAccent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: _createCrew,
-              child: const Text('크루 만들기',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: OunColors.tabAccent,
+                    side: const BorderSide(color: OunColors.cardBorder),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 11),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: _openDiscover,
+                  icon: const Icon(Icons.travel_explore_rounded, size: 18),
+                  label: const Text('크루 찾기',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 10),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: OunColors.tabAccent,
+                    foregroundColor: OunColors.onTabAccent,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: _createCrew,
+                  child: const Text('크루 만들기',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+              ],
             ),
           ],
         ),
       );
+}
+
+/// 받은 크루 초대 배너. 있을 때만 노출되고, 수락/거절할 수 있다.
+class _InvitationsSection extends ConsumerWidget {
+  const _InvitationsSection({required this.onChanged});
+  final VoidCallback onChanged;
+
+  Future<void> _respond(
+    BuildContext context,
+    WidgetRef ref,
+    CrewInvitation inv,
+    bool accept,
+  ) async {
+    try {
+      await ref.read(apiClientProvider).respondCrewInvitation(inv.id, accept);
+      ref.invalidate(crewInvitationsProvider);
+      onChanged();
+      if (context.mounted) {
+        OunToast.show(
+          context,
+          accept ? '${inv.crewName} 크루에 가입했어요' : '초대를 거절했어요',
+          kind: accept ? OunToastKind.success : OunToastKind.info,
+        );
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '처리에 실패했어요');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(crewInvitationsProvider);
+    final invites = async.value ?? const <CrewInvitation>[];
+    if (invites.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 2, bottom: 8),
+            child: Text('받은 초대',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: OunColors.textMuted)),
+          ),
+          for (final inv in invites)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              decoration: BoxDecoration(
+                color: OunColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: OunColors.tabAccent.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.mark_email_unread_outlined,
+                          size: 17, color: OunColors.tabAccent),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          '${inv.crewName} 크루 초대',
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: OunColors.textPrimary),
+                        ),
+                      ),
+                      Text('멤버 ${inv.memberCount}명',
+                          style: const TextStyle(
+                              fontSize: 11, color: OunColors.textFaint)),
+                    ],
+                  ),
+                  if (inv.crewDescription != null &&
+                      inv.crewDescription!.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(inv.crewDescription!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, color: OunColors.textMuted)),
+                  ],
+                  if (inv.invitedByName != null) ...[
+                    const SizedBox(height: 4),
+                    Text('${inv.invitedByName}님이 초대했어요',
+                        style: const TextStyle(
+                            fontSize: 11, color: OunColors.textFaint)),
+                  ],
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: OunColors.textMuted,
+                            side: const BorderSide(color: OunColors.cardBorder),
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => _respond(context, ref, inv, false),
+                          child: const Text('거절',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: OunColors.tabAccent,
+                            foregroundColor: OunColors.onTabAccent,
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => _respond(context, ref, inv, true),
+                          child: const Text('수락',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ErrorHint extends StatelessWidget {

@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
-import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 import '../../unity/unity_stage.dart';
+import 'crew_create_sheet.dart';
 import 'crew_feed.dart';
 import 'friend_home_screen.dart';
 import 'crew_level.dart';
@@ -19,8 +19,7 @@ class CrewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio =
-        crew.target == 0 ? 0.0 : (crew.weekDone / crew.target).clamp(0.0, 1.0);
+    final hasDesc = crew.description != null && crew.description!.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -34,56 +33,60 @@ class CrewCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                          color: OunColors.card,
-                          borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.groups,
-                          size: 24, color: OunColors.tabAccent),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                      color: OunColors.card,
+                      borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.groups,
+                      size: 24, color: OunColors.tabAccent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(crew.name,
-                              style: const TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: OunColors.textPrimary)),
-                          const SizedBox(height: 2),
-                          Text('멤버 ${crew.memberCount}명 · Lv.${crew.level.level}',
-                              style: const TextStyle(
-                                  fontSize: 11.5, color: OunColors.textMuted)),
+                          Flexible(
+                            child: Text(crew.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: OunColors.textPrimary)),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(crew.isPublic ? Icons.public : Icons.lock_outline,
+                              size: 13, color: OunColors.textFaint),
                         ],
                       ),
-                    ),
-                    Text('이번 주 ${crew.weekDone}/${crew.target}',
-                        style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: OunColors.tabAccent)),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right,
-                        size: 18, color: OunColors.textFaint),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: ratio,
-                    minHeight: 6,
-                    backgroundColor: OunColors.card,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                        OunColors.tabAccent),
+                      const SizedBox(height: 2),
+                      Text('멤버 ${crew.memberCount}명 · Lv.${crew.level.level}',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: OunColors.textMuted)),
+                      if (hasDesc) ...[
+                        const SizedBox(height: 5),
+                        Text(crew.description!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.3,
+                                color: OunColors.textMuted)),
+                      ],
+                    ],
                   ),
+                ),
+                const SizedBox(width: 4),
+                const Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Icon(Icons.chevron_right,
+                      size: 18, color: OunColors.textFaint),
                 ),
               ],
             ),
@@ -94,7 +97,7 @@ class CrewCard extends StatelessWidget {
   }
 }
 
-/// 크루 홈: 상단 라이브 3D 무대(크루원 캐릭터) + 피드/크루원/현황 탭. (서버 상세)
+/// 크루 홈: 상단 라이브 3D 무대(크루원 캐릭터) + 피드/크루원/크루 정보 탭. (서버 상세)
 ///
 /// 진입 즉시 전역 Unity 뷰를 크루 씬으로 전환해 무대 영역(투명)으로
 /// 캐릭터들이 비쳐 보인다. 무대는 고정 헤더, 아래 탭 콘텐츠만 스크롤.
@@ -108,7 +111,7 @@ class CrewHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
-  int _tab = 0; // 0: 피드, 1: 크루원, 2: 현황, 3: 크루 정보
+  int _tab = 0; // 0: 피드, 1: 크루원, 2: 크루 정보
 
   static const _stageHeight = 210.0;
   final _stageKey = GlobalKey();
@@ -279,20 +282,12 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
                     ),
                   ),
                   if (crew != null)
-                    Container(
-                      margin: const EdgeInsets.only(right: 14),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: OunColors.card.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: OunColors.cardBorder),
-                      ),
-                      child: Text('이번 주 ${crew.weekDone}/${crew.target}',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: OunColors.tabAccent)),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 14),
+                      child: Icon(
+                          crew.isPublic ? Icons.public : Icons.lock_outline,
+                          size: 16,
+                          color: OunColors.textFaint),
                     ),
                 ],
               ),
@@ -379,8 +374,6 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
         return _FeedTab(crewId: crew.id);
       case 1:
         return _MembersTab(crew: crew);
-      case 2:
-        return _StatusTab(crew: crew);
       default:
         return _CrewInfoTab(crew: crew, onLeave: () => _leave(crew));
     }
@@ -392,7 +385,7 @@ class _TabBar extends StatelessWidget {
   final int value;
   final ValueChanged<int> onChanged;
 
-  static const _labels = ['피드', '크루원', '현황', '크루 정보'];
+  static const _labels = ['피드', '크루원', '크루 정보'];
 
   @override
   Widget build(BuildContext context) {
@@ -515,7 +508,7 @@ class _ComposeBar extends ConsumerWidget {
   }
 }
 
-/// 크루원 탭: 멤버 관리 + 초대.
+/// 크루원 탭: (방장) 가입 신청 관리 + 멤버 목록 + 초대.
 class _MembersTab extends ConsumerWidget {
   const _MembersTab({required this.crew});
   final CrewDetail crew;
@@ -531,10 +524,9 @@ class _MembersTab extends ConsumerWidget {
     try {
       final name =
           await ref.read(apiClientProvider).inviteToCrew(crew.id, nickname);
-      ref.invalidate(crewDetailProvider(crew.id));
-      ref.invalidate(crewsProvider);
       if (context.mounted) {
-        OunToast.show(context, '$name님을 초대했어요', kind: OunToastKind.success);
+        OunToast.show(context, '$name님에게 초대를 보냈어요',
+            kind: OunToastKind.success);
       }
     } catch (_) {
       if (context.mounted) {
@@ -548,152 +540,154 @@ class _MembersTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
       children: [
+        if (crew.isLeader) _JoinRequestsCard(crew: crew),
         for (final m in crew.members) _MemberRow(m),
-        const SizedBox(height: 8),
-        Material(
-          color: OunColors.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: OunColors.cardBorder),
-          ),
-          child: InkWell(
-            onTap: () => _invite(context, ref),
-            borderRadius: BorderRadius.circular(14),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 13, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.person_add_alt,
-                      size: 17, color: OunColors.tabAccent),
-                  SizedBox(width: 8),
-                  Text('크루원 초대하기',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: OunColors.textPrimary)),
-                ],
+        if (crew.isLeader) ...[
+          const SizedBox(height: 8),
+          Material(
+            color: OunColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: OunColors.cardBorder),
+            ),
+            child: InkWell(
+              onTap: () => _invite(context, ref),
+              borderRadius: BorderRadius.circular(14),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.person_add_alt,
+                        size: 17, color: OunColors.tabAccent),
+                    SizedBox(width: 8),
+                    Text('크루원 초대하기',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: OunColors.textPrimary)),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
 }
 
-/// 현황 탭: 크루 공동 목표 + 크루원들이 이번 주 얼마나 운동했는지.
-class _StatusTab extends StatelessWidget {
-  const _StatusTab({required this.crew});
+/// (방장) 대기중 가입 신청 목록 + 승인/거절. 신청이 없으면 아무것도 안 보인다.
+class _JoinRequestsCard extends ConsumerWidget {
+  const _JoinRequestsCard({required this.crew});
   final CrewDetail crew;
 
+  Future<void> _respond(
+    BuildContext context,
+    WidgetRef ref,
+    CrewJoinRequestItem req,
+    bool accept,
+  ) async {
+    try {
+      await ref
+          .read(apiClientProvider)
+          .respondJoinRequest(crew.id, req.id, accept);
+      ref.invalidate(crewJoinRequestsProvider(crew.id));
+      if (accept) {
+        ref.invalidate(crewDetailProvider(crew.id));
+        ref.invalidate(crewsProvider);
+      }
+      if (context.mounted) {
+        OunToast.show(
+          context,
+          accept ? '${req.displayName}님을 크루원으로 받았어요' : '가입 신청을 거절했어요',
+          kind: accept ? OunToastKind.success : OunToastKind.info,
+        );
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '처리에 실패했어요');
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
-    final ratio =
-        crew.target == 0 ? 0.0 : (crew.weekDone / crew.target).clamp(0.0, 1.0);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: OunColors.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: OunColors.cardBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reqs = ref.watch(crewJoinRequestsProvider(crew.id)).value ??
+        const <CrewJoinRequestItem>[];
+    if (reqs.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      decoration: BoxDecoration(
+        color: OunColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: OunColors.tabAccent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('가입 신청 ${reqs.length}건',
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: OunColors.tabAccent)),
+          const SizedBox(height: 4),
+          for (final r in reqs)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
                 children: [
-                  const Text('이번 주 함께한 운동',
-                      style:
-                          TextStyle(fontSize: 12, color: OunColors.textMuted)),
-                  const Spacer(),
-                  Text('${crew.weekDone} / ${crew.target}회',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: OunColors.tabAccent)),
+                  PostAvatar(name: r.displayName, nickname: r.nickname, size: 34),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(r.displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: OunColors.textPrimary)),
+                  ),
+                  _miniBtn(
+                    label: '거절',
+                    filled: false,
+                    onTap: () => _respond(context, ref, r, false),
+                  ),
+                  const SizedBox(width: 6),
+                  _miniBtn(
+                    label: '수락',
+                    filled: true,
+                    onTap: () => _respond(context, ref, r, true),
+                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: ratio,
-                  minHeight: 9,
-                  backgroundColor: OunColors.card,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(OunColors.tabAccent),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text('멤버 ${crew.members.length}명 · 1인당 주 ${crew.weeklyGoal}회 목표',
-                  style: const TextStyle(
-                      fontSize: 11.5, color: OunColors.textMuted)),
-            ],
-          ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniBtn({
+    required String label,
+    required bool filled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: filled ? OunColors.tabAccent : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: filled ? OunColors.tabAccent : OunColors.cardBorder),
         ),
-        const SizedBox(height: 12),
-        // 멤버별 이번 주 참여
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: OunColors.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: OunColors.cardBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('멤버별 이번 주',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: OunColors.textMuted)),
-              const SizedBox(height: 10),
-              for (final m in crew.members) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 52,
-                        child: Text(m.displayName,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: OunColors.textPrimary)),
-                      ),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: crew.weeklyGoal == 0
-                                ? 0
-                                : (m.weekCount / crew.weeklyGoal)
-                                    .clamp(0.0, 1.0),
-                            minHeight: 7,
-                            backgroundColor: OunColors.card,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                avatarColor(m.nickname)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('${m.weekCount}회',
-                          style: const TextStyle(
-                              fontSize: 11, color: OunColors.textMuted)),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: filled ? OunColors.onTabAccent : OunColors.textMuted)),
+      ),
     );
   }
 }
@@ -724,12 +718,91 @@ class _CrewInfoTab extends ConsumerWidget {
     }
   }
 
+  Future<void> _editSettings(BuildContext context, WidgetRef ref) async {
+    final result = await showCrewEditSheet(
+      context,
+      initialName: crew.name,
+      initialDescription: crew.description ?? '',
+      initialIsPublic: crew.isPublic,
+    );
+    if (result == null) return;
+    try {
+      await ref.read(apiClientProvider).updateCrew(
+            crew.id,
+            name: result.name,
+            description: result.description ?? '',
+            isPublic: result.isPublic,
+          );
+      ref.invalidate(crewDetailProvider(crew.id));
+      ref.invalidate(crewsProvider);
+      if (context.mounted) {
+        OunToast.show(context, '크루 설정을 저장했어요', kind: OunToastKind.success);
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '저장에 실패했어요');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rewards = ref.watch(crewRewardsProvider(crew.id)).value ?? [];
+    final hasDesc = crew.description != null && crew.description!.isNotEmpty;
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
       children: [
+        // 크루 소개 + (방장) 설정 진입
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: OunColors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: OunColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(crew.isPublic ? Icons.public : Icons.lock_outline,
+                      size: 15, color: OunColors.textMuted),
+                  const SizedBox(width: 5),
+                  Text(crew.isPublic ? '공개 크루' : '비공개 크루',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: OunColors.textMuted)),
+                  const Spacer(),
+                  if (crew.isLeader)
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _editSettings(context, ref),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.tune_rounded,
+                              size: 15, color: OunColors.tabAccent),
+                          SizedBox(width: 4),
+                          Text('설정',
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: OunColors.tabAccent)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                hasDesc ? crew.description! : '아직 크루 소개가 없어요',
+                style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: hasDesc ? OunColors.textPrimary : OunColors.textFaint),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         CrewLevelCard(info: crew.level),
         const SizedBox(height: 12),
         CrewLevelRewardList(
@@ -795,10 +868,6 @@ class _MemberRow extends StatelessWidget {
                 ],
               ),
             ),
-            Text('이번 주 ${m.weekCount}회',
-                style: const TextStyle(
-                    fontSize: 11.5, color: OunColors.textMuted)),
-            const SizedBox(width: 4),
             const Icon(Icons.chevron_right,
                 size: 18, color: OunColors.textFaint),
           ],

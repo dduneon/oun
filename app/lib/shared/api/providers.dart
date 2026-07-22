@@ -202,6 +202,27 @@ final crewFeedProvider =
   return api.crewFeed(crewId);
 });
 
+/// 공개 크루 탐방(이름 검색어별). 빈 문자열이면 전체.
+final crewDiscoverProvider =
+    FutureProvider.family<List<CrewSummary>, String>((ref, q) async {
+  final api = await _authed(ref);
+  return api.discoverCrews(q: q);
+});
+
+/// 내가 받은 크루 초대 목록.
+final crewInvitationsProvider =
+    FutureProvider<List<CrewInvitation>>((ref) async {
+  final api = await _authed(ref);
+  return api.myCrewInvitations();
+});
+
+/// 방장이 보는 대기중 가입 신청 목록.
+final crewJoinRequestsProvider =
+    FutureProvider.family<List<CrewJoinRequestItem>, String>((ref, crewId) async {
+  final api = await _authed(ref);
+  return api.crewJoinRequests(crewId);
+});
+
 final crewRewardsProvider =
     FutureProvider.family<List<CrewReward>, String>((ref, crewId) async {
   final api = await _authed(ref);
