@@ -47,6 +47,7 @@ class Workout {
     this.bodyPart,
     this.sets,
     this.hasPhoto = false,
+    this.photoUrl,
   });
 
   final String id;
@@ -58,6 +59,7 @@ class Workout {
   final String? bodyPart;
   final int? sets;
   final bool hasPhoto;
+  final String? photoUrl; // 인증 사진 공개 URL(MinIO). 없으면 null.
 
   int get minutes => durationSec ~/ 60;
 
@@ -70,7 +72,9 @@ class Workout {
         steps: j['steps'] as int?,
         bodyPart: j['bodyPart'] as String?,
         sets: j['sets'] as int?,
-        hasPhoto: (j['hasPhoto'] as bool?) ?? (j['photoRef'] != null),
+        photoUrl: j['photoUrl'] as String?,
+        hasPhoto: (j['hasPhoto'] as bool?) ??
+            (j['photoUrl'] != null || j['photoRef'] != null),
       );
 }
 

@@ -94,6 +94,31 @@ class ApiClient {
 
   // ── 운동 ──────────────────────────────────────────────
 
+  /// 운동 사진을 MinIO에 올린다. 서버에서 presigned URL을 받아 직접 PUT하고,
+  /// 저장된 오브젝트 키(photoRef)를 돌려준다.
+  Future<String> uploadWorkoutPhoto(
+    List<int> bytes, {
+    String contentType = 'image/jpeg',
+  }) async {
+    final presign = await _dio.post<Map<String, dynamic>>(
+        '/uploads/workout-photo',
+        data: {'contentType': contentType});
+    final key = presign.data!['key'] as String;
+    final uploadUrl = presign.data!['uploadUrl'] as String;
+    // presigned URL은 MinIO 절대주소 → 인증 인터셉터/baseUrl 없는 순정 Dio로 PUT.
+    await Dio().put<void>(
+      uploadUrl,
+      data: Stream.fromIterable([bytes]),
+      options: Options(
+        headers: {
+          Headers.contentTypeHeader: contentType,
+          Headers.contentLengthHeader: bytes.length,
+        },
+      ),
+    );
+    return key;
+  }
+
   Future<WorkoutResult> createWorkout({
     required String sport,
     required int durationSec,
@@ -101,7 +126,7 @@ class ApiClient {
     int? steps,
     String? bodyPart,
     int? sets,
-    bool hasPhoto = false,
+    String? photoRef,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>('/workouts', data: {
       'sport': sport,
@@ -110,7 +135,7 @@ class ApiClient {
       'steps': ?steps,
       'bodyPart': ?bodyPart,
       'sets': ?sets,
-      'hasPhoto': hasPhoto,
+      'photoRef': ?photoRef,
     });
     final d = res.data!;
     return WorkoutResult(

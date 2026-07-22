@@ -303,7 +303,24 @@ class _CrewPostCardState extends ConsumerState<CrewPostCard> {
                           height: 1.5,
                           color: OunColors.textPrimary)),
                 ],
-                if (w?.hasPhoto ?? false) ...[
+                if (w?.photoUrl != null) ...[
+                  const SizedBox(height: 9),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      w!.photoUrl!,
+                      width: double.infinity,
+                      height: 180,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) =>
+                          progress == null
+                              ? child
+                              : const PhotoPlaceholder(height: 180),
+                      errorBuilder: (_, _, _) =>
+                          const PhotoPlaceholder(height: 180),
+                    ),
+                  ),
+                ] else if (w?.hasPhoto ?? false) ...[
                   const SizedBox(height: 9),
                   const PhotoPlaceholder(height: 110),
                 ],

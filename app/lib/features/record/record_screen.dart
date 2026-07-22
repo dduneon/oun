@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
@@ -122,6 +125,7 @@ class _RecentRecords extends ConsumerWidget {
                 sportLabels[w.sport] ?? w.sport,
                 '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
                 '${w.minutes}분',
+                photoUrl: w.photoUrl,
               ),
           ],
         );
@@ -531,11 +535,13 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _RecordRow extends StatelessWidget {
-  const _RecordRow(this.icon, this.title, this.sub, this.value);
+  const _RecordRow(this.icon, this.title, this.sub, this.value,
+      {this.photoUrl});
   final IconData icon;
   final String title;
   final String sub;
   final String value;
+  final String? photoUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -573,6 +579,17 @@ class _RecordRow extends StatelessWidget {
               ],
             ),
           ),
+          if (photoUrl != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(photoUrl!,
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink()),
+            ),
+            const SizedBox(width: 10),
+          ],
           Text(value,
               style: const TextStyle(
                   fontSize: 13,
@@ -623,8 +640,8 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
   int _steps = 5000;
   int _sets = 3;
   int _bodyPart = 0;
-  // 운동 인증 사진(목업: 실제 이미지 대신 첨부 여부만 관리).
-  bool _photoAttached = false;
+  // 운동 인증 사진(촬영/앨범에서 고른 실제 이미지).
+  XFile? _photo;
   bool _saving = false;
 
   @override
@@ -676,6 +693,16 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
     setState(() => _saving = true);
 
     try {
+      // 사진이 있으면 먼저 MinIO에 올려 photoRef(키)를 받는다.
+      String? photoRef;
+      if (_photo != null) {
+        final bytes = await _photo!.readAsBytes();
+        final isPng = _photo!.name.toLowerCase().endsWith('.png');
+        photoRef = await api.uploadWorkoutPhoto(
+          bytes,
+          contentType: isPng ? 'image/png' : 'image/jpeg',
+        );
+      }
       final result = await api.createWorkout(
         sport: _sportApi[_type] ?? 'etc',
         durationSec: _minutes * 60,
@@ -684,7 +711,7 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
         steps: _metricKind == 'steps' ? _steps : null,
         bodyPart: _metricKind == 'weight' ? _bodyApi[_bodyParts[_bodyPart]] : null,
         sets: _metricKind == 'weight' ? _sets : null,
-        hasPhoto: _photoAttached,
+        photoRef: photoRef,
       );
       invalidateAfterWorkout(ref);
       navigator.pop();
@@ -877,22 +904,36 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
     }
   }
 
+  final _picker = ImagePicker();
+
+  /// 촬영/앨범에서 사진 한 장을 고른다. 용량을 줄여 업로드를 가볍게 한다.
+  Future<void> _pickPhoto(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        imageQuality: 80,
+      );
+      if (picked != null) setState(() => _photo = picked);
+    } catch (_) {
+      if (mounted) OunToast.show(context, '사진을 불러오지 못했어요');
+    }
+  }
+
   /// 운동 인증 사진 영역. 첨부 전/후 상태가 다르다.
-  /// image_picker 연동 시 이 부분만 교체하면 된다.
   Widget _photoSection() {
-    if (_photoAttached) {
+    final photo = _photo;
+    if (photo != null) {
       return Row(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: OunColors.card,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: OunColors.cardBorder),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(photo.path),
+              width: 64,
+              height: 64,
+              fit: BoxFit.cover,
             ),
-            child: const Icon(Icons.image_rounded,
-                size: 26, color: OunColors.tabAccent),
           ),
           const SizedBox(width: 12),
           const Expanded(
@@ -903,7 +944,7 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
                     color: OunColors.textPrimary)),
           ),
           IconButton(
-            onPressed: () => setState(() => _photoAttached = false),
+            onPressed: () => setState(() => _photo = null),
             icon: const Icon(Icons.close_rounded,
                 size: 20, color: OunColors.textMuted),
             tooltip: '사진 제거',
@@ -917,7 +958,7 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
           child: _PhotoOption(
             icon: Icons.photo_camera_outlined,
             label: '촬영',
-            onTap: () => setState(() => _photoAttached = true),
+            onTap: () => _pickPhoto(ImageSource.camera),
           ),
         ),
         const SizedBox(width: 9),
@@ -925,7 +966,7 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
           child: _PhotoOption(
             icon: Icons.photo_library_outlined,
             label: '앨범',
-            onTap: () => setState(() => _photoAttached = true),
+            onTap: () => _pickPhoto(ImageSource.gallery),
           ),
         ),
       ],
