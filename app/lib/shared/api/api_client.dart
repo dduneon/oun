@@ -61,11 +61,19 @@ class ApiClient {
 
   // ── 인증 ──────────────────────────────────────────────
 
-  /// 개발용 로그인/회원가입. 닉네임만으로 세션을 만든다(없으면 생성).
-  Future<Profile> devLogin(String nickname, {String? gender}) async {
+  /// 개발용 로그인/회원가입. 닉네임으로 세션을 만든다.
+  /// - mode 'signup': 신규 가입(닉네임 성별과 함께, 중복이면 서버가 거부)
+  /// - mode 'login' : 기존 계정만 허용
+  /// - mode 생략     : find-or-create(401 자동 재로그인 등 내부용)
+  Future<Profile> devLogin(
+    String nickname, {
+    String? gender,
+    String? mode,
+  }) async {
     final res = await _dio.post<Map<String, dynamic>>('/auth/dev', data: {
       'nickname': nickname,
       'gender': ?gender,
+      'mode': ?mode,
     });
     _accessToken = res.data!['accessToken'] as String;
     _nickname = nickname;

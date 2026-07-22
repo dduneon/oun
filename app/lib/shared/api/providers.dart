@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,17 +49,34 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// 로그인/회원가입(dev). 성공 시 닉네임을 저장해 다음 실행에 복원.
-  Future<bool> login(String nickname, {String? gender}) async {
+  /// 회원가입(dev). 닉네임 + 함께할 캐릭터 성별로 신규 계정을 만든다.
+  /// 닉네임이 이미 있으면 서버가 거부한다.
+  Future<bool> signUp(String nickname, String gender) =>
+      _authenticate(nickname, gender: gender, mode: 'signup');
+
+  /// 로그인(dev). 기존 계정(닉네임)만 허용한다.
+  Future<bool> logIn(String nickname) =>
+      _authenticate(nickname, mode: 'login');
+
+  /// dev 인증 공통 처리. 성공 시 닉네임을 저장해 다음 실행에 복원.
+  Future<bool> _authenticate(
+    String nickname, {
+    String? gender,
+    required String mode,
+  }) async {
     try {
-      final profile =
-          await ref.read(apiClientProvider).devLogin(nickname, gender: gender);
+      final profile = await ref
+          .read(apiClientProvider)
+          .devLogin(nickname, gender: gender, mode: mode);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKey, nickname);
       state = AuthState(AuthStatus.loggedIn, profile: profile);
       return true;
-    } catch (_) {
-      state = const AuthState(AuthStatus.loggedOut, error: '로그인에 실패했어요. 서버 연결을 확인해 주세요');
+    } catch (e) {
+      state = AuthState(
+        AuthStatus.loggedOut,
+        error: _errorMessage(e, '서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요'),
+      );
       return false;
     }
   }
@@ -69,6 +87,19 @@ class AuthController extends Notifier<AuthState> {
     ref.read(apiClientProvider).clearSession();
     state = const AuthState(AuthStatus.loggedOut);
   }
+}
+
+/// 서버(NestJS)가 내려주는 에러 메시지를 뽑아낸다. 없으면 fallback.
+String _errorMessage(Object e, String fallback) {
+  if (e is DioException) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final msg = data['message'];
+      if (msg is String && msg.isNotEmpty) return msg;
+      if (msg is List && msg.isNotEmpty) return msg.first.toString();
+    }
+  }
+  return fallback;
 }
 
 final authProvider = NotifierProvider<AuthController, AuthState>(AuthController.new);
