@@ -6,6 +6,7 @@ import { QuestsService } from '../quests/quests.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { workoutReward } from '../game/leveling';
 import { kstDayKey } from '../common/time';
+import { StorageService } from '../storage/storage.service';
 import { CreateWorkoutDto } from './dto';
 import { verifyWorkout } from './verify';
 
@@ -26,6 +27,7 @@ export class WorkoutsService {
     private readonly game: GameService,
     private readonly quests: QuestsService,
     private readonly achievements: AchievementsService,
+    private readonly storage: StorageService,
   ) {}
 
   /** POST /workouts — 기록 제출 → 검증 → (승인 시) 보상·스탯·스트릭·mood·퀘스트·업적. */
@@ -107,7 +109,12 @@ export class WorkoutsService {
       orderBy: { performedAt: 'desc' },
       take: 50,
     });
-    return { items };
+    return {
+      items: items.map((w) => ({
+        ...w,
+        photoUrl: this.storage.publicUrlFor(w.photoRef),
+      })),
+    };
   }
 
   /** GET /workouts/calendar?month=YYYY-MM — 일별 강도(0~4). */

@@ -13,6 +13,7 @@ import { AchievementsModule } from './achievements/achievements.module';
 import { GameModule } from './game/game.module';
 import { SocialModule } from './social/social.module';
 import { CrewsModule } from './crews/crews.module';
+import { StorageModule } from './storage/storage.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -30,6 +31,7 @@ import { HealthController } from './health.controller';
     AchievementsModule,
     SocialModule,
     CrewsModule,
+    StorageModule,
   ],
   controllers: [HealthController],
 })

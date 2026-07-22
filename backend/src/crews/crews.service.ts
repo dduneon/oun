@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { workoutSummary } from '../social/social.service';
+import { StorageService } from '../storage/storage.service';
 import { crewLevelOf, crewLevelRewards } from './crew-level';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class CrewsService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly achievements: AchievementsService,
+    private readonly storage: StorageService,
   ) {}
 
   /** 멤버십 확인. 아니면 403. */
@@ -430,7 +432,9 @@ export class CrewsService {
           },
           createdAt: p.createdAt.toISOString(),
           message: p.message,
-          workout: w ? workoutSummary(w) : null,
+          workout: w
+              ? { ...workoutSummary(w), photoUrl: this.storage.publicUrlFor(w.photoRef) }
+              : null,
           cheers: p.cheers.length,
           cheered: p.cheers.some((c) => c.userId === userId),
           comments: p.comments.map((c) => ({

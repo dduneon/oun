@@ -27,6 +27,22 @@ services:
     volumes:
       - oun_redisdata:/data
 
+  # 오브젝트 스토리지(운동 인증 사진 등). API :9000, 콘솔 :9001
+  minio:
+    image: minio/minio:latest
+    container_name: oun-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: oun
+      MINIO_ROOT_PASSWORD: oun_dev_pw
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - oun_miniodata:/data
+
 volumes:
   oun_pgdata:
   oun_redisdata:
+  oun_miniodata:
