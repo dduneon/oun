@@ -13,7 +13,7 @@ export class AuthController {
 
   @Post('dev')
   dev(@Body() dto: DevLoginDto) {
-    return this.auth.devLogin(dto.nickname, dto.gender);
+    return this.auth.devLogin(dto.nickname, dto.gender, dto.mode);
   }
 
   @Post('refresh')

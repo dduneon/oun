@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, Length } from 'class-validator';
 import { Gender } from '@prisma/client';
 
 export class KakaoLoginDto {
@@ -15,6 +15,12 @@ export class DevLoginDto {
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
+
+  // 'signup': 신규 가입(닉네임 중복이면 거부), 'login': 기존 계정만 허용.
+  // 생략하면 기존 동작(find-or-create) — e2e 등 하위호환용.
+  @IsOptional()
+  @IsIn(['signup', 'login'])
+  mode?: 'signup' | 'login';
 }
 
 export class RefreshDto {

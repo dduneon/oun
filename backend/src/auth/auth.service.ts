@@ -1,6 +1,8 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -68,15 +70,42 @@ export class AuthService {
     return this.authResult(user);
   }
 
-  /** 개발용 로그인 스텁 — 자격증명 없이 닉네임만으로 유저 발급/재사용. 운영에서 차단. */
-  async devLogin(nickname: string, gender?: Gender) {
+  /**
+   * 개발용 로그인/회원가입 스텁 — 자격증명 없이 닉네임만으로 유저 발급/재사용.
+   * 운영에서 차단. (실 인증은 카카오 로그인)
+   *
+   * - mode 'signup': 신규 가입. 닉네임이 이미 있으면 거부하고, 없으면 캐릭터
+   *   성별과 함께 생성한다.
+   * - mode 'login': 기존 계정만 허용. 없으면 안내한다.
+   * - mode 생략: 기존 동작(find-or-create). e2e 등 하위호환용.
+   */
+  async devLogin(
+    nickname: string,
+    gender?: Gender,
+    mode?: 'signup' | 'login',
+  ) {
     if (this.config.get<string>('NODE_ENV') === 'production') {
       throw new ForbiddenException('dev 로그인은 개발 환경에서만 사용할 수 있어요');
     }
-    let user = await this.users.findByNickname(nickname);
-    if (!user) {
-      user = await this.users.provision({ nickname, gender });
+    const existing = await this.users.findByNickname(nickname);
+
+    if (mode === 'signup') {
+      if (existing) {
+        throw new ConflictException('이미 사용 중인 닉네임이에요');
+      }
+      const user = await this.users.provision({ nickname, gender });
+      return this.authResult(user);
     }
+
+    if (mode === 'login') {
+      if (!existing) {
+        throw new NotFoundException('존재하지 않는 계정이에요. 회원가입을 해주세요');
+      }
+      return this.authResult(existing);
+    }
+
+    // 하위호환: mode 없으면 find-or-create.
+    const user = existing ?? (await this.users.provision({ nickname, gender }));
     return this.authResult(user);
   }
 
