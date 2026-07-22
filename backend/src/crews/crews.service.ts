@@ -9,7 +9,6 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { AchievementsService } from '../achievements/achievements.service';
-import { kstWeekStart } from '../common/time';
 import { workoutSummary } from '../social/social.service';
 import { crewLevelOf, crewLevelRewards } from './crew-level';
 
@@ -30,28 +29,41 @@ export class CrewsService {
     return member;
   }
 
-  /** 이번 주(월~) 크루원별 검증 운동 횟수 맵. */
-  private async weekCounts(memberIds: string[]) {
-    const weekStart = kstWeekStart(new Date());
-    const logs = await this.prisma.workoutLog.groupBy({
-      by: ['userId'],
-      where: {
-        userId: { in: memberIds },
-        verifyStatus: 'verified',
-        performedAt: { gte: weekStart },
-      },
-      _count: { id: true },
+  /** 방장 확인. 방장이 아니면 403. (가입 신청 승인·초대·설정 변경 권한) */
+  private async leaderOf(crewId: string, userId: string) {
+    const member = await this.membershipOf(crewId, userId);
+    if (member.role !== 'leader') {
+      throw new ForbiddenException('방장만 할 수 있어요');
+    }
+    return member;
+  }
+
+  /** 크루에 새 멤버를 넣고, 관련 대기중 신청/초대를 정리한다(멱등). */
+  private async admit(tx: Prisma.TransactionClient, crewId: string, userId: string) {
+    await tx.crewMember.upsert({
+      where: { crewId_userId: { crewId, userId } },
+      create: { crewId, userId },
+      update: {},
     });
-    return new Map(logs.map((l) => [l.userId, l._count.id]));
+    // 같은 크루에 남아있는 이 유저의 대기중 신청/초대는 모두 처리 완료로.
+    await tx.crewJoinRequest.updateMany({
+      where: { crewId, userId, status: 'pending' },
+      data: { status: 'accepted' },
+    });
+    await this.achievements.evaluate(tx, userId); // 크루 데뷔 업적
   }
 
   /** POST /crews — 생성 + 본인을 방장으로. 크루 데뷔 업적 판정. */
-  async create(userId: string, name: string, weeklyGoal: number) {
+  async create(
+    userId: string,
+    input: { name: string; description?: string; isPublic: boolean },
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const crew = await tx.crew.create({
         data: {
-          name,
-          weeklyGoal,
+          name: input.name,
+          description: input.description?.trim() || null,
+          isPublic: input.isPublic,
           members: { create: { userId, role: 'leader' } },
         },
       });
@@ -60,34 +72,47 @@ export class CrewsService {
     });
   }
 
+  /** PATCH /crews/:id — 크루 설정(이름·소개·공개여부) 변경. 방장만. */
+  async update(
+    crewId: string,
+    userId: string,
+    input: { name?: string; description?: string; isPublic?: boolean },
+  ) {
+    await this.leaderOf(crewId, userId);
+    await this.prisma.crew.update({
+      where: { id: crewId },
+      data: {
+        name: input.name,
+        description:
+          input.description === undefined
+            ? undefined
+            : input.description.trim() || null,
+        isPublic: input.isPublic,
+      },
+    });
+    return this.detailIn(this.prisma, crewId, userId);
+  }
+
   /** GET /crews — 내가 속한 크루 카드 목록. */
   async myCrews(userId: string) {
     const memberships = await this.prisma.crewMember.findMany({
       where: { userId },
-      include: { crew: { include: { members: true, _count: { select: { posts: true } } } } },
+      include: { crew: { include: { _count: { select: { members: true, posts: true } } } } },
       orderBy: { joinedAt: 'asc' },
     });
 
-    const items = [];
-    for (const m of memberships) {
-      const crew = m.crew;
-      const ids = crew.members.map((cm) => cm.userId);
-      const counts = await this.weekCounts(ids);
-      const weekDone = ids.reduce((s, id) => s + (counts.get(id) ?? 0), 0);
-      items.push({
-        id: crew.id,
-        name: crew.name,
-        weeklyGoal: crew.weeklyGoal,
-        memberCount: ids.length,
-        weekDone,
-        target: crew.weeklyGoal * ids.length,
-        level: crewLevelOf(crew._count.posts),
-      });
-    }
+    const items = memberships.map((m) => ({
+      id: m.crew.id,
+      name: m.crew.name,
+      description: m.crew.description,
+      isPublic: m.crew.isPublic,
+      memberCount: m.crew._count.members,
+      level: crewLevelOf(m.crew._count.posts),
+    }));
     return { items };
   }
 
-  /** GET /crews/:id — 상세(멤버·주간 현황·레벨). */
+  /** GET /crews/:id — 상세(멤버·레벨·설정). */
   async detail(crewId: string, userId: string) {
     await this.membershipOf(crewId, userId);
     return this.detailIn(this.prisma, crewId, userId);
@@ -101,38 +126,157 @@ export class CrewsService {
     const crew = await client.crew.findUnique({
       where: { id: crewId },
       include: {
-        members: { include: { user: { include: { streak: true } } }, orderBy: { joinedAt: 'asc' } },
+        members: { include: { user: true }, orderBy: { joinedAt: 'asc' } },
         _count: { select: { posts: true } },
       },
     });
     if (!crew) throw new NotFoundException('크루를 찾을 수 없어요');
 
-    const ids = crew.members.map((m) => m.userId);
-    const counts = await this.weekCounts(ids);
+    const me = crew.members.find((m) => m.userId === userId);
+    const isLeader = me?.role === 'leader';
     const members = crew.members.map((m) => ({
       nickname: m.user.nickname,
       displayName: m.user.displayName,
       gender: m.user.gender,
       role: m.role,
       isMe: m.userId === userId,
-      weekCount: counts.get(m.userId) ?? 0,
     }));
-    const weekDone = members.reduce((s, m) => s + m.weekCount, 0);
+
+    // 방장이면 대기중 가입 신청 수를 함께 내려 배지로 노출.
+    const pendingRequestCount = isLeader
+      ? await client.crewJoinRequest.count({
+          where: { crewId, type: 'request', status: 'pending' },
+        })
+      : 0;
 
     return {
       id: crew.id,
       name: crew.name,
-      weeklyGoal: crew.weeklyGoal,
+      description: crew.description,
+      isPublic: crew.isPublic,
+      isLeader,
+      pendingRequestCount,
       members,
-      weekDone,
-      target: crew.weeklyGoal * members.length,
       level: crewLevelOf(crew._count.posts),
     };
   }
 
-  /** POST /crews/:id/members — @nickname 직접 초대(링크 공유는 이후). */
+  // ── 탐방 / 가입 신청 (유저 → 크루) ────────────────────────
+
+  /** GET /crews/discover — 내가 속하지 않은 공개 크루 목록(이름 검색). */
+  async discover(userId: string, q?: string) {
+    const myCrewIds = (
+      await this.prisma.crewMember.findMany({
+        where: { userId },
+        select: { crewId: true },
+      })
+    ).map((m) => m.crewId);
+
+    const crews = await this.prisma.crew.findMany({
+      where: {
+        isPublic: true,
+        id: { notIn: myCrewIds },
+        ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}),
+      },
+      include: { _count: { select: { members: true, posts: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    // 내가 이미 신청한 크루 표시.
+    const requested = new Set(
+      (
+        await this.prisma.crewJoinRequest.findMany({
+          where: { userId, type: 'request', status: 'pending', crewId: { in: crews.map((c) => c.id) } },
+          select: { crewId: true },
+        })
+      ).map((r) => r.crewId),
+    );
+
+    return {
+      items: crews.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        memberCount: c._count.members,
+        level: crewLevelOf(c._count.posts),
+        requested: requested.has(c.id),
+      })),
+    };
+  }
+
+  /** POST /crews/:id/join-request — 공개 크루에 가입 신청. */
+  async requestJoin(crewId: string, userId: string) {
+    const crew = await this.prisma.crew.findUnique({ where: { id: crewId } });
+    if (!crew) throw new NotFoundException('크루를 찾을 수 없어요');
+    if (!crew.isPublic) throw new ForbiddenException('비공개 크루예요');
+
+    const member = await this.prisma.crewMember.findUnique({
+      where: { crewId_userId: { crewId, userId } },
+    });
+    if (member) throw new ConflictException('이미 크루원이에요');
+
+    await this.prisma.crewJoinRequest.upsert({
+      where: { crewId_userId_type: { crewId, userId, type: 'request' } },
+      create: { crewId, userId, type: 'request', status: 'pending' },
+      update: { status: 'pending' }, // 이전에 거절됐어도 다시 신청 가능
+    });
+    return { requested: true };
+  }
+
+  /** GET /crews/:id/join-requests — 방장이 보는 대기중 가입 신청. */
+  async listJoinRequests(crewId: string, userId: string) {
+    await this.leaderOf(crewId, userId);
+    const reqs = await this.prisma.crewJoinRequest.findMany({
+      where: { crewId, type: 'request', status: 'pending' },
+      include: { user: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return {
+      items: reqs.map((r) => ({
+        id: r.id,
+        nickname: r.user.nickname,
+        displayName: r.user.displayName,
+        gender: r.user.gender,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /** POST /crews/:id/join-requests/:reqId/(accept|reject) — 방장 처리. */
+  async respondJoinRequest(
+    crewId: string,
+    userId: string,
+    reqId: string,
+    accept: boolean,
+  ) {
+    await this.leaderOf(crewId, userId);
+    const req = await this.prisma.crewJoinRequest.findUnique({ where: { id: reqId } });
+    if (!req || req.crewId !== crewId || req.type !== 'request') {
+      throw new NotFoundException('가입 신청을 찾을 수 없어요');
+    }
+    if (req.status !== 'pending') {
+      throw new ConflictException('이미 처리된 신청이에요');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (accept) {
+        await this.admit(tx, crewId, req.userId);
+      } else {
+        await tx.crewJoinRequest.update({
+          where: { id: reqId },
+          data: { status: 'rejected' },
+        });
+      }
+      return { accepted: accept };
+    });
+  }
+
+  // ── 초대 (크루 → 유저) ────────────────────────────────────
+
+  /** POST /crews/:id/invite — @nickname 초대(대기중 초대 생성, 방장만). */
   async invite(crewId: string, userId: string, nickname: string) {
-    await this.membershipOf(crewId, userId);
+    await this.leaderOf(crewId, userId);
     const target = await this.prisma.user.findUnique({ where: { nickname } });
     if (!target) throw new NotFoundException('해당 닉네임의 유저가 없어요');
 
@@ -141,10 +285,70 @@ export class CrewsService {
     });
     if (dup) throw new ConflictException('이미 크루원이에요');
 
+    await this.prisma.crewJoinRequest.upsert({
+      where: { crewId_userId_type: { crewId, userId: target.id, type: 'invite' } },
+      create: {
+        crewId,
+        userId: target.id,
+        type: 'invite',
+        status: 'pending',
+        invitedBy: userId,
+      },
+      update: { status: 'pending', invitedBy: userId },
+    });
+    return { nickname: target.nickname, displayName: target.displayName };
+  }
+
+  /** GET /crews/invitations — 내가 받은 대기중 초대 목록. */
+  async myInvitations(userId: string) {
+    const invites = await this.prisma.crewJoinRequest.findMany({
+      where: { userId, type: 'invite', status: 'pending' },
+      include: { crew: { include: { _count: { select: { members: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // 초대한 방장 이름.
+    const inviterIds = invites
+      .map((i) => i.invitedBy)
+      .filter((id): id is string => id != null);
+    const inviters = await this.prisma.user.findMany({
+      where: { id: { in: inviterIds } },
+    });
+    const inviterMap = new Map(inviters.map((u) => [u.id, u.displayName]));
+
+    return {
+      items: invites.map((i) => ({
+        id: i.id,
+        crewId: i.crewId,
+        crewName: i.crew.name,
+        crewDescription: i.crew.description,
+        memberCount: i.crew._count.members,
+        invitedByName: i.invitedBy ? inviterMap.get(i.invitedBy) ?? null : null,
+        createdAt: i.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /** POST /crews/invitations/:invId/(accept|decline) — 초대받은 사람 처리. */
+  async respondInvitation(userId: string, invId: string, accept: boolean) {
+    const inv = await this.prisma.crewJoinRequest.findUnique({ where: { id: invId } });
+    if (!inv || inv.userId !== userId || inv.type !== 'invite') {
+      throw new NotFoundException('초대를 찾을 수 없어요');
+    }
+    if (inv.status !== 'pending') {
+      throw new ConflictException('이미 처리된 초대예요');
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      await tx.crewMember.create({ data: { crewId, userId: target.id } });
-      await this.achievements.evaluate(tx, target.id); // 크루 데뷔
-      return { nickname: target.nickname, displayName: target.displayName };
+      if (accept) {
+        await this.admit(tx, inv.crewId, userId);
+      } else {
+        await tx.crewJoinRequest.update({
+          where: { id: invId },
+          data: { status: 'rejected' },
+        });
+      }
+      return { accepted: accept };
     });
   }
 

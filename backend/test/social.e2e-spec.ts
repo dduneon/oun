@@ -64,17 +64,24 @@ describe('오운 소셜·크루 (e2e)', () => {
     const crew = await request(app.getHttpServer())
       .post('/crews')
       .set(auth())
-      .send({ name: 'e2e 크루', weeklyGoal: 3 })
+      .send({ name: 'e2e 크루', description: '테스트 크루예요', isPublic: true })
       .expect(201);
     const crewId = crew.body.id;
     expect(crew.body.members).toHaveLength(1);
     expect(crew.body.level.level).toBe(1);
+    expect(crew.body.isLeader).toBe(true);
 
+    // 초대는 즉시 추가가 아니라 대기중 초대를 만든다.
     await request(app.getHttpServer())
-      .post(`/crews/${crewId}/members`)
+      .post(`/crews/${crewId}/invite`)
       .set(auth())
       .send({ nickname: 'hyunwoo' })
       .expect(201);
+    const stillSolo = await request(app.getHttpServer())
+      .get(`/crews/${crewId}`)
+      .set(auth())
+      .expect(200);
+    expect(stillSolo.body.members).toHaveLength(1); // 수락 전까지는 그대로
 
     // 운동 기록 (이 시점엔 피드에 자동 공유되지 않는다)
     const workout = await request(app.getHttpServer())
@@ -141,5 +148,89 @@ describe('오운 소셜·크루 (e2e)', () => {
   it('내 크루 목록에 노출된다', async () => {
     const res = await request(app.getHttpServer()).get('/crews').set(auth()).expect(200);
     expect(res.body.items.some((c: any) => c.name === 'e2e 크루')).toBe(true);
+  });
+
+  it('초대 → 수락 → 크루원이 된다', async () => {
+    const crew = await request(app.getHttpServer())
+      .post('/crews')
+      .set(auth())
+      .send({ name: 'invite 크루', isPublic: false })
+      .expect(201);
+    const crewId = crew.body.id;
+
+    // hyunwoo 초대
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/invite`)
+      .set(auth())
+      .send({ nickname: 'hyunwoo' })
+      .expect(201);
+
+    // hyunwoo 로그인 → 받은 초대 확인 → 수락
+    const hyunwoo = await request(app.getHttpServer())
+      .post('/auth/dev')
+      .send({ nickname: 'hyunwoo' });
+    const hAuth = { Authorization: `Bearer ${hyunwoo.body.accessToken}` };
+
+    const invites = await request(app.getHttpServer())
+      .get('/crews/invitations')
+      .set(hAuth)
+      .expect(200);
+    const inv = invites.body.items.find((i: any) => i.crewId === crewId);
+    expect(inv).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .post(`/crews/invitations/${inv.id}/accept`)
+      .set(hAuth)
+      .expect(201);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/crews/${crewId}`)
+      .set(auth())
+      .expect(200);
+    expect(detail.body.members).toHaveLength(2);
+  });
+
+  it('공개 크루 탐방 → 가입 신청 → 방장 승인', async () => {
+    // seoyeon이 공개 크루를 만든다.
+    const seoyeon = await request(app.getHttpServer())
+      .post('/auth/dev')
+      .send({ nickname: 'seoyeon' });
+    const sAuth = { Authorization: `Bearer ${seoyeon.body.accessToken}` };
+    const crew = await request(app.getHttpServer())
+      .post('/crews')
+      .set(sAuth)
+      .send({ name: `공개크루_${Date.now().toString().slice(-6)}`, isPublic: true })
+      .expect(201);
+    const crewId = crew.body.id;
+
+    // 나(soc_*)는 탐방에서 그 크루를 보고 가입 신청.
+    const discover = await request(app.getHttpServer())
+      .get('/crews/discover')
+      .set(auth())
+      .expect(200);
+    expect(discover.body.items.some((c: any) => c.id === crewId)).toBe(true);
+
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/join-request`)
+      .set(auth())
+      .expect(201);
+
+    // 방장(seoyeon)이 신청을 보고 승인.
+    const reqs = await request(app.getHttpServer())
+      .get(`/crews/${crewId}/join-requests`)
+      .set(sAuth)
+      .expect(200);
+    expect(reqs.body.items).toHaveLength(1);
+
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/join-requests/${reqs.body.items[0].id}/accept`)
+      .set(sAuth)
+      .expect(201);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/crews/${crewId}`)
+      .set(sAuth)
+      .expect(200);
+    expect(detail.body.members).toHaveLength(2);
   });
 });

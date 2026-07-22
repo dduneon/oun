@@ -5,10 +5,17 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  Length,
+} from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { CrewsService } from './crews.service';
@@ -18,10 +25,30 @@ class CreateCrewDto {
   @Length(1, 20)
   name!: string;
 
-  @IsInt()
-  @Min(1)
-  @Max(14)
-  weeklyGoal!: number;
+  @IsOptional()
+  @IsString()
+  @Length(0, 200)
+  description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
+}
+
+class UpdateCrewDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 200)
+  description?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }
 
 class InviteDto {
@@ -54,7 +81,11 @@ export class CrewsController {
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCrewDto) {
-    return this.crews.create(user.userId, dto.name, dto.weeklyGoal);
+    return this.crews.create(user.userId, {
+      name: dto.name,
+      description: dto.description,
+      isPublic: dto.isPublic ?? true,
+    });
   }
 
   @Get()
@@ -62,12 +93,48 @@ export class CrewsController {
     return this.crews.myCrews(user.userId);
   }
 
+  // 리터럴 경로(discover·invitations)는 :id 보다 먼저 선언해야 파라미터로 안 잡힌다.
+  @Get('discover')
+  discover(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.crews.discover(user.userId, q?.trim() || undefined);
+  }
+
+  @Get('invitations')
+  invitations(@CurrentUser() user: AuthUser) {
+    return this.crews.myInvitations(user.userId);
+  }
+
+  @Post('invitations/:invId/accept')
+  acceptInvitation(
+    @CurrentUser() user: AuthUser,
+    @Param('invId') invId: string,
+  ) {
+    return this.crews.respondInvitation(user.userId, invId, true);
+  }
+
+  @Post('invitations/:invId/decline')
+  declineInvitation(
+    @CurrentUser() user: AuthUser,
+    @Param('invId') invId: string,
+  ) {
+    return this.crews.respondInvitation(user.userId, invId, false);
+  }
+
   @Get(':id')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.crews.detail(id, user.userId);
   }
 
-  @Post(':id/members')
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateCrewDto,
+  ) {
+    return this.crews.update(id, user.userId, dto);
+  }
+
+  @Post(':id/invite')
   invite(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -79,6 +146,35 @@ export class CrewsController {
   @Delete(':id/members/me')
   leave(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.crews.leave(id, user.userId);
+  }
+
+  // 가입 신청 (유저 → 크루)
+  @Post(':id/join-request')
+  requestJoin(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crews.requestJoin(id, user.userId);
+  }
+
+  @Get(':id/join-requests')
+  joinRequests(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crews.listJoinRequests(id, user.userId);
+  }
+
+  @Post(':id/join-requests/:reqId/accept')
+  acceptJoinRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.crews.respondJoinRequest(id, user.userId, reqId, true);
+  }
+
+  @Post(':id/join-requests/:reqId/reject')
+  rejectJoinRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.crews.respondJoinRequest(id, user.userId, reqId, false);
   }
 
   @Get(':id/feed')

@@ -45,6 +45,7 @@ model User {
   cheersSent       Cheer[]           @relation("CheerFrom")
   cheersReceived   Cheer[]           @relation("CheerTo")
   crewMemberships  CrewMember[]
+  crewJoinRequests CrewJoinRequest[]
   crewPosts        CrewPost[]
   crewComments     CrewComment[]
   crewPostCheers   CrewPostCheer[]
@@ -392,14 +393,37 @@ model Cheer {
 // ─────────────────────────────────────────────────────────────
 
 model Crew {
-  id         String   @id @default(cuid())
-  name       String
-  weeklyGoal Int      @default(3) // 1인당 주간 목표 횟수
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  description String? // 크루 소개/설명
+  isPublic    Boolean  @default(true) // 크루 탐방에 노출할지 여부
+  createdAt   DateTime @default(now())
 
   members      CrewMember[]
   posts        CrewPost[]
   rewardClaims CrewRewardClaim[]
+  joinRequests CrewJoinRequest[]
+}
+
+// 가입 신청/초대 (하나의 모델로 방향만 다르게 표현).
+// - type "request": userId가 이 크루에 가입 신청(공개 크루). 방장이 승인/거절.
+// - type "invite" : 방장(invitedBy)이 userId를 초대. 당사자가 수락/거절.
+model CrewJoinRequest {
+  id        String   @id @default(cuid())
+  crewId    String
+  userId    String // request: 신청자 / invite: 초대받은 사람
+  type      String // "request" | "invite"
+  status    String   @default("pending") // pending | accepted | rejected
+  invitedBy String? // invite일 때 초대한 방장 userId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  crew Crew @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([crewId, userId, type])
+  @@index([userId])
+  @@index([crewId])
 }
 
 model CrewMember {
