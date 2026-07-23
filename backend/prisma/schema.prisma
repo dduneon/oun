@@ -20,11 +20,13 @@ enum Gender {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  kakaoId     String?  @unique // 카카오 로그인 식별자 (dev 유저는 null)
-  nickname    String   @unique // @nickname (친구 추가·프로필)
-  displayName String
-  gender      Gender   @default(f)
+  id           String   @id @default(cuid())
+  kakaoId      String?  @unique // 카카오 로그인 식별자 (dev 유저는 null)
+  username     String?  @unique // 자격 로그인 아이디 (카카오/dev 유저는 null)
+  passwordHash String? // bcrypt 해시 (자격 로그인 유저만)
+  nickname     String   @unique // @nickname (친구 추가·프로필)
+  displayName  String
+  gender       Gender   @default(f)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

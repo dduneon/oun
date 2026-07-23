@@ -17,6 +17,8 @@ export class UsersService {
     displayName?: string;
     gender?: Gender;
     kakaoId?: string;
+    username?: string;
+    passwordHash?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -25,6 +27,8 @@ export class UsersService {
           displayName: input.displayName ?? input.nickname,
           gender: input.gender ?? Gender.f,
           kakaoId: input.kakaoId,
+          username: input.username,
+          passwordHash: input.passwordHash,
           characterStat: { create: {} },
           characterMood: { create: {} },
           streak: { create: {} },
@@ -41,6 +45,10 @@ export class UsersService {
 
   async findByNickname(nickname: string) {
     return this.prisma.user.findUnique({ where: { nickname } });
+  }
+
+  async findByUsername(username: string) {
+    return this.prisma.user.findUnique({ where: { username } });
   }
 
   /** 닉네임 중복 시 뒤에 숫자를 붙여 유니크한 닉네임을 만든다. */

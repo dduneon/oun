@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Gender } from '@prisma/client';
 import axios from 'axios';
+import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
@@ -42,6 +43,42 @@ export class AuthService {
       ...this.issueTokens(user),
       user: { id: user.id, nickname: user.nickname, gender: user.gender },
     };
+  }
+
+  /** 회원가입: 아이디 + 비밀번호 + 닉네임 + 캐릭터. 아이디·닉네임 중복 거부. */
+  async register(input: {
+    username: string;
+    password: string;
+    nickname: string;
+    gender: Gender;
+  }) {
+    if (await this.users.findByUsername(input.username)) {
+      throw new ConflictException('이미 사용 중인 아이디예요');
+    }
+    if (await this.users.findByNickname(input.nickname)) {
+      throw new ConflictException('이미 사용 중인 닉네임이에요');
+    }
+    const passwordHash = await bcrypt.hash(input.password, 10);
+    const user = await this.users.provision({
+      username: input.username,
+      passwordHash,
+      nickname: input.nickname,
+      gender: input.gender,
+    });
+    return this.authResult(user);
+  }
+
+  /** 로그인: 아이디 + 비밀번호. */
+  async login(username: string, password: string) {
+    const user = await this.users.findByUsername(username);
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않아요');
+    }
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않아요');
+    }
+    return this.authResult(user);
   }
 
   /** 카카오 access token 검증 → 유저 find/create → 토큰 발급. */
