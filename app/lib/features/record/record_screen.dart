@@ -8,6 +8,7 @@ import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
+import '../../shared/widgets/photo_viewer.dart';
 import '../../theme/app_theme.dart';
 
 String _monthKey(DateTime d) =>
@@ -580,13 +581,16 @@ class _RecordRow extends StatelessWidget {
             ),
           ),
           if (photoUrl != null) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(photoUrl!,
-                  width: 34,
-                  height: 34,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink()),
+            GestureDetector(
+              onTap: () => showPhotoViewer(context, photoUrl!),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(photoUrl!,
+                    width: 34,
+                    height: 34,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink()),
+              ),
             ),
             const SizedBox(width: 10),
           ],

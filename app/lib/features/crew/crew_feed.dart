@@ -5,6 +5,7 @@ import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
+import '../../shared/widgets/photo_viewer.dart';
 import '../../theme/app_theme.dart';
 
 /// 크루 피드 글쓰기 시트를 띄운다. 성공 시 true. 운동 태그는 선택.
@@ -305,19 +306,22 @@ class _CrewPostCardState extends ConsumerState<CrewPostCard> {
                 ],
                 if (w?.photoUrl != null) ...[
                   const SizedBox(height: 9),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      w!.photoUrl!,
-                      width: double.infinity,
-                      height: 180,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) =>
-                          progress == null
-                              ? child
-                              : const PhotoPlaceholder(height: 180),
-                      errorBuilder: (_, _, _) =>
-                          const PhotoPlaceholder(height: 180),
+                  GestureDetector(
+                    onTap: () => showPhotoViewer(context, w.photoUrl!),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        w!.photoUrl!,
+                        width: double.infinity,
+                        height: 180,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) =>
+                            progress == null
+                                ? child
+                                : const PhotoPlaceholder(height: 180),
+                        errorBuilder: (_, _, _) =>
+                            const PhotoPlaceholder(height: 180),
+                      ),
                     ),
                   ),
                 ] else if (w?.hasPhoto ?? false) ...[
@@ -478,19 +482,22 @@ class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
                 ],
                 if (w?.photoUrl != null) ...[
                   const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      w!.photoUrl!,
-                      width: double.infinity,
-                      height: 220,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) =>
-                          progress == null
-                              ? child
-                              : const PhotoPlaceholder(height: 220),
-                      errorBuilder: (_, _, _) =>
-                          const PhotoPlaceholder(height: 220),
+                  GestureDetector(
+                    onTap: () => showPhotoViewer(context, w.photoUrl!),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        w!.photoUrl!,
+                        width: double.infinity,
+                        height: 220,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) =>
+                            progress == null
+                                ? child
+                                : const PhotoPlaceholder(height: 220),
+                        errorBuilder: (_, _, _) =>
+                            const PhotoPlaceholder(height: 220),
+                      ),
                     ),
                   ),
                 ] else if (w?.hasPhoto ?? false) ...[
