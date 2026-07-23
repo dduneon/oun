@@ -27,14 +27,35 @@ describe('오운 소셜·크루 (e2e)', () => {
 
   const auth = () => ({ Authorization: `Bearer ${token}` });
 
-  it('시드된 데모유저를 친구로 추가한다', async () => {
+  it('친구 요청 → 상대가 수락 → 친구가 된다', async () => {
+    // 내가 jimin에게 요청(수락 전까진 친구 아님)
     const res = await request(app.getHttpServer())
-      .post('/friends')
+      .post('/friends/requests')
       .set(auth())
       .send({ nickname: 'jimin' })
       .expect(201);
-    expect(res.body.displayName).toBe('지민');
+    expect(res.body.status).toBe('requested');
 
+    const before = await request(app.getHttpServer()).get('/friends').set(auth()).expect(200);
+    expect(before.body.items.map((f: any) => f.nickname)).not.toContain('jimin');
+
+    // jimin 로그인 → 받은 요청 확인 → 수락
+    const jimin = await request(app.getHttpServer())
+      .post('/auth/dev')
+      .send({ nickname: 'jimin' });
+    const jAuth = { Authorization: `Bearer ${jimin.body.accessToken}` };
+    const reqs = await request(app.getHttpServer())
+      .get('/friends/requests')
+      .set(jAuth)
+      .expect(200);
+    const mine = reqs.body.items.find((r: any) => r.nickname === nickname);
+    expect(mine).toBeTruthy();
+    await request(app.getHttpServer())
+      .post(`/friends/requests/${mine.id}/accept`)
+      .set(jAuth)
+      .expect(201);
+
+    // 이제 서로 친구 목록에 노출
     const list = await request(app.getHttpServer()).get('/friends').set(auth()).expect(200);
     expect(list.body.items.map((f: any) => f.nickname)).toContain('jimin');
   });

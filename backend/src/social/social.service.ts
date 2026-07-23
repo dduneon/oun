@@ -81,22 +81,97 @@ export class SocialService {
     };
   }
 
-  /** POST /friends — @nickname으로 상호 친구 추가. */
-  async addFriend(userId: string, nickname: string) {
+  /** 두 유저를 상호 친구로 만든다(멱등). 남아있는 서로의 요청은 정리한다. */
+  private async makeFriends(userId: string, friendId: string) {
+    await this.prisma.$transaction([
+      this.prisma.friendship.upsert({
+        where: { userId_friendId: { userId, friendId } },
+        create: { userId, friendId },
+        update: {},
+      }),
+      this.prisma.friendship.upsert({
+        where: { userId_friendId: { userId: friendId, friendId: userId } },
+        create: { userId: friendId, friendId: userId },
+        update: {},
+      }),
+      this.prisma.friendRequest.updateMany({
+        where: {
+          status: 'pending',
+          OR: [
+            { fromUserId: userId, toUserId: friendId },
+            { fromUserId: friendId, toUserId: userId },
+          ],
+        },
+        data: { status: 'accepted' },
+      }),
+    ]);
+  }
+
+  /** POST /friends/requests — @nickname에게 친구 요청. 상대가 이미 내게
+   *  요청했다면 바로 친구가 된다. */
+  async sendFriendRequest(userId: string, nickname: string) {
     const target = await this.prisma.user.findUnique({ where: { nickname } });
     if (!target) throw new NotFoundException('해당 닉네임의 유저가 없어요');
     if (target.id === userId) throw new BadRequestException('나 자신은 추가할 수 없어요');
 
-    const dup = await this.prisma.friendship.findUnique({
+    const already = await this.prisma.friendship.findUnique({
       where: { userId_friendId: { userId, friendId: target.id } },
     });
-    if (dup) throw new ConflictException('이미 친구예요');
+    if (already) throw new ConflictException('이미 친구예요');
 
-    await this.prisma.$transaction([
-      this.prisma.friendship.create({ data: { userId, friendId: target.id } }),
-      this.prisma.friendship.create({ data: { userId: target.id, friendId: userId } }),
-    ]);
-    return { nickname: target.nickname, displayName: target.displayName };
+    // 상대가 내게 보낸 대기중 요청이 있으면 바로 수락 처리.
+    const reverse = await this.prisma.friendRequest.findUnique({
+      where: { fromUserId_toUserId: { fromUserId: target.id, toUserId: userId } },
+    });
+    if (reverse && reverse.status === 'pending') {
+      await this.makeFriends(userId, target.id);
+      return { status: 'accepted' as const, displayName: target.displayName };
+    }
+
+    await this.prisma.friendRequest.upsert({
+      where: { fromUserId_toUserId: { fromUserId: userId, toUserId: target.id } },
+      create: { fromUserId: userId, toUserId: target.id, status: 'pending' },
+      update: { status: 'pending' }, // 예전에 거절됐어도 다시 요청 가능
+    });
+    return { status: 'requested' as const, displayName: target.displayName };
+  }
+
+  /** GET /friends/requests — 내가 받은 대기중 친구 요청. */
+  async incomingFriendRequests(userId: string) {
+    const reqs = await this.prisma.friendRequest.findMany({
+      where: { toUserId: userId, status: 'pending' },
+      include: { fromUser: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      items: reqs.map((r) => ({
+        id: r.id,
+        nickname: r.fromUser.nickname,
+        displayName: r.fromUser.displayName,
+        gender: r.fromUser.gender,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /** POST /friends/requests/:id/(accept|reject) — 받은 요청 처리. */
+  async respondFriendRequest(userId: string, reqId: string, accept: boolean) {
+    const req = await this.prisma.friendRequest.findUnique({ where: { id: reqId } });
+    if (!req || req.toUserId !== userId) {
+      throw new NotFoundException('친구 요청을 찾을 수 없어요');
+    }
+    if (req.status !== 'pending') {
+      throw new ConflictException('이미 처리된 요청이에요');
+    }
+    if (accept) {
+      await this.makeFriends(userId, req.fromUserId);
+    } else {
+      await this.prisma.friendRequest.update({
+        where: { id: reqId },
+        data: { status: 'rejected' },
+      });
+    }
+    return { accepted: accept };
   }
 
   /** GET /users/:nickname/home — 친구 홈(주간 스트립 + 스탯 + 최근 활동). */

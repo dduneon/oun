@@ -42,8 +42,10 @@ model User {
   equipped         Equipped[]
   shopOrders       ShopOrder[]
   userAchievements UserAchievement[]
-  friendships      Friendship[]      @relation("FriendshipOwner")
-  friendOf         Friendship[]      @relation("FriendshipTarget")
+  friendships       Friendship[]    @relation("FriendshipOwner")
+  friendOf          Friendship[]    @relation("FriendshipTarget")
+  friendReqSent     FriendRequest[] @relation("FriendReqFrom")
+  friendReqReceived FriendRequest[] @relation("FriendReqTo")
   cheersSent       Cheer[]           @relation("CheerFrom")
   cheersReceived   Cheer[]           @relation("CheerTo")
   crewMemberships  CrewMember[]
@@ -373,6 +375,22 @@ model Friendship {
   friend User @relation("FriendshipTarget", fields: [friendId], references: [id], onDelete: Cascade)
 
   @@unique([userId, friendId])
+}
+
+// 친구 요청(요청 → 수락/거절). 수락 시 Friendship 두 행을 만든다.
+model FriendRequest {
+  id         String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  status     String   @default("pending") // pending | accepted | rejected
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  fromUser User @relation("FriendReqFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("FriendReqTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId])
 }
 
 // 응원 한 번(이모지). 친구 행의 반응 아이콘·응원 퀘스트/업적의 근거.

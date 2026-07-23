@@ -27,9 +27,34 @@ export class SocialController {
     return this.social.friends(user.userId);
   }
 
-  @Post('friends')
-  addFriend(@CurrentUser() user: AuthUser, @Body() dto: AddFriendDto) {
-    return this.social.addFriend(user.userId, dto.nickname);
+  // 친구 요청 (요청 → 수락/거절)
+  @Post('friends/requests')
+  sendFriendRequest(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: AddFriendDto,
+  ) {
+    return this.social.sendFriendRequest(user.userId, dto.nickname);
+  }
+
+  @Get('friends/requests')
+  friendRequests(@CurrentUser() user: AuthUser) {
+    return this.social.incomingFriendRequests(user.userId);
+  }
+
+  @Post('friends/requests/:id/accept')
+  acceptFriendRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    return this.social.respondFriendRequest(user.userId, id, true);
+  }
+
+  @Post('friends/requests/:id/reject')
+  rejectFriendRequest(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    return this.social.respondFriendRequest(user.userId, id, false);
   }
 
   @Get('users/:nickname/home')
