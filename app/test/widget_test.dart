@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oun_app/features/record/record_screen.dart';
 
 void main() {
   testWidgets('기록 화면이 렌더링된다', (WidgetTester tester) async {
-    // 로그인/세션 복원이 SharedPreferences를 읽으므로 목 값을 세팅.
-    SharedPreferences.setMockInitialValues({});
+    // 세션 복원이 보안 저장소를 읽으므로 목 값을 세팅.
+    FlutterSecureStorage.setMockInitialValues({});
 
     await tester.pumpWidget(
       const ProviderScope(

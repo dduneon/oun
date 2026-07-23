@@ -1,9 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api_client.dart';
 import 'models.dart';
+
+/// refresh 토큰 보관소. iOS는 Keychain, Android는 EncryptedSharedPreferences.
+const _secureStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+);
 
 /// 앱 전역 API 클라이언트.
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
@@ -34,8 +40,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> _restore() async {
-    final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString(_prefsKey);
+    final refreshToken = await _secureStorage.read(key: _prefsKey);
     if (refreshToken == null) {
       state = const AuthState(AuthStatus.loggedOut);
       return;
@@ -45,7 +50,7 @@ class AuthController extends Notifier<AuthState> {
       state = AuthState(AuthStatus.loggedIn, profile: profile);
     } catch (_) {
       // refresh 만료/서버 연결 실패 → 저장 토큰 폐기하고 로그인 화면으로
-      await prefs.remove(_prefsKey);
+      await _secureStorage.delete(key: _prefsKey);
       state = const AuthState(AuthStatus.loggedOut);
     }
   }
@@ -75,8 +80,7 @@ class AuthController extends Notifier<AuthState> {
     try {
       final profile = await authCall();
       final rt = ref.read(apiClientProvider).refreshToken;
-      final prefs = await SharedPreferences.getInstance();
-      if (rt != null) await prefs.setString(_prefsKey, rt);
+      if (rt != null) await _secureStorage.write(key: _prefsKey, value: rt);
       state = AuthState(AuthStatus.loggedIn, profile: profile);
       return true;
     } catch (e) {
@@ -89,8 +93,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKey);
+    await _secureStorage.delete(key: _prefsKey);
     ref.read(apiClientProvider).clearSession();
     state = const AuthState(AuthStatus.loggedOut);
   }
