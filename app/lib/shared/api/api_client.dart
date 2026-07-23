@@ -26,17 +26,19 @@ class ApiClient {
           handler.next(options);
         },
         onError: (e, handler) async {
-          // 토큰 만료 → 재로그인 후 1회 재시도
-          if (e.response?.statusCode == 401 && _nickname != null && !_retrying) {
+          // 액세스 토큰 만료 → refresh로 재발급 후 1회 재시도
+          if (e.response?.statusCode == 401 &&
+              _refreshToken != null &&
+              !_retrying) {
             try {
               _retrying = true;
-              await devLogin(_nickname!);
+              await _refresh();
               final res = await _dio.fetch<dynamic>(
                 e.requestOptions..headers['Authorization'] = 'Bearer $_accessToken',
               );
               return handler.resolve(res);
             } catch (_) {
-              // 재로그인 실패 → 원래 에러 유지
+              // refresh 실패 → 원래 에러 유지
             } finally {
               _retrying = false;
             }
@@ -49,35 +51,64 @@ class ApiClient {
 
   final Dio _dio;
   String? _accessToken;
-  String? _nickname;
+  String? _refreshToken;
   bool _retrying = false;
 
   bool get hasSession => _accessToken != null;
+  String? get refreshToken => _refreshToken;
 
   void clearSession() {
     _accessToken = null;
-    _nickname = null;
+    _refreshToken = null;
   }
 
   // ── 인증 ──────────────────────────────────────────────
 
-  /// 개발용 로그인/회원가입. 닉네임으로 세션을 만든다.
-  /// - mode 'signup': 신규 가입(닉네임 성별과 함께, 중복이면 서버가 거부)
-  /// - mode 'login' : 기존 계정만 허용
-  /// - mode 생략     : find-or-create(401 자동 재로그인 등 내부용)
-  Future<Profile> devLogin(
-    String nickname, {
-    String? gender,
-    String? mode,
+  /// 회원가입: 아이디·비밀번호·닉네임·캐릭터로 계정을 만든다.
+  Future<Profile> register({
+    required String username,
+    required String password,
+    required String nickname,
+    required String gender,
   }) async {
-    final res = await _dio.post<Map<String, dynamic>>('/auth/dev', data: {
+    final res = await _dio.post<Map<String, dynamic>>('/auth/register', data: {
+      'username': username,
+      'password': password,
       'nickname': nickname,
-      'gender': ?gender,
-      'mode': ?mode,
+      'gender': gender,
     });
-    _accessToken = res.data!['accessToken'] as String;
-    _nickname = nickname;
+    _setTokens(res.data!);
     return me();
+  }
+
+  /// 로그인: 아이디 + 비밀번호.
+  Future<Profile> login(String username, String password) async {
+    final res = await _dio.post<Map<String, dynamic>>('/auth/login', data: {
+      'username': username,
+      'password': password,
+    });
+    _setTokens(res.data!);
+    return me();
+  }
+
+  /// 저장해 둔 refresh 토큰으로 세션 복원(앱 재실행 시).
+  Future<Profile> restore(String refreshToken) async {
+    _refreshToken = refreshToken;
+    await _refresh();
+    return me();
+  }
+
+  /// refresh 토큰으로 액세스 토큰(및 refresh 토큰) 재발급.
+  Future<void> _refresh() async {
+    final res = await _dio.post<Map<String, dynamic>>('/auth/refresh',
+        data: {'refreshToken': _refreshToken});
+    _setTokens(res.data!);
+  }
+
+  void _setTokens(Map<String, dynamic> data) {
+    _accessToken = data['accessToken'] as String?;
+    final rt = data['refreshToken'] as String?;
+    if (rt != null) _refreshToken = rt;
   }
 
   // ── 프로필/지갑 ────────────────────────────────────────

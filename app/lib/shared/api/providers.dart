@@ -22,10 +22,10 @@ class AuthState {
   final String? error;
 }
 
-/// 세션 관리: 닉네임을 로컬에 저장해 두고 앱 시작 시 dev 로그인으로 복원한다.
-/// (카카오 로그인 연동 시 이 컨트롤러의 login만 교체하면 된다)
+/// 세션 관리: refresh 토큰을 로컬에 저장해 두고 앱 시작 시 자동 복원한다.
+/// (카카오 로그인 연동 시에도 같은 refresh 토큰 흐름을 재사용한다)
 class AuthController extends Notifier<AuthState> {
-  static const _prefsKey = 'oun_nickname';
+  static const _prefsKey = 'oun_refresh_token';
 
   @override
   AuthState build() {
@@ -35,41 +35,48 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
-    final nickname = prefs.getString(_prefsKey);
-    if (nickname == null) {
+    final refreshToken = prefs.getString(_prefsKey);
+    if (refreshToken == null) {
       state = const AuthState(AuthStatus.loggedOut);
       return;
     }
     try {
-      final profile = await ref.read(apiClientProvider).devLogin(nickname);
+      final profile = await ref.read(apiClientProvider).restore(refreshToken);
       state = AuthState(AuthStatus.loggedIn, profile: profile);
     } catch (_) {
-      // 서버 연결 실패 → 로그인 화면에서 다시 시도
-      state = const AuthState(AuthStatus.loggedOut, error: '서버에 연결할 수 없어요');
+      // refresh 만료/서버 연결 실패 → 저장 토큰 폐기하고 로그인 화면으로
+      await prefs.remove(_prefsKey);
+      state = const AuthState(AuthStatus.loggedOut);
     }
   }
 
-  /// 회원가입(dev). 닉네임 + 함께할 캐릭터 성별로 신규 계정을 만든다.
-  /// 닉네임이 이미 있으면 서버가 거부한다.
-  Future<bool> signUp(String nickname, String gender) =>
-      _authenticate(nickname, gender: gender, mode: 'signup');
-
-  /// 로그인(dev). 기존 계정(닉네임)만 허용한다.
-  Future<bool> logIn(String nickname) =>
-      _authenticate(nickname, mode: 'login');
-
-  /// dev 인증 공통 처리. 성공 시 닉네임을 저장해 다음 실행에 복원.
-  Future<bool> _authenticate(
-    String nickname, {
-    String? gender,
-    required String mode,
+  /// 회원가입: 아이디 + 비밀번호 + 닉네임 + 캐릭터(성별).
+  Future<bool> signUp({
+    required String username,
+    required String password,
+    required String nickname,
+    required String gender,
   }) async {
+    return _run(() => ref.read(apiClientProvider).register(
+          username: username,
+          password: password,
+          nickname: nickname,
+          gender: gender,
+        ));
+  }
+
+  /// 로그인: 아이디 + 비밀번호.
+  Future<bool> logIn(String username, String password) {
+    return _run(() => ref.read(apiClientProvider).login(username, password));
+  }
+
+  /// 인증 공통 처리. 성공 시 발급된 refresh 토큰을 저장해 다음 실행에 복원.
+  Future<bool> _run(Future<Profile> Function() authCall) async {
     try {
-      final profile = await ref
-          .read(apiClientProvider)
-          .devLogin(nickname, gender: gender, mode: mode);
+      final profile = await authCall();
+      final rt = ref.read(apiClientProvider).refreshToken;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefsKey, nickname);
+      if (rt != null) await prefs.setString(_prefsKey, rt);
       state = AuthState(AuthStatus.loggedIn, profile: profile);
       return true;
     } catch (e) {

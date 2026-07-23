@@ -108,21 +108,36 @@ class _SignupScreen extends ConsumerStatefulWidget {
 }
 
 class _SignupScreenState extends ConsumerState<_SignupScreen> {
+  final _username = TextEditingController();
+  final _password = TextEditingController();
   final _nickname = TextEditingController();
   String _gender = 'f';
   bool _busy = false;
 
   @override
   void dispose() {
+    _username.dispose();
+    _password.dispose();
     _nickname.dispose();
     super.dispose();
   }
 
+  bool get _valid {
+    final id = _username.text.trim();
+    return RegExp(r'^[a-zA-Z0-9_]{4,20}$').hasMatch(id) &&
+        _password.text.length >= 6 &&
+        _nickname.text.trim().isNotEmpty;
+  }
+
   Future<void> _submit() async {
-    final nickname = _nickname.text.trim();
-    if (nickname.isEmpty || _busy) return;
+    if (!_valid || _busy) return;
     setState(() => _busy = true);
-    final ok = await ref.read(authProvider.notifier).signUp(nickname, _gender);
+    final ok = await ref.read(authProvider.notifier).signUp(
+          username: _username.text.trim(),
+          password: _password.text,
+          nickname: _nickname.text.trim(),
+          gender: _gender,
+        );
     if (!mounted) return;
     setState(() => _busy = false);
     // 성공하면 오버레이가 통째로 사라지므로 별도 이동은 필요 없다.
@@ -133,7 +148,6 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _nickname.text.trim().isNotEmpty && !_busy;
     return _AuthScaffold(
       title: '회원가입',
       children: [
@@ -162,25 +176,46 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
           ],
         ),
         const SizedBox(height: 22),
+        const _SectionLabel('아이디'),
+        const SizedBox(height: 8),
+        _AuthField(
+          controller: _username,
+          hint: '영문·숫자·밑줄 4~20자',
+          onChanged: () => setState(() {}),
+          onSubmitted: _submit,
+        ),
+        const SizedBox(height: 16),
+        const _SectionLabel('비밀번호'),
+        const SizedBox(height: 8),
+        _AuthField(
+          controller: _password,
+          hint: '6자 이상',
+          obscure: true,
+          maxLength: 72,
+          onChanged: () => setState(() {}),
+          onSubmitted: _submit,
+        ),
+        const SizedBox(height: 16),
         const _SectionLabel('닉네임'),
         const SizedBox(height: 8),
-        _NicknameField(
+        _AuthField(
           controller: _nickname,
-          hint: '예: oun_dduneon',
+          hint: '예: 오운러버',
+          textInputAction: TextInputAction.done,
           onChanged: () => setState(() {}),
           onSubmitted: _submit,
         ),
         const SizedBox(height: 6),
         const Padding(
           padding: EdgeInsets.only(left: 4),
-          child: Text('친구들이 찾을 이름이에요. 나중에 바꿀 수 있어요.',
+          child: Text('친구들이 찾을 이름이에요. 아이디와 달라도 돼요.',
               style: TextStyle(fontSize: 11.5, color: OunColors.textFaint)),
         ),
         const SizedBox(height: 26),
         _PrimaryButton(
           label: '가입하고 시작하기',
           busy: _busy,
-          onPressed: canSubmit ? _submit : null,
+          onPressed: _valid && !_busy ? _submit : null,
         ),
       ],
     );
@@ -199,20 +234,26 @@ class _LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<_LoginScreen> {
-  final _nickname = TextEditingController();
+  final _username = TextEditingController();
+  final _password = TextEditingController();
   bool _busy = false;
 
   @override
   void dispose() {
-    _nickname.dispose();
+    _username.dispose();
+    _password.dispose();
     super.dispose();
   }
 
+  bool get _valid =>
+      _username.text.trim().isNotEmpty && _password.text.isNotEmpty;
+
   Future<void> _submit() async {
-    final nickname = _nickname.text.trim();
-    if (nickname.isEmpty || _busy) return;
+    if (!_valid || _busy) return;
     setState(() => _busy = true);
-    final ok = await ref.read(authProvider.notifier).logIn(nickname);
+    final ok = await ref
+        .read(authProvider.notifier)
+        .logIn(_username.text.trim(), _password.text);
     if (!mounted) return;
     setState(() => _busy = false);
     if (!ok) {
@@ -222,16 +263,27 @@ class _LoginScreenState extends ConsumerState<_LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canSubmit = _nickname.text.trim().isNotEmpty && !_busy;
     return _AuthScaffold(
       title: '로그인',
       children: [
         const SizedBox(height: 8),
-        const _SectionLabel('닉네임'),
+        const _SectionLabel('아이디'),
         const SizedBox(height: 8),
-        _NicknameField(
-          controller: _nickname,
-          hint: '가입한 닉네임',
+        _AuthField(
+          controller: _username,
+          hint: '아이디',
+          onChanged: () => setState(() {}),
+          onSubmitted: _submit,
+        ),
+        const SizedBox(height: 16),
+        const _SectionLabel('비밀번호'),
+        const SizedBox(height: 8),
+        _AuthField(
+          controller: _password,
+          hint: '비밀번호',
+          obscure: true,
+          maxLength: 72,
+          textInputAction: TextInputAction.done,
           onChanged: () => setState(() {}),
           onSubmitted: _submit,
         ),
@@ -239,7 +291,7 @@ class _LoginScreenState extends ConsumerState<_LoginScreen> {
         _PrimaryButton(
           label: '로그인',
           busy: _busy,
-          onPressed: canSubmit ? _submit : null,
+          onPressed: _valid && !_busy ? _submit : null,
         ),
         const SizedBox(height: 14),
         Center(
@@ -350,17 +402,23 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _NicknameField extends StatelessWidget {
-  const _NicknameField({
+class _AuthField extends StatelessWidget {
+  const _AuthField({
     required this.controller,
     required this.hint,
     required this.onChanged,
     required this.onSubmitted,
+    this.obscure = false,
+    this.maxLength = 20,
+    this.textInputAction = TextInputAction.next,
   });
   final TextEditingController controller;
   final String hint;
   final VoidCallback onChanged;
   final VoidCallback onSubmitted;
+  final bool obscure;
+  final int maxLength;
+  final TextInputAction textInputAction;
 
   @override
   Widget build(BuildContext context) {
@@ -368,8 +426,9 @@ class _NicknameField extends StatelessWidget {
       controller: controller,
       onChanged: (_) => onChanged(),
       onSubmitted: (_) => onSubmitted(),
-      maxLength: 20,
-      textInputAction: TextInputAction.done,
+      obscureText: obscure,
+      maxLength: maxLength,
+      textInputAction: textInputAction,
       style: const TextStyle(fontSize: 15, color: OunColors.textPrimary),
       decoration: InputDecoration(
         hintText: hint,
