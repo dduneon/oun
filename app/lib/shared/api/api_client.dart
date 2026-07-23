@@ -253,10 +253,30 @@ class ApiClient {
         .toList();
   }
 
-  /// @nickname 친구 추가 → 추가된 친구의 표시 이름 반환.
-  Future<String> addFriend(String nickname) async {
-    final res = await _dio.post<Map<String, dynamic>>('/friends', data: {'nickname': nickname});
-    return res.data!['displayName'] as String;
+  /// @nickname에게 친구 요청. 상대가 이미 나를 요청했다면 바로 친구가 된다.
+  /// 반환: (status, displayName) — status는 'requested' | 'accepted'.
+  Future<(String, String)> sendFriendRequest(String nickname) async {
+    final res = await _dio.post<Map<String, dynamic>>('/friends/requests',
+        data: {'nickname': nickname});
+    return (
+      res.data!['status'] as String,
+      res.data!['displayName'] as String,
+    );
+  }
+
+  /// 내가 받은 대기중 친구 요청 목록.
+  Future<List<FriendRequestItem>> friendRequests() async {
+    final res = await _dio.get<Map<String, dynamic>>('/friends/requests');
+    return (res.data!['items'] as List)
+        .map((e) => FriendRequestItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 받은 친구 요청 수락/거절.
+  Future<void> respondFriendRequest(String requestId, bool accept) async {
+    final action = accept ? 'accept' : 'reject';
+    await _dio
+        .post<Map<String, dynamic>>('/friends/requests/$requestId/$action');
   }
 
   Future<FriendHome> friendHome(String nickname) async {

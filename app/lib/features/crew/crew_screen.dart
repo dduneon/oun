@@ -52,21 +52,30 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
   Future<void> _addFriend() async {
     final nickname = await showNicknameInputSheet(
       context,
-      title: '친구 추가하기',
-      hint: '닉네임 입력',
-      action: '추가',
+      title: '친구 요청 보내기',
+      hint: '@닉네임 입력',
+      action: '요청',
     );
     if (nickname == null || nickname.isEmpty) return;
     try {
-      final name = await ref.read(apiClientProvider).addFriend(nickname);
-      ref.invalidate(friendsProvider);
+      final (status, name) =
+          await ref.read(apiClientProvider).sendFriendRequest(nickname);
+      if (status == 'accepted') {
+        ref.invalidate(friendsProvider);
+        ref.invalidate(friendRequestsProvider);
+      }
       if (mounted) {
-        OunToast.show(context, '$name님과 친구가 되었어요',
-            kind: OunToastKind.success);
+        OunToast.show(
+          context,
+          status == 'accepted'
+              ? '$name님과 친구가 되었어요'
+              : '$name님에게 친구 요청을 보냈어요',
+          kind: OunToastKind.success,
+        );
       }
     } catch (_) {
       if (mounted) {
-        OunToast.show(context, '친구 추가에 실패했어요. 닉네임을 확인해 주세요');
+        OunToast.show(context, '친구 요청에 실패했어요. 닉네임을 확인해 주세요');
       }
     }
   }
@@ -102,6 +111,7 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
     final async = ref.watch(friendsProvider);
     return Column(
       children: [
+        const _FriendRequestsSection(),
         // 친구 추가 진입점
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
@@ -121,7 +131,7 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
                     Icon(Icons.person_add_alt,
                         size: 17, color: OunColors.textMuted),
                     SizedBox(width: 8),
-                    Text('@닉네임으로 친구 추가',
+                    Text('@닉네임으로 친구 요청',
                         style:
                             TextStyle(fontSize: 13, color: OunColors.textMuted)),
                   ],
@@ -426,6 +436,114 @@ class _InvitationsSection extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 받은 친구 요청 목록 + 수락/거절. 요청이 없으면 아무것도 안 보인다.
+class _FriendRequestsSection extends ConsumerWidget {
+  const _FriendRequestsSection();
+
+  Future<void> _respond(
+    BuildContext context,
+    WidgetRef ref,
+    FriendRequestItem req,
+    bool accept,
+  ) async {
+    try {
+      await ref.read(apiClientProvider).respondFriendRequest(req.id, accept);
+      ref.invalidate(friendRequestsProvider);
+      if (accept) ref.invalidate(friendsProvider);
+      if (context.mounted) {
+        OunToast.show(
+          context,
+          accept ? '${req.displayName}님과 친구가 되었어요' : '친구 요청을 거절했어요',
+          kind: accept ? OunToastKind.success : OunToastKind.info,
+        );
+      }
+    } catch (_) {
+      if (context.mounted) OunToast.show(context, '처리에 실패했어요');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reqs = ref.watch(friendRequestsProvider).value ??
+        const <FriendRequestItem>[];
+    if (reqs.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      decoration: BoxDecoration(
+        color: OunColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: OunColors.tabAccent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('받은 친구 요청 ${reqs.length}건',
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: OunColors.tabAccent)),
+          const SizedBox(height: 4),
+          for (final r in reqs)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                        color: avatarColor(r.nickname), shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(initialOf(r.displayName),
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(r.displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: OunColors.textPrimary)),
+                  ),
+                  _miniBtn('거절', false, () => _respond(context, ref, r, false)),
+                  const SizedBox(width: 6),
+                  _miniBtn('수락', true, () => _respond(context, ref, r, true)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniBtn(String label, bool filled, VoidCallback onTap) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: filled ? OunColors.tabAccent : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: filled ? OunColors.tabAccent : OunColors.cardBorder),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: filled ? OunColors.onTabAccent : OunColors.textMuted)),
       ),
     );
   }

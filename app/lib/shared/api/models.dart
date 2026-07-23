@@ -251,6 +251,29 @@ class Friend {
       );
 }
 
+/// GET /friends/requests 의 받은 친구 요청 한 건.
+class FriendRequestItem {
+  const FriendRequestItem({
+    required this.id,
+    required this.nickname,
+    required this.displayName,
+    required this.gender,
+  });
+
+  final String id;
+  final String nickname;
+  final String displayName;
+  final String gender;
+
+  factory FriendRequestItem.fromJson(Map<String, dynamic> j) =>
+      FriendRequestItem(
+        id: j['id'] as String,
+        nickname: j['nickname'] as String,
+        displayName: j['displayName'] as String,
+        gender: j['gender'] as String,
+      );
+}
+
 /// GET /users/:nickname/home
 class FriendHome {
   const FriendHome({

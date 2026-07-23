@@ -192,6 +192,13 @@ final friendsProvider = FutureProvider<List<Friend>>((ref) async {
   return api.friends();
 });
 
+/// 내가 받은 친구 요청 목록.
+final friendRequestsProvider =
+    FutureProvider<List<FriendRequestItem>>((ref) async {
+  final api = await _authed(ref);
+  return api.friendRequests();
+});
+
 final friendHomeProvider =
     FutureProvider.family<FriendHome, String>((ref, nickname) async {
   final api = await _authed(ref);
