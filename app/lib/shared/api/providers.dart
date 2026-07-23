@@ -40,17 +40,20 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> _restore() async {
-    final refreshToken = await _secureStorage.read(key: _prefsKey);
-    if (refreshToken == null) {
-      state = const AuthState(AuthStatus.loggedOut);
-      return;
-    }
     try {
+      final refreshToken = await _secureStorage.read(key: _prefsKey);
+      if (refreshToken == null) {
+        state = const AuthState(AuthStatus.loggedOut);
+        return;
+      }
       final profile = await ref.read(apiClientProvider).restore(refreshToken);
       state = AuthState(AuthStatus.loggedIn, profile: profile);
     } catch (_) {
-      // refresh 만료/서버 연결 실패 → 저장 토큰 폐기하고 로그인 화면으로
-      await _secureStorage.delete(key: _prefsKey);
+      // 저장소 접근 실패/refresh 만료/서버 연결 실패 → 로그인 화면으로.
+      // (스플래시에서 멈추지 않도록 어떤 예외든 여기서 흡수한다)
+      try {
+        await _secureStorage.delete(key: _prefsKey);
+      } catch (_) {}
       state = const AuthState(AuthStatus.loggedOut);
     }
   }
