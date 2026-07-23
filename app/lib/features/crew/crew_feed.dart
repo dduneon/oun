@@ -476,7 +476,24 @@ class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
                           height: 1.5,
                           color: OunColors.textPrimary)),
                 ],
-                if (w?.hasPhoto ?? false) ...[
+                if (w?.photoUrl != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      w!.photoUrl!,
+                      width: double.infinity,
+                      height: 220,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) =>
+                          progress == null
+                              ? child
+                              : const PhotoPlaceholder(height: 220),
+                      errorBuilder: (_, _, _) =>
+                          const PhotoPlaceholder(height: 220),
+                    ),
+                  ),
+                ] else if (w?.hasPhoto ?? false) ...[
                   const SizedBox(height: 12),
                   const PhotoPlaceholder(height: 180),
                 ],
