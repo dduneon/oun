@@ -398,6 +398,22 @@ class ApiClient {
         .toList();
   }
 
+  /// 내 크루 글의 한마디 수정.
+  Future<void> editCrewPost(String postId, String message) async {
+    await _dio.patch<Map<String, dynamic>>('/crews/posts/$postId',
+        data: {'message': message});
+  }
+
+  /// 내 크루 글 삭제(댓글·응원 함께 삭제).
+  Future<void> deleteCrewPost(String postId) async {
+    await _dio.delete<Map<String, dynamic>>('/crews/posts/$postId');
+  }
+
+  /// 내 운동 기록 삭제. 지급됐던 코인은 회수된다.
+  Future<void> deleteWorkout(String workoutId) async {
+    await _dio.delete<Map<String, dynamic>>('/workouts/$workoutId');
+  }
+
   /// 크루 피드에 글 작성. 운동 태그(workoutLogId)는 선택.
   Future<void> createCrewPost(
     String crewId, {

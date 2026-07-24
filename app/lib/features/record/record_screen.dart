@@ -127,6 +127,7 @@ class _RecentRecords extends ConsumerWidget {
                 '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
                 '${w.minutes}분',
                 photoUrl: w.photoUrl,
+                onDelete: () => _deleteWorkoutFlow(context, ref, w.id),
               ),
           ],
         );
@@ -535,18 +536,58 @@ class _SectionHeader extends StatelessWidget {
       );
 }
 
+/// 운동 기록 삭제(확인 후). 코인 회수 안내 포함.
+Future<void> _deleteWorkoutFlow(
+    BuildContext context, WidgetRef ref, String workoutId) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: OunColors.background,
+      title: const Text('운동 기록을 삭제할까요?',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+      content: const Text('이 기록으로 받은 코인은 회수돼요.',
+          style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('취소', style: TextStyle(color: OunColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('삭제', style: TextStyle(color: Color(0xFFCC4B37))),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await ref.read(apiClientProvider).deleteWorkout(workoutId);
+    invalidateAfterWorkout(ref);
+    if (context.mounted) {
+      OunToast.show(context, '운동 기록을 삭제했어요', kind: OunToastKind.info);
+    }
+  } catch (_) {
+    if (context.mounted) OunToast.show(context, '삭제에 실패했어요');
+  }
+}
+
 class _RecordRow extends StatelessWidget {
   const _RecordRow(this.icon, this.title, this.sub, this.value,
-      {this.photoUrl});
+      {this.photoUrl, this.onDelete});
   final IconData icon;
   final String title;
   final String sub;
   final String value;
   final String? photoUrl;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // 길게 눌러 삭제(코인 회수 안내 후 확인).
+      onLongPress: onDelete,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
@@ -600,6 +641,7 @@ class _RecordRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: OunColors.textPrimary)),
         ],
+      ),
       ),
     );
   }

@@ -449,10 +449,12 @@ class _FeedTab extends ConsumerWidget {
             for (final p in posts)
               CrewPostCard(
                 post: p,
+                crewId: crewId,
                 onTap: () async {
                   await Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => CrewPostDetailScreen(post: p),
+                      builder: (_) =>
+                          CrewPostDetailScreen(post: p, crewId: crewId),
                     ),
                   );
                   ref.invalidate(crewFeedProvider(crewId));

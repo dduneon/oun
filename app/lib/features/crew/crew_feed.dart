@@ -227,8 +227,13 @@ class _PostComposerState extends ConsumerState<_PostComposer> {
 
 /// 피드 목록의 글 카드. (서버 CrewPostData)
 class CrewPostCard extends ConsumerStatefulWidget {
-  const CrewPostCard({super.key, required this.post, required this.onTap});
+  const CrewPostCard(
+      {super.key,
+      required this.post,
+      required this.crewId,
+      required this.onTap});
   final CrewPostData post;
+  final String crewId;
   final VoidCallback onTap;
 
   @override
@@ -294,6 +299,13 @@ class _CrewPostCardState extends ConsumerState<CrewPostCard> {
                       WorkoutChip(
                           icon: sportIcons[w.sport] ?? Icons.sports_gymnastics,
                           label: workoutChipLabel(w)),
+                    if (p.author.isMe)
+                      _PostMenu(
+                        onEdit: () =>
+                            editCrewPostFlow(context, ref, widget.crewId, p),
+                        onDelete: () =>
+                            deleteCrewPostFlow(context, ref, widget.crewId, p),
+                      ),
                   ],
                 ),
                 if (p.message != null && p.message!.isNotEmpty) ...[
@@ -365,8 +377,10 @@ class _CrewPostCardState extends ConsumerState<CrewPostCard> {
 
 /// 글 상세: 기록 상세 + 댓글 스레드 + 입력창. 댓글은 서버에 저장된다.
 class CrewPostDetailScreen extends ConsumerStatefulWidget {
-  const CrewPostDetailScreen({super.key, required this.post});
+  const CrewPostDetailScreen(
+      {super.key, required this.post, required this.crewId});
   final CrewPostData post;
+  final String crewId;
 
   @override
   ConsumerState<CrewPostDetailScreen> createState() =>
@@ -437,6 +451,23 @@ class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: OunColors.textPrimary)),
+        actions: [
+          if (p.author.isMe)
+            _PostMenu(
+              onEdit: () async {
+                if (await editCrewPostFlow(context, ref, widget.crewId, p) &&
+                    context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              onDelete: () async {
+                if (await deleteCrewPostFlow(context, ref, widget.crewId, p) &&
+                    context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -781,6 +812,218 @@ class CheerButton extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: cheered ? rose : OunColors.textMuted)),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 내 글 수정/삭제
+// ─────────────────────────────────────────────────────────────
+
+/// 내 글의 수정/삭제 메뉴(⋮).
+class _PostMenu extends StatelessWidget {
+  const _PostMenu({required this.onEdit, required this.onDelete});
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_horiz_rounded,
+          size: 19, color: OunColors.textMuted),
+      padding: EdgeInsets.zero,
+      splashRadius: 18,
+      color: OunColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+            value: 'edit',
+            child: Text('수정', style: TextStyle(fontSize: 13.5))),
+        PopupMenuItem(
+            value: 'delete',
+            child: Text('삭제',
+                style: TextStyle(fontSize: 13.5, color: Color(0xFFCC4B37)))),
+      ],
+    );
+  }
+}
+
+/// 내 글 한마디 수정 → 저장. 수정됐으면 true.
+Future<bool> editCrewPostFlow(
+  BuildContext context,
+  WidgetRef ref,
+  String crewId,
+  CrewPostData post,
+) async {
+  final result = await showModalBottomSheet<String>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _EditPostSheet(
+      initial: post.message ?? '',
+      hasWorkout: post.workout != null,
+    ),
+  );
+  if (result == null) return false;
+  try {
+    await ref.read(apiClientProvider).editCrewPost(post.id, result);
+    ref.invalidate(crewFeedProvider(crewId));
+    if (context.mounted) {
+      OunToast.show(context, '글을 수정했어요', kind: OunToastKind.success);
+    }
+    return true;
+  } catch (_) {
+    if (context.mounted) OunToast.show(context, '수정에 실패했어요');
+    return false;
+  }
+}
+
+/// 내 글 삭제(확인 후). 삭제됐으면 true.
+Future<bool> deleteCrewPostFlow(
+  BuildContext context,
+  WidgetRef ref,
+  String crewId,
+  CrewPostData post,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    useRootNavigator: true,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: OunColors.background,
+      title: const Text('글을 삭제할까요?',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+      content: const Text('댓글과 응원도 함께 사라져요.',
+          style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('취소', style: TextStyle(color: OunColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: const Text('삭제', style: TextStyle(color: Color(0xFFCC4B37))),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return false;
+  try {
+    await ref.read(apiClientProvider).deleteCrewPost(post.id);
+    ref.invalidate(crewFeedProvider(crewId));
+    ref.invalidate(crewDetailProvider(crewId));
+    ref.invalidate(crewsProvider);
+    if (context.mounted) {
+      OunToast.show(context, '글을 삭제했어요', kind: OunToastKind.info);
+    }
+    return true;
+  } catch (_) {
+    if (context.mounted) OunToast.show(context, '삭제에 실패했어요');
+    return false;
+  }
+}
+
+class _EditPostSheet extends StatefulWidget {
+  const _EditPostSheet({required this.initial, required this.hasWorkout});
+  final String initial;
+  final bool hasWorkout;
+
+  @override
+  State<_EditPostSheet> createState() => _EditPostSheetState();
+}
+
+class _EditPostSheetState extends State<_EditPostSheet> {
+  late final _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    // 운동 태그가 있으면 한마디를 비워도 되지만, 글만이면 내용이 있어야 한다.
+    final canSave = widget.hasWorkout || _controller.text.trim().isNotEmpty;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: OunColors.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                    color: OunColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const Text('글 수정',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              onChanged: (_) => setState(() {}),
+              maxLength: 300,
+              maxLines: 4,
+              minLines: 2,
+              autofocus: true,
+              style: const TextStyle(fontSize: 14, color: OunColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: '한마디를 남겨보세요',
+                hintStyle: const TextStyle(color: OunColors.textFaint),
+                counterText: '',
+                filled: true,
+                fillColor: OunColors.surface,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: OunColors.cardBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: OunColors.tabAccent),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: OunColors.tabAccent,
+                  foregroundColor: OunColors.onTabAccent,
+                  disabledBackgroundColor: OunColors.cardBorder,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: canSave
+                    ? () => Navigator.of(context).pop(_controller.text.trim())
+                    : null,
+                child: const Text('저장',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
