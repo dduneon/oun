@@ -398,6 +398,33 @@ export class CrewsService {
     return { id: post.id };
   }
 
+  /** PATCH /crews/posts/:postId — 본인 글의 한마디 수정. */
+  async editPost(postId: string, userId: string, message: string) {
+    const post = await this.prisma.crewPost.findUnique({ where: { id: postId } });
+    if (!post) throw new NotFoundException('글을 찾을 수 없어요');
+    if (post.userId !== userId) throw new ForbiddenException('내 글만 수정할 수 있어요');
+
+    const trimmed = message.trim();
+    if (!trimmed && !post.workoutLogId) {
+      throw new BadRequestException('내용을 입력해 주세요');
+    }
+    await this.prisma.crewPost.update({
+      where: { id: postId },
+      data: { message: trimmed || null },
+    });
+    return { id: postId };
+  }
+
+  /** DELETE /crews/posts/:postId — 본인 글 삭제(댓글·응원 함께 삭제). */
+  async deletePost(postId: string, userId: string) {
+    const post = await this.prisma.crewPost.findUnique({ where: { id: postId } });
+    if (!post) throw new NotFoundException('글을 찾을 수 없어요');
+    if (post.userId !== userId) throw new ForbiddenException('내 글만 삭제할 수 있어요');
+
+    await this.prisma.crewPost.delete({ where: { id: postId } });
+    return { deleted: true };
+  }
+
   /** GET /crews/:id/feed — 피드 글 + 댓글 + 응원. */
   async feed(crewId: string, userId: string) {
     await this.membershipOf(crewId, userId);

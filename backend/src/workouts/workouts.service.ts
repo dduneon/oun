@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { GameService } from '../game/game.service';
@@ -93,6 +97,39 @@ export class WorkoutsService {
         balance: balanceAfter,
         streak,
       };
+    });
+  }
+
+  /** DELETE /workouts/:id — 본인 기록 삭제 + 지급됐던 코인 보상 회수.
+   *  (스탯·스트릭·퀘스트 진행은 되돌리지 않는다) */
+  async remove(userId: string, workoutId: string) {
+    const workout = await this.prisma.workoutLog.findUnique({
+      where: { id: workoutId },
+    });
+    if (!workout) throw new NotFoundException('운동 기록을 찾을 수 없어요');
+    if (workout.userId !== userId) {
+      throw new ForbiddenException('내 기록만 삭제할 수 있어요');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 이 운동으로 지급됐던 보상 원장 행을 찾아 그만큼 회수(refund).
+      const rewardEntry = await tx.currencyLedger.findUnique({
+        where: { idempotencyKey: `workout_reward:${workoutId}` },
+      });
+      if (rewardEntry && rewardEntry.delta !== 0) {
+        await this.ledger.append(tx, {
+          userId,
+          delta: -rewardEntry.delta,
+          reason: 'refund',
+          refType: 'workout_log',
+          refId: workoutId,
+          idempotencyKey: `workout_refund:${workoutId}`,
+          allowNegative: true,
+        });
+      }
+      await tx.workoutLog.delete({ where: { id: workoutId } });
+      const balance = await this.ledger.balanceOf(userId, tx);
+      return { deleted: true, balance };
     });
   }
 

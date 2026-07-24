@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { WorkoutsService } from './workouts.service';
@@ -26,6 +35,11 @@ export class WorkoutsController {
     @Query('to') to?: string,
   ) {
     return this.workouts.list(user.userId, from, to);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.workouts.remove(user.userId, id);
   }
 
   @Get('calendar')

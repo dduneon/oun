@@ -191,6 +191,20 @@ export class CrewsController {
     return this.crews.createPost(id, user.userId, dto);
   }
 
+  @Patch('posts/:postId')
+  editPost(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+    @Body() dto: CreatePostDto,
+  ) {
+    return this.crews.editPost(postId, user.userId, dto.message ?? '');
+  }
+
+  @Delete('posts/:postId')
+  deletePost(@CurrentUser() user: AuthUser, @Param('postId') postId: string) {
+    return this.crews.deletePost(postId, user.userId);
+  }
+
   @Post('posts/:postId/comments')
   comment(
     @CurrentUser() user: AuthUser,
