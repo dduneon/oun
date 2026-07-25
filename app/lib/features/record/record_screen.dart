@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/action_sheet.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../shared/widgets/photo_viewer.dart';
@@ -653,27 +654,26 @@ class _RecordRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: OunColors.textPrimary)),
           if (onEdit != null || onDelete != null)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_horiz_rounded,
-                  size: 19, color: OunColors.textFaint),
-              padding: EdgeInsets.zero,
-              splashRadius: 18,
-              color: OunColors.surface,
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              onSelected: (v) => v == 'edit' ? onEdit?.call() : onDelete?.call(),
-              itemBuilder: (_) => [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => showOunActionSheet(context, actions: [
                 if (onEdit != null)
-                  const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('수정', style: TextStyle(fontSize: 13.5))),
+                  OunAction(
+                      label: '수정',
+                      icon: Icons.edit_outlined,
+                      onSelected: onEdit!),
                 if (onDelete != null)
-                  const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('삭제',
-                          style: TextStyle(
-                              fontSize: 13.5, color: Color(0xFFCC4B37)))),
-              ],
+                  OunAction(
+                      label: '삭제',
+                      icon: Icons.delete_outline_rounded,
+                      destructive: true,
+                      onSelected: onDelete!),
+              ]),
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.more_horiz_rounded,
+                    size: 19, color: OunColors.textFaint),
+              ),
             ),
         ],
       ),

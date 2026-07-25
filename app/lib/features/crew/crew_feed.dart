@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
+import '../../shared/widgets/action_sheet.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/photo_viewer.dart';
 import '../../theme/app_theme.dart';
@@ -821,7 +822,7 @@ class CheerButton extends StatelessWidget {
 // 내 글 수정/삭제
 // ─────────────────────────────────────────────────────────────
 
-/// 내 글의 수정/삭제 메뉴(⋮).
+/// 내 글의 수정/삭제 메뉴(⋮). 탭하면 앱 톤 액션 시트를 연다.
 class _PostMenu extends StatelessWidget {
   const _PostMenu({required this.onEdit, required this.onDelete});
   final VoidCallback onEdit;
@@ -829,23 +830,24 @@ class _PostMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_horiz_rounded,
-          size: 19, color: OunColors.textMuted),
-      padding: EdgeInsets.zero,
-      splashRadius: 18,
-      color: OunColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onSelected: (v) => v == 'edit' ? onEdit() : onDelete(),
-      itemBuilder: (_) => const [
-        PopupMenuItem(
-            value: 'edit',
-            child: Text('수정', style: TextStyle(fontSize: 13.5))),
-        PopupMenuItem(
-            value: 'delete',
-            child: Text('삭제',
-                style: TextStyle(fontSize: 13.5, color: Color(0xFFCC4B37)))),
-      ],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => showOunActionSheet(context, actions: [
+        OunAction(
+            label: '수정',
+            icon: Icons.edit_outlined,
+            onSelected: onEdit),
+        OunAction(
+            label: '삭제',
+            icon: Icons.delete_outline_rounded,
+            destructive: true,
+            onSelected: onDelete),
+      ]),
+      child: const Padding(
+        padding: EdgeInsets.only(left: 4),
+        child: Icon(Icons.more_horiz_rounded,
+            size: 19, color: OunColors.textMuted),
+      ),
     );
   }
 }
