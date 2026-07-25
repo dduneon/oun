@@ -14,7 +14,7 @@ The product/planning source of truth is `service_development_plan_oun.md` (spec)
 oun/
 ├── app/       Flutter app (the shell + all 2D UI)
 ├── unity/     Unity 6.5 project (3D character scene, exported into the app via UaaL)
-├── backend/   NestJS API (planned, currently empty)
+├── backend/   NestJS + Prisma API (implemented — see "Backend")
 └── BUILD.md   UaaL build runbook — READ THIS before building
 ```
 
@@ -43,9 +43,9 @@ Any change under `unity/` (camera, materials, scripts, character) requires re-ex
 
 ## Flutter architecture (`app/lib`)
 
-- **Routing:** `go_router` `StatefulShellRoute.indexedStack` in `router.dart` — 5 bottom tabs (홈/기록/상점/크루/마이). IndexedStack keeps every tab alive across switches. The Unity view is **not** in a tab — it's an app-level host (see below), so it survives navigation regardless; Unity only loads once and reloading is costly.
-- **State:** Riverpod (`ProviderScope` in `main.dart`). Most screen data is currently hardcoded mock values awaiting real features/backend.
-- **Structure:** feature-first — `features/{home,record,shop,crew,my}/`, shared pieces in `shared/widgets/`, design tokens in `theme/app_theme.dart` (`OunColors` + `AppTheme`).
+- **Routing:** `go_router` `StatefulShellRoute.indexedStack` in `router.dart` — 5 bottom tabs (홈/기록/상점/소셜/마이). IndexedStack keeps every tab alive across switches. The Unity view is **not** in a tab — it's an app-level host (see below), so it survives navigation regardless; Unity only loads once and reloading is costly.
+- **State:** Riverpod (`ProviderScope` in `main.dart`). Screen data comes from the backend via `FutureProvider`s in `shared/api/providers.dart`; an auth gate (`authProvider`) shows login/splash over the router until a session is restored.
+- **Structure:** feature-first — `features/{auth,home,record,shop,crew,my}/` (the 소셜 tab lives in `features/crew/`), shared pieces in `shared/widgets/`, API layer in `shared/api/`, design tokens in `theme/app_theme.dart` (`OunColors` + `AppTheme`).
 - **Design system:** warm palette in `OunColors`. Background `#FDF6F0` (must match Unity camera background so the full-bleed character blends), soft cards `#F3E9DF`, list surfaces `#FFFDFB`, terracotta tab accent `#C47A45`.
 - **Bottom nav:** custom `FloatingTabBar` (floating frosted capsule, selected tab expands with a label) — not Material `NavigationBar`. `MainScaffold` uses `extendBody: true`; screens reserve `FloatingTabBar.reservedSpace` (+ safe area) at the bottom so content clears the floating bar. `PageScaffold` handles this for the non-home tabs.
 - **Home** is character-first: the screen itself is **transparent** with floating UI; the 3D character shows through from the app-level `UnityHost` behind it (home no longer mounts its own `EmbedUnity`). Non-home tabs use `PageScaffold`'s opaque background to hide the Unity view.
@@ -53,9 +53,38 @@ Any change under `unity/` (camera, materials, scripts, character) requires re-ex
 ## Flutter ↔ Unity messaging
 
 - **Single app-level host:** the one `EmbedUnity` lives in `UnityHost` (`app/lib/unity/unity_stage.dart`), placed behind the router in `app.dart` so it's mounted once for the app's lifetime. Only **one** Unity instance is supported (UaaL/plugin limitation) — never add a second `EmbedUnity`. To show 3D on another screen, switch scenes on the single view, don't spawn a new one.
-- **Scene switching:** `unitySceneProvider` (Riverpod) holds the current scene (`home`/`crew`). `UnityHost` sends `sendToUnity('OunBridge', 'LoadScene', 'home' | 'crew:<names>')` on change; `OunBridge.LoadScene` toggles `HomeRig`/`CrewRig` and reframes the camera. A route that wants a 3D scene sets the provider on enter and restores `home` on exit (see `CrewStageScreen` + the push-await in `crew_home.dart`). Screens that want Unity visible must be **transparent**; opaque screens hide it.
+- **Scene switching:** `unitySceneProvider` (Riverpod) holds the current scene (`home`/`crew`). `UnityHost` sends `LoadScene('home:<token>' | 'crew:<tokens>')` where tokens are character kinds (`m`/`f`); both home and crew spawn avatars dynamically from tokens (home = the current user's avatar via `authProvider`, crew = each member's). `OunBridge.LoadScene` toggles `HomeRig`/`CrewRig`, spawns via `CrewStage`, and reframes the camera. Entering a crew (`crew_home.dart`) sets the provider to `crew` + a boxed viewport rect; **returning to `home` happens when the Home tab is selected** (`MainScaffold`), not on crew exit — because changing the Unity rect over an opaque tab makes the native platform view leak a frame. Screens that want Unity visible must be **transparent**; opaque screens hide it.
+- **Transition cover:** `UnityHost` keeps an opaque cover over the Unity view while a scene change is in flight (raised on send, lowered on the `crew_ready`/`home_ready` message from `OunBridge`) so camera/zoom/rect changes never flash. `crew_home` additionally gates its stage-viewport measurement on route transitions being fully settled.
 - Flutter → Unity: `sendToUnity('<GameObjectName>', '<Method>', '<msg>')`. `OunBridge` (`unity/Assets/Scripts/OunBridge.cs`) is the entry point — `React(string)` (workout reaction) and `LoadScene(string)`.
 - Unity → Flutter: `SendToFlutter.Send(...)` in C#, received centrally by `UnityHost`'s `onMessageFromUnity`; app-wide toasts use `rootMessengerKey` (`shared/global_keys.dart`).
+
+## Backend (`backend/`, NestJS + Prisma)
+
+Fully implemented API. Postgres (Prisma), Redis (reserved), and MinIO (object storage) run via `backend/docker-compose.yml`.
+
+**Local loop** (from `backend/`):
+```bash
+docker compose up -d                 # postgres :5432, redis :6379, minio :9000 (console :9001)
+npm run prisma:migrate               # apply migrations (dev)
+npm run prisma:seed                  # demo users: jimin, hyunwoo, seoyeon (+ achievements)
+npm run start:dev                    # nest watch on :3000
+npm test                             # unit (jest)
+npm run test:e2e                     # e2e — needs docker infra + seed; runs serially (--runInBand)
+npx jest --config test/jest-e2e.json <name>   # a single e2e suite (e.g. "auth", "social", "mutations")
+```
+- **Migrations in a non-interactive shell:** `prisma migrate dev` prompts and fails here. Write the migration folder + `migration.sql` by hand, then `npx prisma migrate deploy && npx prisma generate`.
+- e2e specs (`backend/test/*.e2e-spec.ts`) hit the **real** dev DB + MinIO; they use `/auth/dev` to mint users quickly and a looser ValidationPipe (`whitelist` only) than the app.
+
+**Non-obvious architecture** (read across modules to grasp):
+- **Money is an append-only ledger.** All coin changes go through `LedgerService.append(tx, {delta, reason, idempotencyKey, refType, refId})` → `CurrencyLedger`. Balance = latest `balanceAfter`; **never compute currency on the client** (a deliberate product constraint). Idempotency key blocks double-credit. Reversals are `reason: 'refund'` rows; workout **edit/delete reconcile coins by summing all ledger rows for that workout** (refType `workout_log`, refId), not by touching the original entry.
+- **Auth = JWT access+refresh, three entry paths.** `/auth/register` + `/auth/login` (username/password, bcrypt) are the real accounts; `/auth/dev` is a nickname find-or-create stub (blocked when `NODE_ENV=production`, used by e2e and the app's `mode: signup|login` variants historically); `/auth/kakao` verifies a Kakao token. `/auth/refresh` rotates tokens. Guarded routes use `JwtAuthGuard` + the `@CurrentUser()` `AuthUser` decorator (`common/`). The app persists only the **refresh token** and auto-refreshes on 401.
+- **Domain transactions compose via `tx`.** Services take a `Prisma.TransactionClient` so higher-level flows stay atomic. `workouts.create` applies reward + stats/streak/mood (`GameService.applyWorkout`) + quests + achievements in one transaction; `verifyWorkout` (`workouts/verify.ts`) auto-approves manual logs minus outliers (impossible pace/steps). **Workout edit/delete reconcile coins but intentionally do NOT recompute stats/streak/quests.**
+- **Crews:** one `Crew` + `CrewMember` (role `leader|member`); feed `CrewPost` optionally tags a workout (its photo). Joining is via **requests** (discover public crews → request → leader approves) or **invites** (leader invites → user accepts) — both unified in `CrewJoinRequest` (`type: request|invite`). Leader-only actions checked via `leaderOf`.
+- **Friends** are symmetric two-row `Friendship`; adding is request→accept (`FriendRequest`), auto-accepting a reciprocal pending request.
+- **Storage:** `StorageService` (MinIO) issues **presigned PUT** URLs (`POST /uploads/workout-photo`) so the app uploads directly; the bucket is public-read and read endpoints return a `photoUrl`.
+- **Time:** KST day/week boundaries live in `common/time.ts` (used for streaks, weekly counts, calendar).
+
+**App ↔ backend wiring:** base URL is `--dart-define=OUN_API_BASE_URL` (default `http://localhost:3000`; Android emulator needs `http://10.0.2.2:3000`). `ApiClient` (`app/lib/shared/api/api_client.dart`) attaches the access token and retries once via `/auth/refresh` on 401. Riverpod `FutureProvider`s in `providers.dart` are the app's read layer; mutations call `apiClientProvider` then `ref.invalidate(...)` the relevant provider.
 
 ## Conventions
 
