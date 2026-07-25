@@ -398,10 +398,16 @@ class ApiClient {
         .toList();
   }
 
-  /// 내 크루 글의 한마디 수정.
-  Future<void> editCrewPost(String postId, String message) async {
-    await _dio.patch<Map<String, dynamic>>('/crews/posts/$postId',
-        data: {'message': message});
+  /// 내 크루 글 수정(한마디 + 운동 태그). workoutLogId를 빈 문자열로 보내면 태그 제거.
+  Future<void> editCrewPost(
+    String postId, {
+    String? message,
+    String? workoutLogId,
+  }) async {
+    await _dio.patch<Map<String, dynamic>>('/crews/posts/$postId', data: {
+      'message': message ?? '',
+      'workoutLogId': workoutLogId ?? '',
+    });
   }
 
   /// 내 크루 글 삭제(댓글·응원 함께 삭제).
