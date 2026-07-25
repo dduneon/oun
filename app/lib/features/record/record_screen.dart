@@ -121,29 +121,13 @@ class _RecentRecords extends ConsumerWidget {
         return Column(
           children: [
             for (final w in items.take(5))
-              Dismissible(
-                key: ValueKey(w.id),
-                direction: DismissDirection.endToStart,
-                // 실제 삭제는 확인 다이얼로그 + 서버 호출 후에만. 성공 시 dismiss.
-                confirmDismiss: (_) => _deleteWorkoutFlow(context, ref, w.id),
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.only(right: 20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFCC4B37),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.delete_outline_rounded,
-                      color: Colors.white, size: 22),
-                ),
-                child: _RecordRow(
-                  sportIcons[w.sport] ?? Icons.sports_gymnastics,
-                  sportLabels[w.sport] ?? w.sport,
-                  '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
-                  '${w.minutes}분',
-                  photoUrl: w.photoUrl,
-                ),
+              _RecordRow(
+                sportIcons[w.sport] ?? Icons.sports_gymnastics,
+                sportLabels[w.sport] ?? w.sport,
+                '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
+                '${w.minutes}분',
+                photoUrl: w.photoUrl,
+                onDelete: () => _deleteWorkoutFlow(context, ref, w.id),
               ),
           ],
         );
@@ -591,12 +575,13 @@ Future<bool> _deleteWorkoutFlow(
 
 class _RecordRow extends StatelessWidget {
   const _RecordRow(this.icon, this.title, this.sub, this.value,
-      {this.photoUrl});
+      {this.photoUrl, this.onDelete});
   final IconData icon;
   final String title;
   final String sub;
   final String value;
   final String? photoUrl;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -653,6 +638,16 @@ class _RecordRow extends StatelessWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: OunColors.textPrimary)),
+          if (onDelete != null)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onDelete,
+              child: const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.delete_outline_rounded,
+                    size: 19, color: OunColors.textFaint),
+              ),
+            ),
         ],
       ),
     );
