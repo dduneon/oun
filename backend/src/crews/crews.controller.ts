@@ -74,6 +74,18 @@ class CreatePostDto {
   message?: string;
 }
 
+class EditPostDto {
+  @IsOptional()
+  @IsString()
+  @Length(0, 300)
+  message?: string;
+
+  // 빈 문자열이면 운동 태그 제거.
+  @IsOptional()
+  @IsString()
+  workoutLogId?: string;
+}
+
 @Controller('crews')
 @UseGuards(JwtAuthGuard)
 export class CrewsController {
@@ -195,9 +207,12 @@ export class CrewsController {
   editPost(
     @CurrentUser() user: AuthUser,
     @Param('postId') postId: string,
-    @Body() dto: CreatePostDto,
+    @Body() dto: EditPostDto,
   ) {
-    return this.crews.editPost(postId, user.userId, dto.message ?? '');
+    return this.crews.editPost(postId, user.userId, {
+      message: dto.message,
+      workoutLogId: dto.workoutLogId,
+    });
   }
 
   @Delete('posts/:postId')

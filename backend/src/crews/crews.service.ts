@@ -398,19 +398,42 @@ export class CrewsService {
     return { id: post.id };
   }
 
-  /** PATCH /crews/posts/:postId — 본인 글의 한마디 수정. */
-  async editPost(postId: string, userId: string, message: string) {
+  /** PATCH /crews/posts/:postId — 본인 글의 한마디 + 운동 태그(사진) 수정. */
+  async editPost(
+    postId: string,
+    userId: string,
+    input: { message?: string; workoutLogId?: string },
+  ) {
     const post = await this.prisma.crewPost.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException('글을 찾을 수 없어요');
     if (post.userId !== userId) throw new ForbiddenException('내 글만 수정할 수 있어요');
 
-    const trimmed = message.trim();
-    if (!trimmed && !post.workoutLogId) {
-      throw new BadRequestException('내용을 입력해 주세요');
+    const message = input.message?.trim() || null;
+    const workoutLogId = input.workoutLogId?.trim() || null; // 빈 값 = 태그 제거
+
+    if (!message && !workoutLogId) {
+      throw new BadRequestException('내용이나 태그할 운동을 넣어주세요');
     }
+
+    // 태그를 다른 운동으로 바꾸는 경우만 검증(같은 운동 유지면 통과).
+    if (workoutLogId && workoutLogId !== post.workoutLogId) {
+      const workout = await this.prisma.workoutLog.findUnique({
+        where: { id: workoutLogId },
+      });
+      if (!workout || workout.userId !== userId) {
+        throw new BadRequestException('내 운동 기록만 태그할 수 있어요');
+      }
+      const dup = await this.prisma.crewPost.findUnique({
+        where: { crewId_workoutLogId: { crewId: post.crewId, workoutLogId } },
+      });
+      if (dup && dup.id !== postId) {
+        throw new ConflictException('이미 이 크루에 공유한 기록이에요');
+      }
+    }
+
     await this.prisma.crewPost.update({
       where: { id: postId },
-      data: { message: trimmed || null },
+      data: { message, workoutLogId },
     });
     return { id: postId };
   }

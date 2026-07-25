@@ -137,6 +137,49 @@ describe('오운 수정·삭제 (e2e)', () => {
     expect(feed.body.items).toHaveLength(0);
   });
 
+  it('크루 글 수정 시 운동 태그(사진)를 바꾸거나 뗄 수 있다', async () => {
+    const workout = await request(app.getHttpServer())
+      .post('/workouts')
+      .set(auth())
+      .send({ sport: 'running', durationSec: 1200, distanceM: 3000 })
+      .expect(201);
+    const workoutId = workout.body.workout.id;
+
+    const crew = await request(app.getHttpServer())
+      .post('/crews')
+      .set(auth())
+      .send({ name: `tag크루_${Date.now().toString().slice(-6)}` })
+      .expect(201);
+    const crewId = crew.body.id;
+
+    // 운동을 태그해 글 작성
+    const post = await request(app.getHttpServer())
+      .post(`/crews/${crewId}/posts`)
+      .set(auth())
+      .send({ workoutLogId: workoutId, message: '한강 러닝' })
+      .expect(201);
+
+    let feed = await request(app.getHttpServer())
+      .get(`/crews/${crewId}/feed`)
+      .set(auth())
+      .expect(200);
+    expect(feed.body.items[0].workout).not.toBeNull();
+
+    // 운동 태그 제거(workoutLogId '') + 한마디 유지
+    await request(app.getHttpServer())
+      .patch(`/crews/posts/${post.body.id}`)
+      .set(auth())
+      .send({ message: '한강 러닝', workoutLogId: '' })
+      .expect(200);
+
+    feed = await request(app.getHttpServer())
+      .get(`/crews/${crewId}/feed`)
+      .set(auth())
+      .expect(200);
+    expect(feed.body.items[0].workout).toBeNull();
+    expect(feed.body.items[0].message).toBe('한강 러닝');
+  });
+
   it('남의 글은 수정·삭제할 수 없다', async () => {
     const crew = await request(app.getHttpServer())
       .post('/crews')
