@@ -121,13 +121,29 @@ class _RecentRecords extends ConsumerWidget {
         return Column(
           children: [
             for (final w in items.take(5))
-              _RecordRow(
-                sportIcons[w.sport] ?? Icons.sports_gymnastics,
-                sportLabels[w.sport] ?? w.sport,
-                '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
-                '${w.minutes}분',
-                photoUrl: w.photoUrl,
-                onDelete: () => _deleteWorkoutFlow(context, ref, w.id),
+              Dismissible(
+                key: ValueKey(w.id),
+                direction: DismissDirection.endToStart,
+                // 실제 삭제는 확인 다이얼로그 + 서버 호출 후에만. 성공 시 dismiss.
+                confirmDismiss: (_) => _deleteWorkoutFlow(context, ref, w.id),
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(right: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCC4B37),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded,
+                      color: Colors.white, size: 22),
+                ),
+                child: _RecordRow(
+                  sportIcons[w.sport] ?? Icons.sports_gymnastics,
+                  sportLabels[w.sport] ?? w.sport,
+                  '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
+                  '${w.minutes}분',
+                  photoUrl: w.photoUrl,
+                ),
               ),
           ],
         );
@@ -536,8 +552,8 @@ class _SectionHeader extends StatelessWidget {
       );
 }
 
-/// 운동 기록 삭제(확인 후). 코인 회수 안내 포함.
-Future<void> _deleteWorkoutFlow(
+/// 운동 기록 삭제(스와이프 후 확인). 코인 회수 안내 포함. 삭제됐으면 true.
+Future<bool> _deleteWorkoutFlow(
     BuildContext context, WidgetRef ref, String workoutId) async {
   final ok = await showDialog<bool>(
     context: context,
@@ -559,35 +575,32 @@ Future<void> _deleteWorkoutFlow(
       ],
     ),
   );
-  if (ok != true) return;
+  if (ok != true) return false;
   try {
     await ref.read(apiClientProvider).deleteWorkout(workoutId);
     invalidateAfterWorkout(ref);
     if (context.mounted) {
       OunToast.show(context, '운동 기록을 삭제했어요', kind: OunToastKind.info);
     }
+    return true;
   } catch (_) {
     if (context.mounted) OunToast.show(context, '삭제에 실패했어요');
+    return false;
   }
 }
 
 class _RecordRow extends StatelessWidget {
   const _RecordRow(this.icon, this.title, this.sub, this.value,
-      {this.photoUrl, this.onDelete});
+      {this.photoUrl});
   final IconData icon;
   final String title;
   final String sub;
   final String value;
   final String? photoUrl;
-  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      // 길게 눌러 삭제(코인 회수 안내 후 확인).
-      onLongPress: onDelete,
-      child: Container(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
@@ -641,7 +654,6 @@ class _RecordRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: OunColors.textPrimary)),
         ],
-      ),
       ),
     );
   }
