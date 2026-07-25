@@ -830,51 +830,88 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMe = m.isMe;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => Navigator.of(context, rootNavigator: true).push(
-          MaterialPageRoute<void>(
-            builder: (_) => FriendHomeScreen(
-                nickname: m.nickname, displayName: m.displayName),
+        onTap: isMe
+            ? null // 내 행은 내 홈(홈 탭)이라 별도 이동 없음
+            : () => Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => FriendHomeScreen(
+                        nickname: m.nickname, displayName: m.displayName),
+                  ),
+                ),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+              vertical: 8, horizontal: isMe ? 10 : 2),
+          decoration: isMe
+              ? BoxDecoration(
+                  color: OunColors.tabAccent.withValues(alpha: 0.09),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: OunColors.tabAccent.withValues(alpha: 0.35)),
+                )
+              : null,
+          child: Row(
+            children: [
+              // 내 아바타는 액센트 링으로 한 번 더 강조.
+              Container(
+                padding: const EdgeInsets.all(2),
+                decoration: isMe
+                    ? const BoxDecoration(
+                        shape: BoxShape.circle, color: OunColors.tabAccent)
+                    : null,
+                child: PostAvatar(
+                    name: m.displayName, nickname: m.nickname, size: isMe ? 36 : 38),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(m.displayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight:
+                                  isMe ? FontWeight.w800 : FontWeight.w600,
+                              color: OunColors.textPrimary)),
+                    ),
+                    if (isMe) ...[
+                      const SizedBox(width: 6),
+                      _badge('나', filled: true),
+                    ],
+                    if (m.isLeader) ...[
+                      const SizedBox(width: 6),
+                      _badge('방장'),
+                    ],
+                  ],
+                ),
+              ),
+              if (!isMe)
+                const Icon(Icons.chevron_right,
+                    size: 18, color: OunColors.textFaint),
+            ],
           ),
         ),
-        child: Row(
-          children: [
-            PostAvatar(name: m.displayName, nickname: m.nickname, size: 38),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Row(
-                children: [
-                  Text(m.isMe ? '나' : m.displayName,
-                      style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: OunColors.textPrimary)),
-                  if (m.role == 'leader') ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: OunColors.card,
-                          borderRadius: BorderRadius.circular(6)),
-                      child: const Text('방장',
-                          style: TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w700,
-                              color: OunColors.tabAccent)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right,
-                size: 18, color: OunColors.textFaint),
-          ],
-        ),
       ),
+    );
+  }
+
+  Widget _badge(String text, {bool filled = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: filled ? OunColors.tabAccent : OunColors.card,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: filled ? OunColors.onTabAccent : OunColors.tabAccent)),
     );
   }
 }
