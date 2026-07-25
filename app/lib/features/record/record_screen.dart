@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
@@ -127,6 +128,7 @@ class _RecentRecords extends ConsumerWidget {
                 '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
                 '${w.minutes}분',
                 photoUrl: w.photoUrl,
+                onEdit: () => _openEditWorkoutSheet(context, w),
                 onDelete: () => _deleteWorkoutFlow(context, ref, w.id),
               ),
           ],
@@ -536,7 +538,18 @@ class _SectionHeader extends StatelessWidget {
       );
 }
 
-/// 운동 기록 삭제(스와이프 후 확인). 코인 회수 안내 포함. 삭제됐으면 true.
+/// 운동 기록 수정 시트를 연다(기존 값 프리필).
+void _openEditWorkoutSheet(BuildContext context, Workout w) {
+  showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _RecordInputSheet(editing: w),
+  );
+}
+
+/// 운동 기록 삭제(확인 후). 코인 회수 안내 포함. 삭제됐으면 true.
 Future<bool> _deleteWorkoutFlow(
     BuildContext context, WidgetRef ref, String workoutId) async {
   final ok = await showDialog<bool>(
@@ -575,12 +588,13 @@ Future<bool> _deleteWorkoutFlow(
 
 class _RecordRow extends StatelessWidget {
   const _RecordRow(this.icon, this.title, this.sub, this.value,
-      {this.photoUrl, this.onDelete});
+      {this.photoUrl, this.onEdit, this.onDelete});
   final IconData icon;
   final String title;
   final String sub;
   final String value;
   final String? photoUrl;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   @override
@@ -638,15 +652,28 @@ class _RecordRow extends StatelessWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: OunColors.textPrimary)),
-          if (onDelete != null)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onDelete,
-              child: const Padding(
-                padding: EdgeInsets.only(left: 6),
-                child: Icon(Icons.delete_outline_rounded,
-                    size: 19, color: OunColors.textFaint),
-              ),
+          if (onEdit != null || onDelete != null)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_horiz_rounded,
+                  size: 19, color: OunColors.textFaint),
+              padding: EdgeInsets.zero,
+              splashRadius: 18,
+              color: OunColors.surface,
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onSelected: (v) => v == 'edit' ? onEdit?.call() : onDelete?.call(),
+              itemBuilder: (_) => [
+                if (onEdit != null)
+                  const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('수정', style: TextStyle(fontSize: 13.5))),
+                if (onDelete != null)
+                  const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('삭제',
+                          style: TextStyle(
+                              fontSize: 13.5, color: Color(0xFFCC4B37)))),
+              ],
             ),
         ],
       ),
@@ -656,9 +683,10 @@ class _RecordRow extends StatelessWidget {
 
 /// 운동 기록 입력 바텀시트. 저장 시 서버에 제출하고 보상을 안내한다.
 class _RecordInputSheet extends ConsumerStatefulWidget {
-  const _RecordInputSheet({this.preset, this.presetIcon});
+  const _RecordInputSheet({this.preset, this.presetIcon, this.editing});
   final String? preset;
   final IconData? presetIcon;
+  final Workout? editing; // 지정 시 수정 모드(프리필 + 저장 시 PATCH)
 
   @override
   ConsumerState<_RecordInputSheet> createState() => _RecordInputSheetState();
@@ -695,13 +723,40 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
   int _bodyPart = 0;
   // 운동 인증 사진(촬영/앨범에서 고른 실제 이미지).
   XFile? _photo;
+  String? _existingPhotoUrl; // 수정 모드에서 이미 붙어있는 사진
   bool _saving = false;
+
+  bool get _isEditing => widget.editing != null;
 
   @override
   void initState() {
     super.initState();
-    final i = _types.indexWhere((t) => t.$1 == widget.preset);
-    _selected = i < 0 ? 0 : i;
+    final edit = widget.editing;
+    if (edit != null) {
+      // 수정 모드: 기존 기록 값으로 채운다.
+      final label = _sportApi.entries
+          .firstWhere((e) => e.value == edit.sport,
+              orElse: () => const MapEntry('기타', 'etc'))
+          .key;
+      final si = _types.indexWhere((t) => t.$1 == label);
+      _selected = si < 0 ? 0 : si;
+      _minutes = (edit.durationSec ~/ 60).clamp(1, 600);
+      if (edit.distanceM != null) _distanceKm = edit.distanceM! / 1000;
+      if (edit.steps != null) _steps = edit.steps!;
+      if (edit.sets != null) _sets = edit.sets!;
+      if (edit.bodyPart != null) {
+        final bLabel = _bodyApi.entries
+            .firstWhere((e) => e.value == edit.bodyPart,
+                orElse: () => const MapEntry('상체', 'upper'))
+            .key;
+        final bi = _bodyParts.indexOf(bLabel);
+        if (bi >= 0) _bodyPart = bi;
+      }
+      _existingPhotoUrl = edit.photoUrl;
+    } else {
+      final i = _types.indexWhere((t) => t.$1 == widget.preset);
+      _selected = i < 0 ? 0 : i;
+    }
   }
 
   String get _type => _types[_selected].$1;
@@ -756,25 +811,47 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
           contentType: isPng ? 'image/png' : 'image/jpeg',
         );
       }
-      final result = await api.createWorkout(
-        sport: _sportApi[_type] ?? 'etc',
-        durationSec: _minutes * 60,
-        distanceM:
-            _metricKind == 'distance' ? (_distanceKm * 1000).round() : null,
-        steps: _metricKind == 'steps' ? _steps : null,
-        bodyPart: _metricKind == 'weight' ? _bodyApi[_bodyParts[_bodyPart]] : null,
-        sets: _metricKind == 'weight' ? _sets : null,
-        photoRef: photoRef,
-      );
+      final sport = _sportApi[_type] ?? 'etc';
+      final durationSec = _minutes * 60;
+      final distanceM =
+          _metricKind == 'distance' ? (_distanceKm * 1000).round() : null;
+      final steps = _metricKind == 'steps' ? _steps : null;
+      final bodyPart =
+          _metricKind == 'weight' ? _bodyApi[_bodyParts[_bodyPart]] : null;
+      final sets = _metricKind == 'weight' ? _sets : null;
+
+      final edit = widget.editing;
+      final result = edit == null
+          ? await api.createWorkout(
+              sport: sport,
+              durationSec: durationSec,
+              distanceM: distanceM,
+              steps: steps,
+              bodyPart: bodyPart,
+              sets: sets,
+              photoRef: photoRef,
+            )
+          : await api.updateWorkout(
+              edit.id,
+              sport: sport,
+              durationSec: durationSec,
+              distanceM: distanceM,
+              steps: steps,
+              bodyPart: bodyPart,
+              sets: sets,
+              photoRef: photoRef, // null이면 기존 사진 유지
+            );
       invalidateAfterWorkout(ref);
       navigator.pop();
       OunToast.showWith(
         messenger,
-        result.verified
-            ? '$_summary 기록 · +${result.reward} 코인'
-            : '$_summary 기록했지만 인증되지 않았어요',
+        _isEditing
+            ? (result.verified ? '$_summary(으)로 수정했어요' : '수정했지만 인증되지 않았어요')
+            : (result.verified
+                ? '$_summary 기록 · +${result.reward} 코인'
+                : '$_summary 기록했지만 인증되지 않았어요'),
         kind: result.verified ? OunToastKind.success : OunToastKind.info,
-        icon: result.verified ? Icons.paid_rounded : null,
+        icon: result.verified && !_isEditing ? Icons.paid_rounded : null,
       );
     } catch (_) {
       navigator.pop();
@@ -810,8 +887,8 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
                       borderRadius: BorderRadius.circular(2)),
                 ),
               ),
-              const Text('운동 기록하기',
-                  style: TextStyle(
+              Text(_isEditing ? '운동 수정' : '운동 기록하기',
+                  style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: OunColors.textPrimary)),
@@ -1001,6 +1078,43 @@ class _RecordInputSheetState extends ConsumerState<_RecordInputSheet> {
             icon: const Icon(Icons.close_rounded,
                 size: 20, color: OunColors.textMuted),
             tooltip: '사진 제거',
+          ),
+        ],
+      );
+    }
+    // 수정 모드: 기존에 붙어있던 사진 미리보기(그대로 두면 유지, 새로 골라 교체 가능).
+    if (_existingPhotoUrl != null) {
+      return Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(_existingPhotoUrl!,
+                width: 64,
+                height: 64,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox(width: 64, height: 64)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _PhotoOption(
+                    icon: Icons.photo_camera_outlined,
+                    label: '촬영',
+                    onTap: () => _pickPhoto(ImageSource.camera),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: _PhotoOption(
+                    icon: Icons.photo_library_outlined,
+                    label: '교체',
+                    onTap: () => _pickPhoto(ImageSource.gallery),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       );

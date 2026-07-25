@@ -414,6 +414,36 @@ class ApiClient {
     await _dio.delete<Map<String, dynamic>>('/workouts/$workoutId');
   }
 
+  /// 내 운동 기록 수정. 검증·코인 보상이 다시 계산된다.
+  /// photoRef를 안 보내면 기존 사진을 유지한다.
+  Future<WorkoutResult> updateWorkout(
+    String workoutId, {
+    required String sport,
+    required int durationSec,
+    int? distanceM,
+    int? steps,
+    String? bodyPart,
+    int? sets,
+    String? photoRef,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>('/workouts/$workoutId',
+        data: {
+          'sport': sport,
+          'durationSec': durationSec,
+          'distanceM': ?distanceM,
+          'steps': ?steps,
+          'bodyPart': ?bodyPart,
+          'sets': ?sets,
+          'photoRef': ?photoRef,
+        });
+    final d = res.data!;
+    return WorkoutResult(
+      verified: d['verified'] as bool? ?? false,
+      reward: d['reward'] as int? ?? 0,
+      balance: d['balance'] as int? ?? 0,
+    );
+  }
+
   /// 크루 피드에 글 작성. 운동 태그(workoutLogId)는 선택.
   Future<void> createCrewPost(
     String crewId, {
