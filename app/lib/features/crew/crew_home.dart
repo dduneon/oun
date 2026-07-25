@@ -832,7 +832,7 @@ class _MemberRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMe = m.isMe;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: isMe
@@ -843,9 +843,10 @@ class _MemberRow extends StatelessWidget {
                         nickname: m.nickname, displayName: m.displayName),
                   ),
                 ),
+        // 모든 행의 내부 여백을 동일하게 둬 아바타·이름 시작 위치를 맞춘다.
+        // 내 행만 배경 틴트+테두리로 강조한다(레이아웃은 그대로).
         child: Container(
-          padding: EdgeInsets.symmetric(
-              vertical: 8, horizontal: isMe ? 10 : 2),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
           decoration: isMe
               ? BoxDecoration(
                   color: OunColors.tabAccent.withValues(alpha: 0.09),
@@ -856,16 +857,7 @@ class _MemberRow extends StatelessWidget {
               : null,
           child: Row(
             children: [
-              // 내 아바타는 액센트 링으로 한 번 더 강조.
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: isMe
-                    ? const BoxDecoration(
-                        shape: BoxShape.circle, color: OunColors.tabAccent)
-                    : null,
-                child: PostAvatar(
-                    name: m.displayName, nickname: m.nickname, size: isMe ? 36 : 38),
-              ),
+              PostAvatar(name: m.displayName, nickname: m.nickname, size: 38),
               const SizedBox(width: 11),
               Expanded(
                 child: Row(
@@ -890,9 +882,9 @@ class _MemberRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (!isMe)
-                const Icon(Icons.chevron_right,
-                    size: 18, color: OunColors.textFaint),
+              Icon(Icons.chevron_right,
+                  size: 18,
+                  color: isMe ? Colors.transparent : OunColors.textFaint),
             ],
           ),
         ),
