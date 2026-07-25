@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { GameService } from '../game/game.service';
@@ -112,14 +113,12 @@ export class WorkoutsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // 이 운동으로 지급됐던 보상 원장 행을 찾아 그만큼 회수(refund).
-      const rewardEntry = await tx.currencyLedger.findUnique({
-        where: { idempotencyKey: `workout_reward:${workoutId}` },
-      });
-      if (rewardEntry && rewardEntry.delta !== 0) {
+      // 이 운동으로 지급된 원장 합계(보상 + 이후 수정 조정분)를 전부 회수.
+      const total = await this.workoutLedgerTotal(tx, workoutId);
+      if (total !== 0) {
         await this.ledger.append(tx, {
           userId,
-          delta: -rewardEntry.delta,
+          delta: -total,
           reason: 'refund',
           refType: 'workout_log',
           refId: workoutId,
@@ -130,6 +129,83 @@ export class WorkoutsService {
       await tx.workoutLog.delete({ where: { id: workoutId } });
       const balance = await this.ledger.balanceOf(userId, tx);
       return { deleted: true, balance };
+    });
+  }
+
+  /** 이 운동으로 지급된 원장 delta 합계(보상 + 수정 조정 + 회수). */
+  private async workoutLedgerTotal(
+    tx: Prisma.TransactionClient,
+    workoutId: string,
+  ) {
+    const rows = await tx.currencyLedger.findMany({
+      where: { refType: 'workout_log', refId: workoutId },
+    });
+    return rows.reduce((s, r) => s + r.delta, 0);
+  }
+
+  /** PATCH /workouts/:id — 본인 기록 수정. 검증·코인 보상을 다시 계산해 맞춘다.
+   *  (스탯·스트릭·퀘스트 진행은 되돌리지 않음) */
+  async update(userId: string, workoutId: string, dto: CreateWorkoutDto) {
+    const existing = await this.prisma.workoutLog.findUnique({
+      where: { id: workoutId },
+    });
+    if (!existing) throw new NotFoundException('운동 기록을 찾을 수 없어요');
+    if (existing.userId !== userId) {
+      throw new ForbiddenException('내 기록만 수정할 수 있어요');
+    }
+
+    const { status, reason } = verifyWorkout(dto);
+    const performedAt = dto.performedAt
+      ? new Date(dto.performedAt)
+      : existing.performedAt;
+
+    return this.prisma.$transaction(async (tx) => {
+      // 코인 정합: 이 운동의 원장 합계를 새 보상과 일치시키는 만큼만 가감.
+      const currentTotal = await this.workoutLedgerTotal(tx, workoutId);
+      const newReward =
+        status === 'verified' ? workoutReward(dto.durationSec) : 0;
+      const diff = newReward - currentTotal;
+      if (diff !== 0) {
+        await this.ledger.append(tx, {
+          userId,
+          delta: diff,
+          reason: diff > 0 ? 'workout_reward' : 'refund',
+          refType: 'workout_log',
+          refId: workoutId,
+          idempotencyKey: `workout_edit:${workoutId}:${Date.now()}`,
+          allowNegative: true,
+        });
+      }
+
+      const updated = await tx.workoutLog.update({
+        where: { id: workoutId },
+        data: {
+          sport: dto.sport,
+          durationSec: dto.durationSec,
+          distanceM: dto.distanceM ?? null,
+          steps: dto.steps ?? null,
+          bodyPart: dto.bodyPart ?? null,
+          sets: dto.sets ?? null,
+          calories: dto.calories ?? null,
+          photoRef: dto.photoRef ?? existing.photoRef,
+          verifyStatus: status,
+          rejectReason: reason ?? null,
+          verifiedAt:
+            status === 'verified' ? (existing.verifiedAt ?? new Date()) : null,
+          performedAt,
+        },
+      });
+      const balance = await this.ledger.balanceOf(userId, tx);
+      return {
+        workout: {
+          ...updated,
+          photoUrl: this.storage.publicUrlFor(updated.photoRef),
+        },
+        verified: status === 'verified',
+        reason,
+        reward: newReward,
+        balance,
+      };
     });
   }
 

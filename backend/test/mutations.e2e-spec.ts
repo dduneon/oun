@@ -65,6 +65,39 @@ describe('오운 수정·삭제 (e2e)', () => {
       .toBe(false);
   });
 
+  it('운동 기록 수정 → 코인 보상이 재계산된다', async () => {
+    const before = (
+      await request(app.getHttpServer()).get('/wallet').set(auth()).expect(200)
+    ).body.balance as number;
+
+    const created = await request(app.getHttpServer())
+      .post('/workouts')
+      .set(auth())
+      .send({ sport: 'running', durationSec: 600, distanceM: 1500 })
+      .expect(201);
+    const id = created.body.workout.id;
+    const reward1 = created.body.reward as number;
+    expect(reward1).toBeGreaterThan(0);
+
+    // 시간을 늘려 수정 → 보상 증가, 잔액은 새 보상 기준으로 정합
+    const edited = await request(app.getHttpServer())
+      .patch(`/workouts/${id}`)
+      .set(auth())
+      .send({ sport: 'running', durationSec: 1800, distanceM: 4500 })
+      .expect(200);
+    const reward2 = edited.body.reward as number;
+    expect(reward2).toBeGreaterThan(reward1);
+    expect(edited.body.balance).toBe(before + reward2);
+
+    // 목록에도 반영
+    const list = await request(app.getHttpServer())
+      .get('/workouts')
+      .set(auth())
+      .expect(200);
+    const row = list.body.items.find((w: any) => w.id === id);
+    expect(row.durationSec).toBe(1800);
+  });
+
   it('크루 글 수정 → 삭제', async () => {
     const crew = await request(app.getHttpServer())
       .post('/crews')

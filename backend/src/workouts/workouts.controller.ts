@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -35,6 +36,15 @@ export class WorkoutsController {
     @Query('to') to?: string,
   ) {
     return this.workouts.list(user.userId, from, to);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CreateWorkoutDto,
+  ) {
+    return this.workouts.update(user.userId, id, dto);
   }
 
   @Delete(':id')
