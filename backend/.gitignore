@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 coverage/
+
+# Firebase 서비스 계정 키 (푸시 전송용 진짜 비밀키 — 절대 커밋 금지)
+secrets/
