@@ -142,7 +142,7 @@ export class SocialService {
       type: 'friend_request',
       title: '친구 요청이 왔어요',
       body: `${me!.displayName}님이 친구가 되고 싶어해요`,
-      data: { fromNickname: me!.nickname },
+      data: { fromNickname: me!.nickname, fromDisplayName: me!.displayName },
     });
 
     return { status: 'requested' as const, displayName: target.displayName };
@@ -183,7 +183,7 @@ export class SocialService {
         type: 'friend_accepted',
         title: '친구가 되었어요',
         body: `${me!.displayName}님이 친구 요청을 수락했어요`,
-        data: { fromNickname: me!.nickname },
+        data: { fromNickname: me!.nickname, fromDisplayName: me!.displayName },
       });
     } else {
       await this.prisma.friendRequest.update({
@@ -260,7 +260,11 @@ export class SocialService {
         type: 'cheer',
         title: '응원이 도착했어요',
         body,
-        data: { fromNickname: sender!.nickname, emoji: mark },
+        data: {
+          fromNickname: sender!.nickname,
+          fromDisplayName: sender!.displayName,
+          emoji: mark,
+        },
       });
     });
 

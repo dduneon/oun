@@ -205,6 +205,21 @@ final friendHomeProvider =
   return api.friendHome(nickname);
 });
 
+/// 소셜 탭에서 열릴 세그먼트(0 친구 / 1 크루).
+///
+/// 소셜 탭은 IndexedStack으로 살아있어서 `go('/crew')`만으로는 이미 열려 있던
+/// 세그먼트가 그대로 남는다. 알림을 탭해 "받은 친구 요청"·"받은 초대"로
+/// 보내려면 바깥에서 세그먼트를 지정할 수 있어야 한다.
+class SocialSegmentController extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void show(int segment) => state = segment;
+}
+
+final socialSegmentProvider =
+    NotifierProvider<SocialSegmentController, int>(SocialSegmentController.new);
+
 /// 내가 받은 응원. `unseen > 0`이면 홈 캐릭터가 반응한다.
 final receivedCheersProvider = FutureProvider<ReceivedCheers>((ref) async {
   final api = await _authed(ref);

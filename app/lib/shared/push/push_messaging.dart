@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/my/notifications_screen.dart';
 import '../api/providers.dart';
 import '../global_keys.dart';
 import '../widgets/oun_toast.dart';
@@ -48,6 +50,16 @@ class PushMessaging {
 
       // 포그라운드 수신: OS 배너가 안 뜨므로 앱 안에서 직접 알린다.
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+
+      // 푸시 배너를 탭해 앱으로 들어온 경우 → 알림함을 연다.
+      FirebaseMessaging.onMessageOpenedApp.listen((_) => _openInbox());
+
+      // 앱이 완전히 종료된 상태에서 푸시로 켜진 경우.
+      // 첫 프레임 뒤로 미뤄야 라우터/네비게이터가 준비돼 있다.
+      final initial = await messaging.getInitialMessage();
+      if (initial != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _openInbox());
+      }
     } catch (_) {
       // 권한 거부·네트워크 실패 등 — 푸시만 포기하고 앱은 그대로.
     }
@@ -75,6 +87,18 @@ class PushMessaging {
     } catch (_) {
       // 등록 실패 → 다음 갱신/재로그인에 다시 시도.
     }
+  }
+
+  /// 알림함 열기. 어떤 알림을 탭했든 목록으로 보내고, 거기서 각 항목을
+  /// 탭하면 대상 화면으로 간다(딥링크 분기를 한곳에만 두기 위해).
+  void _openInbox() {
+    _ref.invalidate(unreadNotificationsProvider);
+    _ref.invalidate(notificationsProvider);
+    final context = rootMessengerKey.currentContext;
+    if (context == null) return;
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
+    );
   }
 
   void _onForegroundMessage(RemoteMessage message) {

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../theme/app_theme.dart';
+import '../crew/crew_home.dart';
+import '../crew/friend_home_screen.dart';
 
 /// 알림함 + 받은 응원.
 ///
@@ -49,11 +52,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         foregroundColor: OunColors.textPrimary,
-        title: const Text('알림',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: OunColors.textPrimary)),
+        title: const Text(
+          '알림',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: OunColors.textPrimary,
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -111,7 +117,9 @@ class _Segments extends StatelessWidget {
                     labels[i],
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: i == index
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: i == index
                           ? OunColors.textPrimary
                           : OunColors.textMuted,
@@ -139,9 +147,10 @@ class _Empty extends StatelessWidget {
         children: [
           Icon(icon, size: 40, color: OunColors.textFaint),
           const SizedBox(height: 10),
-          Text(text,
-              style: const TextStyle(
-                  fontSize: 13, color: OunColors.textMuted)),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 13, color: OunColors.textMuted),
+          ),
         ],
       ),
     );
@@ -153,7 +162,8 @@ class _Loading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const Center(
-      child: CircularProgressIndicator(color: OunColors.tabAccent));
+    child: CircularProgressIndicator(color: OunColors.tabAccent),
+  );
 }
 
 class _NotificationList extends ConsumerWidget {
@@ -161,88 +171,182 @@ class _NotificationList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(notificationsProvider).when(
+    return ref
+        .watch(notificationsProvider)
+        .when(
           loading: () => const _Loading(),
-          error: (_, _) => const _Empty(
-              Icons.notifications_off_outlined, '알림을 불러오지 못했어요'),
+          error: (_, _) =>
+              const _Empty(Icons.notifications_off_outlined, '알림을 불러오지 못했어요'),
           data: (board) {
             if (board.items.isEmpty) {
               return const _Empty(
-                  Icons.notifications_none_rounded, '아직 알림이 없어요');
+                Icons.notifications_none_rounded,
+                '아직 알림이 없어요',
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
               itemCount: board.items.length,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _NotificationTile(board.items[i]),
+              itemBuilder: (context, i) => _NotificationTile(
+                board.items[i],
+                onTap: () => _openTarget(context, ref, board.items[i]),
+              ),
             );
           },
         );
   }
 }
 
+/// 알림을 탭했을 때 갈 곳.
+///
+/// 알림마다 "지금 필요한 행동"이 있는 곳으로 보낸다 — 수락/거절이 필요한
+/// 요청·초대는 소셜 탭의 해당 세그먼트로, 그 외에는 대상 화면으로.
+/// 필요한 값은 서버가 `data`에 실어 보낸다(crewName, fromDisplayName 등).
+void _openTarget(BuildContext context, WidgetRef ref, NotificationItem n) {
+  final data = n.data ?? const <String, dynamic>{};
+  String? str(String k) => data[k] as String?;
+
+  void pushCrew() {
+    final crewId = str('crewId');
+    if (crewId == null) return;
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            CrewHomeScreen(crewId: crewId, name: str('crewName') ?? '크루'),
+      ),
+    );
+  }
+
+  void pushFriend() {
+    final nickname = str('fromNickname');
+    if (nickname == null) return;
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FriendHomeScreen(
+          nickname: nickname,
+          displayName: str('fromDisplayName') ?? nickname,
+        ),
+      ),
+    );
+  }
+
+  /// 소셜 탭의 특정 세그먼트로. 알림 화면을 닫고 탭을 전환한다.
+  void goSocial(int segment) {
+    ref.read(socialSegmentProvider.notifier).show(segment);
+    Navigator.of(context).pop();
+    context.go('/crew');
+  }
+
+  switch (n.type) {
+    // 수락/거절이 필요 → 목록이 있는 소셜 탭으로
+    case 'friend_request':
+      goSocial(0);
+    case 'crew_invite':
+      goSocial(1);
+
+    // 대상 화면으로
+    case 'cheer' || 'friend_accepted':
+      pushFriend();
+    case 'crew_comment' || 'crew_post_cheer' || 'crew_join_request':
+      pushCrew();
+    case 'crew_join_result':
+      // 거절이면 갈 크루가 없다.
+      if (str('accepted') == 'true') pushCrew();
+  }
+}
+
 /// 알림 종류별 아이콘. 서버가 새 type을 늘려도 기본 종 아이콘으로 떨어진다.
 IconData _iconFor(String type) => switch (type) {
-      'cheer' || 'crew_post_cheer' => Icons.favorite_rounded,
-      'friend_request' || 'friend_accepted' => Icons.person_add_rounded,
-      'crew_join_request' || 'crew_join_result' || 'crew_invite' =>
-        Icons.groups_rounded,
-      'crew_comment' => Icons.mode_comment_rounded,
-      _ => Icons.notifications_rounded,
-    };
+  'cheer' || 'crew_post_cheer' => Icons.favorite_rounded,
+  'friend_request' || 'friend_accepted' => Icons.person_add_rounded,
+  'crew_join_request' ||
+  'crew_join_result' ||
+  'crew_invite' => Icons.groups_rounded,
+  'crew_comment' => Icons.mode_comment_rounded,
+  _ => Icons.notifications_rounded,
+};
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile(this.n);
+  const _NotificationTile(this.n, {required this.onTap});
   final NotificationItem n;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: OunColors.surface,
+    return Material(
+      color: OunColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: OunColors.cardBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: OunColors.tabAccent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(_iconFor(n.type), size: 20, color: OunColors.tabAccent),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: OunColors.cardBorder),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: OunColors.tabAccent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _iconFor(n.type),
+                  size: 20,
+                  color: OunColors.tabAccent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(n.title,
-                          style: const TextStyle(
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            n.title,
+                            style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
-                              color: OunColors.textPrimary)),
+                              color: OunColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          relativeTime(n.createdAt),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: OunColors.textFaint,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(relativeTime(n.createdAt),
-                        style: const TextStyle(
-                            fontSize: 11, color: OunColors.textFaint)),
+                    const SizedBox(height: 3),
+                    Text(
+                      n.body,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: OunColors.textMuted,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Text(n.body,
-                    style: const TextStyle(
-                        fontSize: 12.5, color: OunColors.textMuted)),
-              ],
-            ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: OunColors.textFaint,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -253,14 +357,18 @@ class _CheerList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(receivedCheersProvider).when(
+    return ref
+        .watch(receivedCheersProvider)
+        .when(
           loading: () => const _Loading(),
           error: (_, _) =>
               const _Empty(Icons.favorite_border_rounded, '응원을 불러오지 못했어요'),
           data: (cheers) {
             if (cheers.items.isEmpty) {
               return const _Empty(
-                  Icons.favorite_border_rounded, '아직 받은 응원이 없어요');
+                Icons.favorite_border_rounded,
+                '아직 받은 응원이 없어요',
+              );
             }
             return ListView.separated(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
@@ -292,28 +400,40 @@ class _CheerTile extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-                color: avatarColor(c.fromNickname), shape: BoxShape.circle),
+              color: avatarColor(c.fromNickname),
+              shape: BoxShape.circle,
+            ),
             alignment: Alignment.center,
-            child: Text(initialOf(c.fromDisplayName),
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white)),
+            child: Text(
+              initialOf(c.fromDisplayName),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${c.fromDisplayName}님의 응원',
-                    style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: OunColors.textPrimary)),
+                Text(
+                  '${c.fromDisplayName}님의 응원',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text('@${c.fromNickname} · ${relativeTime(c.createdAt)}',
-                    style: const TextStyle(
-                        fontSize: 11.5, color: OunColors.textFaint)),
+                Text(
+                  '@${c.fromNickname} · ${relativeTime(c.createdAt)}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: OunColors.textFaint,
+                  ),
+                ),
               ],
             ),
           ),

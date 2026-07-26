@@ -22,8 +22,6 @@ class CrewScreen extends ConsumerStatefulWidget {
 }
 
 class _CrewScreenState extends ConsumerState<CrewScreen> {
-  int _segment = 0; // 0: 친구, 1: 크루
-
   Future<void> _createCrew() async {
     final result = await showCrewCreateSheet(context);
     if (result == null) return;
@@ -94,15 +92,17 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 세그먼트는 알림 탭에서도 지정하므로 로컬 상태가 아닌 프로바이더로 둔다.
+    final segment = ref.watch(socialSegmentProvider);
     return PageScaffold(
       title: '소셜',
       children: [
         _Segment(
-          value: _segment,
-          onChanged: (v) => setState(() => _segment = v),
+          value: segment,
+          onChanged: (v) => ref.read(socialSegmentProvider.notifier).show(v),
         ),
         const SizedBox(height: 14),
-        if (_segment == 0) _friendsSection() else _crewsSection(),
+        if (segment == 0) _friendsSection() else _crewsSection(),
       ],
     );
   }

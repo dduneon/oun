@@ -232,7 +232,12 @@ export class CrewsService {
       type: 'crew_join_request',
       title: '크루 가입 신청이 왔어요',
       body: `${applicant!.displayName}님이 ${crew.name}에 가입하고 싶어해요`,
-      data: { crewId, fromNickname: applicant!.nickname },
+      data: {
+        crewId,
+        crewName: crew.name,
+        fromNickname: applicant!.nickname,
+        fromDisplayName: applicant!.displayName,
+      },
     });
 
     return { requested: true };
@@ -308,7 +313,7 @@ export class CrewsService {
       body: accept
         ? `${crew!.name}의 크루원이 되었어요`
         : `${crew!.name} 가입 신청이 받아들여지지 않았어요`,
-      data: { crewId, accepted: String(accept) },
+      data: { crewId, crewName: crew!.name, accepted: String(accept) },
     });
 
     return result;
@@ -347,7 +352,12 @@ export class CrewsService {
       type: 'crew_invite',
       title: '크루 초대가 왔어요',
       body: `${inviter!.displayName}님이 ${crew!.name}에 초대했어요`,
-      data: { crewId, fromNickname: inviter!.nickname },
+      data: {
+        crewId,
+        crewName: crew!.name,
+        fromNickname: inviter!.nickname,
+        fromDisplayName: inviter!.displayName,
+      },
     });
 
     return { nickname: target.nickname, displayName: target.displayName };
@@ -560,16 +570,25 @@ export class CrewsService {
     if (!post) throw new NotFoundException('글을 찾을 수 없어요');
     await this.membershipOf(post.crewId, userId);
 
-    const c = await this.prisma.crewComment.create({
-      data: { postId, userId, text },
-      include: { user: true },
-    });
+    const [c, crew] = await Promise.all([
+      this.prisma.crewComment.create({
+        data: { postId, userId, text },
+        include: { user: true },
+      }),
+      this.prisma.crew.findUnique({ where: { id: post.crewId } }),
+    ]);
 
     await this.notifications.notify(post.userId, userId, {
       type: 'crew_comment',
       title: '내 글에 댓글이 달렸어요',
       body: `${c.user.displayName}: ${text}`,
-      data: { crewId: post.crewId, postId, fromNickname: c.user.nickname },
+      data: {
+        crewId: post.crewId,
+        crewName: crew!.name,
+        postId,
+        fromNickname: c.user.nickname,
+        fromDisplayName: c.user.displayName,
+      },
     });
 
     return {
@@ -596,7 +615,10 @@ export class CrewsService {
 
       // 토글이라 껐다 켜면 알림이 반복 생성된다. 이 사람이 이 글에 보낸
       // 응원 알림이 이미 있으면 건너뛴다(취소해도 알림은 남는 쪽을 택함).
-      const actor = await this.prisma.user.findUnique({ where: { id: userId } });
+      const [actor, crew] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: userId } }),
+        this.prisma.crew.findUnique({ where: { id: post.crewId } }),
+      ]);
       await this.notifications.notifyOnce(
         post.userId,
         userId,
@@ -607,8 +629,10 @@ export class CrewsService {
           body: `${actor!.displayName}님이 응원했어요`,
           data: {
             crewId: post.crewId,
+            crewName: crew!.name,
             postId,
             fromNickname: actor!.nickname,
+            fromDisplayName: actor!.displayName,
             cheerKey: `${postId}:${userId}`,
           },
         },
