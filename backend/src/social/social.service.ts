@@ -11,8 +11,11 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { statLevel } from '../game/leveling';
 import { kstDateOnly, kstWeekStart } from '../common/time';
 
-/** 같은 사람에게서 받는 응원 알림의 하루(KST) 상한. 초과분은 하트로만 쌓인다. */
-const CHEER_NOTIFY_DAILY_CAP = 5;
+/** 한 사람에게 하루(KST)에 보낼 수 있는 응원 횟수. */
+const CHEER_DAILY_LIMIT_PER_TARGET = 5;
+
+/** 연타 방지 — 같은 사람에게 다시 보내기까지의 최소 간격(ms). */
+const CHEER_COOLDOWN_MS = 5000;
 
 /** WorkoutLog → 클라이언트 요약 공용 셰이프. */
 export function workoutSummary(w: {
@@ -249,10 +252,39 @@ export class SocialService {
     if (!target) throw new NotFoundException('해당 닉네임의 유저가 없어요');
     if (target.id === userId) throw new BadRequestException('나 자신은 응원할 수 없어요');
 
+    // 보내는 행위 자체를 제한한다. 응원만 무한히 쌓이고 알림만 막으면
+    // 하트 수와 실제 전달이 어긋나 앞뒤가 맞지 않는다.
+    const [recentCheer, sentToday] = await Promise.all([
+      this.prisma.cheer.findFirst({
+        where: { fromUserId: userId, toUserId: target.id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+      this.prisma.cheer.count({
+        where: {
+          fromUserId: userId,
+          toUserId: target.id,
+          createdAt: { gte: kstDateOnly(new Date()) },
+        },
+      }),
+    ]);
+
+    if (
+      recentCheer &&
+      Date.now() - recentCheer.createdAt.getTime() < CHEER_COOLDOWN_MS
+    ) {
+      throw new BadRequestException('조금 뒤에 다시 응원할 수 있어요');
+    }
+    if (sentToday >= CHEER_DAILY_LIMIT_PER_TARGET) {
+      throw new BadRequestException(
+        `오늘 ${target.displayName}님에게 보낼 응원을 다 썼어요`,
+      );
+    }
+
     const mark = emoji ?? '❤️';
     const body = `${sender!.displayName}님이 응원을 보냈어요 ${mark}`;
 
-    const notified = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       await tx.cheer.create({
         data: { fromUserId: userId, toUserId: target.id, emoji: mark },
       });
@@ -260,37 +292,25 @@ export class SocialService {
       await this.achievements.evaluate(tx, userId);
 
       // 인앱 알림은 트랜잭션 안에서 같이 커밋 — 응원만 남고 알림이 새는 일 방지.
-      //
-      // 다만 같은 사람에게 하루 CHEER_NOTIFY_DAILY_CAP건까지만 알린다.
-      // 응원 자체는 무제한이라(하트는 계속 쌓인다) 연타하면 남의 폰에
-      // 푸시를 그만큼 쏟아붓게 되기 때문. 아침·저녁 재응원은 통과한다.
-      return this.notifications.createWithDailyCap(
-        tx,
-        target.id,
-        userId,
-        { path: 'fromNickname', value: sender!.nickname },
-        CHEER_NOTIFY_DAILY_CAP,
-        {
-          type: 'cheer',
-          title: '응원이 도착했어요',
-          body,
-          data: {
-            fromNickname: sender!.nickname,
-            fromDisplayName: sender!.displayName,
-            emoji: mark,
-          },
+      // 응원 횟수 자체가 위에서 제한되므로 알림에 따로 상한을 두지 않는다.
+      await this.notifications.create(tx, target.id, {
+        type: 'cheer',
+        title: '응원이 도착했어요',
+        body,
+        data: {
+          fromNickname: sender!.nickname,
+          fromDisplayName: sender!.displayName,
+          emoji: mark,
         },
-      );
+      });
     });
 
     // 푸시는 커밋 후 fire-and-forget (실패해도 응원 자체는 성공).
-    if (notified) {
-      this.notifications.pushLater(target.id, {
-        title: '응원이 도착했어요',
-        body,
-        data: { type: 'cheer', fromNickname: sender!.nickname },
-      });
-    }
+    this.notifications.pushLater(target.id, {
+      title: '응원이 도착했어요',
+      body,
+      data: { type: 'cheer', fromNickname: sender!.nickname },
+    });
 
     return { ok: true };
   }

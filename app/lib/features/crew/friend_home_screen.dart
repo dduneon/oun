@@ -213,8 +213,8 @@ class _CheerButtonState extends ConsumerState<_CheerButton> {
         OunToast.show(context, '${widget.displayName}님에게 응원을 보냈어요',
             kind: OunToastKind.cheer);
       }
-    } catch (_) {
-      if (mounted) OunToast.show(context, '응원에 실패했어요');
+    } catch (e) {
+      if (mounted) OunToast.show(context, apiErrorMessage(e, '응원에 실패했어요'));
     } finally {
       if (mounted) setState(() => _sending = false);
     }

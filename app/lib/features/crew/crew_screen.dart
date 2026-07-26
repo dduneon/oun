@@ -638,8 +638,10 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
         OunToast.show(context, '${friend.displayName}님에게 응원을 보냈어요',
             kind: OunToastKind.cheer);
       }
-    } catch (_) {
-      if (context.mounted) OunToast.show(context, '응원에 실패했어요');
+    } catch (e) {
+      if (context.mounted) {
+        OunToast.show(context, apiErrorMessage(e, '응원에 실패했어요'));
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }

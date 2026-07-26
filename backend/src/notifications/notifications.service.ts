@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { kstDateOnly } from '../common/time';
 import { PushService, PushPayload } from './push.service';
 
 export interface NotificationInput {
@@ -63,37 +62,6 @@ export class NotificationsService {
       body: input.body,
       data: { type: input.type, ...(input.data ?? {}) },
     });
-  }
-
-  /**
-   * 하루(KST) 상한이 있는 알림을 **트랜잭션 안에서** 만든다.
-   *
-   * 응원처럼 반복이 자연스럽지만(아침·저녁) 무제한이면 남의 폰에 푸시를
-   * 쏟아붓게 되는 이벤트용. 상한에 걸리면 알림만 건너뛰고 도메인 행위
-   * (응원 자체)는 그대로 둔다.
-   *
-   * @returns 알림을 만들었으면 true — 호출부는 이때만 푸시를 보낸다.
-   */
-  async createWithDailyCap(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    actorId: string | null,
-    dedupeKey: { path: string; value: string },
-    cap: number,
-    input: NotificationInput,
-  ): Promise<boolean> {
-    if (actorId && actorId === userId) return false;
-    const sentToday = await tx.notification.count({
-      where: {
-        userId,
-        type: input.type,
-        createdAt: { gte: kstDateOnly(new Date()) },
-        data: { path: [dedupeKey.path], equals: dedupeKey.value },
-      },
-    });
-    if (sentToday >= cap) return false;
-    await this.create(tx, userId, input);
-    return true;
   }
 
   /**

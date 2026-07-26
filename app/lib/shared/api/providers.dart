@@ -103,6 +103,12 @@ class AuthController extends Notifier<AuthState> {
 }
 
 /// 서버(NestJS)가 내려주는 에러 메시지를 뽑아낸다. 없으면 fallback.
+///
+/// 응원 쿨다운·하루 상한처럼 **사용자가 알아야 할 이유**를 서버가 문장으로
+/// 내려주므로, 화면에서 뭉뚱그리지 말고 이걸 그대로 보여준다.
+String apiErrorMessage(Object e, String fallback) =>
+    _errorMessage(e, fallback);
+
 String _errorMessage(Object e, String fallback) {
   if (e is DioException) {
     final data = e.response?.data;
