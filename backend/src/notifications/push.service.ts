@@ -16,6 +16,9 @@ export interface PushPayload {
  *
  * firebase-admin은 선택적 의존성이라 require를 런타임에 시도한다.
  * (`npm i firebase-admin` 전에도 서버가 뜨도록)
+ *
+ * v13부터 레거시 네임스페이스 API(`admin.apps`/`admin.credential`/
+ * `admin.messaging()`)가 제거돼서 서브모듈 모듈러 API를 쓴다.
  */
 @Injectable()
 export class PushService implements OnModuleInit {
@@ -37,16 +40,22 @@ export class PushService implements OnModuleInit {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const admin = require('firebase-admin');
-      if (!admin.apps.length) {
-        admin.initializeApp({
-          credential: raw
-            ? admin.credential.cert(JSON.parse(raw))
-            : admin.credential.applicationDefault(),
+      /* eslint-disable @typescript-eslint/no-var-requires */
+      const {
+        initializeApp,
+        getApps,
+        cert,
+        applicationDefault,
+      } = require('firebase-admin/app');
+      const { getMessaging } = require('firebase-admin/messaging');
+      /* eslint-enable @typescript-eslint/no-var-requires */
+
+      if (getApps().length === 0) {
+        initializeApp({
+          credential: raw ? cert(JSON.parse(raw)) : applicationDefault(),
         });
       }
-      this.messaging = admin.messaging();
+      this.messaging = getMessaging();
       this.logger.log('FCM 초기화 완료');
     } catch (e) {
       this.logger.error(
