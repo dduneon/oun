@@ -98,7 +98,7 @@ xcodebuild -workspace Runner.xcworkspace -scheme Runner \
 # 설치 & 실행
 APP=build/ios_sim/Build/Products/Debug-iphonesimulator/Runner.app
 xcrun simctl install <SIMULATOR_ID> "$APP"
-xcrun simctl launch <SIMULATOR_ID> com.oun.ounApp
+xcrun simctl launch <SIMULATOR_ID> com.dduneon.oun
 open -a Simulator
 ```
 

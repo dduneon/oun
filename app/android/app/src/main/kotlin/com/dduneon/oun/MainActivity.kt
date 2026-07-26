@@ -1,4 +1,4 @@
-package com.oun.oun_app
+package com.dduneon.oun
 
 import io.flutter.embedding.android.FlutterActivity
 

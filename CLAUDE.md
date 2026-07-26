@@ -30,7 +30,7 @@ xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Debug \
   -sdk iphonesimulator -destination 'id=<BOOTED_SIM_ID>' \
   -derivedDataPath build/ios_sim build
 APP=build/ios_sim/Build/Products/Debug-iphonesimulator/Runner.app
-xcrun simctl install <SIM_ID> "$APP" && xcrun simctl launch <SIM_ID> com.oun.ounApp
+xcrun simctl install <SIM_ID> "$APP" && xcrun simctl launch <SIM_ID> com.dduneon.oun
 ```
 - Get a simulator id: `xcrun simctl list devices available | grep Booted`.
 - After `simctl install`, if the app shows a stale tab, `simctl terminate` then `launch` again (state can restore).

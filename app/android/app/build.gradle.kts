@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.oun.oun_app"
+    namespace = "com.dduneon.oun"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,8 +15,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.oun.oun_app"
+        applicationId = "com.dduneon.oun"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // flutter_secure_storage의 EncryptedSharedPreferences가 API 23+ 필요.
