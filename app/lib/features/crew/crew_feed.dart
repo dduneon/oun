@@ -879,10 +879,16 @@ class _PostMenu extends StatelessWidget {
             destructive: true,
             onSelected: onDelete),
       ]),
-      child: const Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Icon(Icons.more_horiz_rounded,
-            size: 19, color: OunColors.textMuted),
+      // AppBar 액션은 오른쪽 끝에 붙어서, 기본 leading(56)에 담기는 뒤로가기
+      // 버튼과 좌우가 어긋난다. 같은 56 폭에 중앙 정렬해 대칭을 맞춘다.
+      // 겸사겸사 탭 영역도 아이콘 크기(19)에서 손가락에 맞는 폭으로 넓어진다.
+      child: const SizedBox(
+        width: 56,
+        height: kToolbarHeight,
+        child: Center(
+          child: Icon(Icons.more_horiz_rounded,
+              size: 19, color: OunColors.textMuted),
+        ),
       ),
     );
   }
