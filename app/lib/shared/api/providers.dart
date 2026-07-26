@@ -205,6 +205,24 @@ final friendHomeProvider =
   return api.friendHome(nickname);
 });
 
+/// 내가 받은 응원. `unseen > 0`이면 홈 캐릭터가 반응한다.
+final receivedCheersProvider = FutureProvider<ReceivedCheers>((ref) async {
+  final api = await _authed(ref);
+  return api.receivedCheers();
+});
+
+/// 인앱 알림함.
+final notificationsProvider = FutureProvider<NotificationBoard>((ref) async {
+  final api = await _authed(ref);
+  return api.notifications();
+});
+
+/// 탭 뱃지용 안 읽은 알림 수(목록 없이 가볍게).
+final unreadNotificationsProvider = FutureProvider<int>((ref) async {
+  final api = await _authed(ref);
+  return api.unreadNotificationCount();
+});
+
 final crewsProvider = FutureProvider<List<CrewCardData>>((ref) async {
   final api = await _authed(ref);
   return api.myCrews();

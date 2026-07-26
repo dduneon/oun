@@ -8,6 +8,7 @@ import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
 import '../quest/quest_screen.dart';
 import 'achievements_screen.dart';
+import 'notifications_screen.dart';
 
 /// 마이룸·프로필·월말 리포트·설정. 프로필은 서버 값.
 class MyScreen extends ConsumerWidget {
@@ -20,6 +21,7 @@ class MyScreen extends ConsumerWidget {
           data: comma,
           orElse: () => '—',
         );
+    final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
 
     return PageScaffold(
       title: '마이',
@@ -97,6 +99,16 @@ class MyScreen extends ConsumerWidget {
                 ),
               ),
               _MenuItem(
+                Icons.notifications_none_rounded,
+                '알림 · 받은 응원',
+                badge: unread,
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const NotificationsScreen()),
+                ),
+              ),
+              _MenuItem(
                 Icons.emoji_events_outlined,
                 '업적',
                 onTap: (context) =>
@@ -140,11 +152,15 @@ class MyScreen extends ConsumerWidget {
 }
 
 class _MenuItem extends StatelessWidget {
-  const _MenuItem(this.icon, this.label, {this.last = false, this.onTap});
+  const _MenuItem(this.icon, this.label,
+      {this.last = false, this.onTap, this.badge = 0});
   final IconData icon;
   final String label;
   final bool last;
   final void Function(BuildContext)? onTap;
+
+  /// 0보다 크면 라벨 옆에 안 읽은 수 뱃지를 띄운다.
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +189,21 @@ class _MenuItem extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                         color: OunColors.textPrimary)),
               ),
+              if (badge > 0)
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: OunColors.tabAccent,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(badge > 99 ? '99+' : '$badge',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                ),
               const Icon(Icons.chevron_right,
                   size: 18, color: OunColors.textFaint),
             ],

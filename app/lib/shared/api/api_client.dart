@@ -288,6 +288,52 @@ class ApiClient {
     await _dio.post<Map<String, dynamic>>('/users/$nickname/cheer', data: {'emoji': ?emoji});
   }
 
+  /// 내가 받은 응원. 조회만으로는 확인 처리되지 않는다([markCheersSeen] 별도 호출).
+  Future<ReceivedCheers> receivedCheers() async {
+    final res = await _dio.get<Map<String, dynamic>>('/cheers/received');
+    return ReceivedCheers.fromJson(res.data!);
+  }
+
+  /// 받은 응원을 모두 확인 처리(홈 캐릭터 반응을 재생한 뒤 호출).
+  Future<void> markCheersSeen() async {
+    await _dio.post<Map<String, dynamic>>('/cheers/received/seen');
+  }
+
+  // ── 알림 ──────────────────────────────────────────────
+
+  Future<NotificationBoard> notifications() async {
+    final res = await _dio.get<Map<String, dynamic>>('/notifications');
+    return NotificationBoard.fromJson(res.data!);
+  }
+
+  Future<int> unreadNotificationCount() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>('/notifications/unread-count');
+    return res.data!['unread'] as int;
+  }
+
+  /// [id]가 없으면 전체 읽음 처리. 반환값은 남은 안 읽은 수.
+  Future<int> markNotificationsRead({String? id}) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/notifications/read',
+      data: {'id': ?id},
+    );
+    return res.data!['unread'] as int;
+  }
+
+  /// 푸시 토큰 등록(멱등). 로그인 후 호출.
+  Future<void> registerDevice(String token, String platform) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/devices',
+      data: {'token': token, 'platform': platform},
+    );
+  }
+
+  /// 로그아웃 시 이 기기로 푸시가 더 오지 않게 해제.
+  Future<void> unregisterDevice(String token) async {
+    await _dio.delete<Map<String, dynamic>>('/devices/$token');
+  }
+
   // ── 크루 ──────────────────────────────────────────────
 
   Future<CrewDetail> createCrew(

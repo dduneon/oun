@@ -251,6 +251,101 @@ class Friend {
       );
 }
 
+/// GET /cheers/received 의 받은 응원 한 건.
+class ReceivedCheer {
+  const ReceivedCheer({
+    required this.id,
+    required this.emoji,
+    required this.createdAt,
+    required this.seen,
+    required this.fromNickname,
+    required this.fromDisplayName,
+    required this.fromGender,
+  });
+
+  final String id;
+  final String emoji;
+  final DateTime createdAt;
+
+  /// 내가 이미 확인한 응원인지. false면 홈 캐릭터가 반응한다.
+  final bool seen;
+  final String fromNickname;
+  final String fromDisplayName;
+  final String fromGender;
+
+  factory ReceivedCheer.fromJson(Map<String, dynamic> j) => ReceivedCheer(
+        id: j['id'] as String,
+        emoji: j['emoji'] as String,
+        createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
+        seen: j['seen'] as bool,
+        fromNickname: j['fromNickname'] as String,
+        fromDisplayName: j['fromDisplayName'] as String,
+        fromGender: j['fromGender'] as String,
+      );
+}
+
+/// GET /cheers/received 응답 전체(목록 + 미확인 수).
+class ReceivedCheers {
+  const ReceivedCheers({required this.unseen, required this.items});
+
+  final int unseen;
+  final List<ReceivedCheer> items;
+
+  factory ReceivedCheers.fromJson(Map<String, dynamic> j) => ReceivedCheers(
+        unseen: j['unseen'] as int,
+        items: (j['items'] as List)
+            .map((e) => ReceivedCheer.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+/// GET /notifications 의 알림 한 건.
+class NotificationItem {
+  const NotificationItem({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.read,
+    required this.createdAt,
+    this.data,
+  });
+
+  final String id;
+  final String type; // cheer | …
+  final String title;
+  final String body;
+  final bool read;
+  final DateTime createdAt;
+  final Map<String, dynamic>? data;
+
+  factory NotificationItem.fromJson(Map<String, dynamic> j) => NotificationItem(
+        id: j['id'] as String,
+        type: j['type'] as String,
+        title: j['title'] as String,
+        body: j['body'] as String,
+        read: j['read'] as bool,
+        createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
+        data: j['data'] as Map<String, dynamic>?,
+      );
+}
+
+/// GET /notifications 응답 전체(목록 + 안 읽은 수).
+class NotificationBoard {
+  const NotificationBoard({required this.unread, required this.items});
+
+  final int unread;
+  final List<NotificationItem> items;
+
+  factory NotificationBoard.fromJson(Map<String, dynamic> j) =>
+      NotificationBoard(
+        unread: j['unread'] as int,
+        items: (j['items'] as List)
+            .map((e) => NotificationItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 /// GET /friends/requests 의 받은 친구 요청 한 건.
 class FriendRequestItem {
   const FriendRequestItem({
