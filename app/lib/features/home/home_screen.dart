@@ -5,10 +5,13 @@ import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/floating_tab_bar.dart';
+import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
+import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
@@ -17,10 +20,47 @@ import '../quest/quest_screen.dart';
 ///
 /// Unity 뷰 자체는 앱 전역 [UnityHost]가 화면 뒤에 렌더한다. 홈 화면은
 /// 투명하게 두어 그 캐릭터가 비쳐 보이고, 그 위에 UI만 얹는다.
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  /// 이번 세션에서 응원 반응을 이미 재생했는지. 홈은 IndexedStack으로 계속
+  /// 살아있어서, 이 플래그가 없으면 리빌드마다 캐릭터가 다시 반응한다.
+  bool _cheerHandled = false;
+
   void _pokeCharacter() => sendToUnity('OunBridge', 'React', 'workout');
+
+  /// 미확인 응원이 있으면 캐릭터가 한 번 반응하고 확인 처리한다.
+  ///
+  /// Unity의 `React(string)`는 메시지 내용을 보지 않고 손 흔들기/점프를
+  /// 재생하므로, 씬 재익스포트 없이 'cheer'만 보내면 된다.
+  Future<void> _playCheerReaction(ReceivedCheers cheers) async {
+    if (_cheerHandled || cheers.unseen == 0) return;
+    _cheerHandled = true;
+
+    sendToUnity('OunBridge', 'React', 'cheer');
+
+    final unseen = cheers.items.where((c) => !c.seen).toList();
+    if (unseen.isNotEmpty && mounted) {
+      final first = unseen.first;
+      final msg = cheers.unseen == 1
+          ? '${first.fromDisplayName}님이 응원을 보냈어요 ${first.emoji}'
+          : '${first.fromDisplayName}님 외 ${cheers.unseen - 1}명이 응원을 보냈어요';
+      OunToast.show(context, msg, kind: OunToastKind.cheer);
+    }
+
+    try {
+      await ref.read(apiClientProvider).markCheersSeen();
+      ref.invalidate(receivedCheersProvider);
+    } catch (_) {
+      // 확인 처리 실패 → 다음 진입에 다시 반응하도록 되돌린다.
+      _cheerHandled = false;
+    }
+  }
 
   static String _greeting() {
     final h = DateTime.now().hour;
@@ -32,6 +72,15 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 미확인 응원이 있으면 첫 프레임 뒤에 캐릭터가 반응한다.
+    // (빌드 중에 Unity 메시지·토스트를 보내지 않도록 post-frame으로 미룬다)
+    final cheers = ref.watch(receivedCheersProvider).value;
+    if (cheers != null && cheers.unseen > 0 && !_cheerHandled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _playCheerReaction(cheers);
+      });
+    }
+
     return Stack(
       children: [
         // 캐릭터는 앱 전역 UnityHost가 이 투명 화면 뒤에 렌더한다.
@@ -112,10 +161,61 @@ class _TopRow extends StatelessWidget {
             ],
           ),
         ),
+        const _NotificationButton(),
+        const SizedBox(width: 7),
         const _QuestButton(),
         const SizedBox(width: 7),
         const _CoinPill(),
       ],
+    );
+  }
+}
+
+/// 알림·받은 응원 진입 버튼. 안 읽은 알림이 있으면 점 배지를 띄운다.
+///
+/// 응원은 홈에서 캐릭터가 반응하는 기능이라, 그 근거를 다시 보는 입구도
+/// 홈에 두는 게 자연스럽다(마이 탭 안쪽까지 들어가지 않아도 되도록).
+class _NotificationButton extends ConsumerWidget {
+  const _NotificationButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadNotificationsProvider).value ?? 0;
+    return Material(
+      color: OunColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: OunColors.cardBorder),
+      ),
+      child: InkWell(
+        onTap: () => Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
+        ),
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 34,
+          height: 30,
+          child: Stack(
+            children: [
+              const Center(
+                child: Icon(Icons.notifications_rounded,
+                    size: 16, color: OunColors.tabAccent),
+              ),
+              if (unread > 0)
+                Positioned(
+                  top: 5,
+                  right: 6,
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFD98A88), shape: BoxShape.circle),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
