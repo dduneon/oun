@@ -53,7 +53,9 @@ public class OunBridge : MonoBehaviour
     void Awake()
     {
         if (character == null) character = transform;
-        if (animator == null) animator = character.GetComponentInChildren<Animator>();
+        // includeInactive: 프리팹이 비활성 상태로 저장돼 있으면 기본 탐색이
+        // Animator를 놓쳐 null이 되고, React()가 손흔들기 대신 점프로 샌다.
+        if (animator == null) animator = character.GetComponentInChildren<Animator>(true);
     }
 
     void Start()
@@ -90,8 +92,11 @@ public class OunBridge : MonoBehaviour
                 var spawned = homeStage.FirstSpawned;
                 if (spawned != null)
                 {
+                    spawned.SetActive(true);
                     character = spawned.transform;
-                    animator = spawned.GetComponentInChildren<Animator>();
+                    animator = spawned.GetComponentInChildren<Animator>(true);
+                    if (animator != null) animator.enabled = true;
+                    else Debug.LogWarning("홈 아바타에 Animator가 없다 — React()가 점프로 폴백한다");
                 }
             }
         }
