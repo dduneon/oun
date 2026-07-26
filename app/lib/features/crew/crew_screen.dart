@@ -604,9 +604,19 @@ class _Segment extends StatelessWidget {
   }
 }
 
-class _FriendRow extends ConsumerWidget {
+class _FriendRow extends ConsumerStatefulWidget {
   const _FriendRow(this.friend);
   final Friend friend;
+
+  @override
+  ConsumerState<_FriendRow> createState() => _FriendRowState();
+}
+
+class _FriendRowState extends ConsumerState<_FriendRow> {
+  /// 전송 중 재탭 차단. 없으면 연타한 만큼 상대 폰에 푸시가 나간다.
+  bool _sending = false;
+
+  Friend get friend => widget.friend;
 
   void _openFriendHome(BuildContext context) {
     Navigator.of(context, rootNavigator: true).push(
@@ -617,7 +627,9 @@ class _FriendRow extends ConsumerWidget {
     );
   }
 
-  Future<void> _cheer(BuildContext context, WidgetRef ref) async {
+  Future<void> _cheer(BuildContext context) async {
+    if (_sending) return;
+    setState(() => _sending = true);
     try {
       await ref.read(apiClientProvider).cheer(friend.nickname, emoji: '👏');
       ref.invalidate(friendsProvider);
@@ -628,11 +640,13 @@ class _FriendRow extends ConsumerWidget {
       }
     } catch (_) {
       if (context.mounted) OunToast.show(context, '응원에 실패했어요');
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
@@ -688,13 +702,16 @@ class _FriendRow extends ConsumerWidget {
                   shape: const CircleBorder(
                       side: BorderSide(color: OunColors.cardBorder)),
                   child: InkWell(
-                    onTap: () => _cheer(context, ref),
+                    onTap: _sending ? null : () => _cheer(context),
                     customBorder: const CircleBorder(),
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: 28,
                       height: 28,
                       child: Icon(Icons.add_rounded,
-                          size: 16, color: OunColors.textMuted),
+                          size: 16,
+                          color: _sending
+                              ? OunColors.textFaint
+                              : OunColors.textMuted),
                     ),
                   ),
                 ),

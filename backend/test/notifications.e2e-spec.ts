@@ -111,6 +111,32 @@ describe('오운 받은 응원·알림 (e2e)', () => {
     expect(res.body.items.filter((n: any) => n.type === 'cheer')).toHaveLength(0);
   });
 
+  it('같은 사람의 반복 응원은 하루 5건까지만 알림이 쌓인다', async () => {
+    // 앞선 테스트에서 이미 1건 보냈으므로 9번 더 = 총 10번.
+    for (let i = 0; i < 9; i++) {
+      await request(app.getHttpServer())
+        .post(`/users/${receiverNick}/cheer`)
+        .set(asSender())
+        .send({ emoji: '👏' })
+        .expect(201);
+    }
+
+    // 응원(하트) 자체는 전부 쌓인다 — 제한하는 건 알림뿐.
+    const cheers = await request(app.getHttpServer())
+      .get('/cheers/received')
+      .set(asReceiver())
+      .expect(200);
+    expect(cheers.body.items.length).toBe(10);
+
+    // 알림은 상한(5)에서 멈춘다.
+    const notis = await request(app.getHttpServer())
+      .get('/notifications')
+      .set(asReceiver())
+      .expect(200);
+    const cheerNotis = notis.body.items.filter((n: any) => n.type === 'cheer');
+    expect(cheerNotis).toHaveLength(5);
+  });
+
   it('푸시 토큰을 등록·해제할 수 있다', async () => {
     const token = `tok_${Date.now()}`;
     await request(app.getHttpServer())

@@ -11,6 +11,9 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { statLevel } from '../game/leveling';
 import { kstDateOnly, kstWeekStart } from '../common/time';
 
+/** 같은 사람에게서 받는 응원 알림의 하루(KST) 상한. 초과분은 하트로만 쌓인다. */
+const CHEER_NOTIFY_DAILY_CAP = 5;
+
 /** WorkoutLog → 클라이언트 요약 공용 셰이프. */
 export function workoutSummary(w: {
   id: string;
@@ -249,31 +252,45 @@ export class SocialService {
     const mark = emoji ?? '❤️';
     const body = `${sender!.displayName}님이 응원을 보냈어요 ${mark}`;
 
-    await this.prisma.$transaction(async (tx) => {
+    const notified = await this.prisma.$transaction(async (tx) => {
       await tx.cheer.create({
         data: { fromUserId: userId, toUserId: target.id, emoji: mark },
       });
       await this.quests.onCheer(tx, userId);
       await this.achievements.evaluate(tx, userId);
+
       // 인앱 알림은 트랜잭션 안에서 같이 커밋 — 응원만 남고 알림이 새는 일 방지.
-      await this.notifications.create(tx, target.id, {
-        type: 'cheer',
-        title: '응원이 도착했어요',
-        body,
-        data: {
-          fromNickname: sender!.nickname,
-          fromDisplayName: sender!.displayName,
-          emoji: mark,
+      //
+      // 다만 같은 사람에게 하루 CHEER_NOTIFY_DAILY_CAP건까지만 알린다.
+      // 응원 자체는 무제한이라(하트는 계속 쌓인다) 연타하면 남의 폰에
+      // 푸시를 그만큼 쏟아붓게 되기 때문. 아침·저녁 재응원은 통과한다.
+      return this.notifications.createWithDailyCap(
+        tx,
+        target.id,
+        userId,
+        { path: 'fromNickname', value: sender!.nickname },
+        CHEER_NOTIFY_DAILY_CAP,
+        {
+          type: 'cheer',
+          title: '응원이 도착했어요',
+          body,
+          data: {
+            fromNickname: sender!.nickname,
+            fromDisplayName: sender!.displayName,
+            emoji: mark,
+          },
         },
-      });
+      );
     });
 
     // 푸시는 커밋 후 fire-and-forget (실패해도 응원 자체는 성공).
-    this.notifications.pushLater(target.id, {
-      title: '응원이 도착했어요',
-      body,
-      data: { type: 'cheer', fromNickname: sender!.nickname },
-    });
+    if (notified) {
+      this.notifications.pushLater(target.id, {
+        title: '응원이 도착했어요',
+        body,
+        data: { type: 'cheer', fromNickname: sender!.nickname },
+      });
+    }
 
     return { ok: true };
   }

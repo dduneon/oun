@@ -23,20 +23,6 @@ class FriendHomeScreen extends ConsumerWidget {
 
   static const _week = ['월', '화', '수', '목', '금', '토', '일'];
 
-  Future<void> _cheer(BuildContext context, WidgetRef ref) async {
-    try {
-      await ref.read(apiClientProvider).cheer(nickname, emoji: '❤️');
-      ref.invalidate(friendsProvider);
-      ref.invalidate(questsProvider);
-      if (context.mounted) {
-        OunToast.show(context, '$displayName님에게 응원을 보냈어요',
-            kind: OunToastKind.cheer);
-      }
-    } catch (_) {
-      if (context.mounted) OunToast.show(context, '응원에 실패했어요');
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(friendHomeProvider(nickname));
@@ -92,7 +78,7 @@ class FriendHomeScreen extends ConsumerWidget {
                   '${w.minutes}분',
                 ),
             const SizedBox(height: 24),
-            _cheerButton(context, ref),
+            _CheerButton(nickname: nickname, displayName: displayName),
           ],
         ),
       ),
@@ -199,18 +185,55 @@ class FriendHomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _cheerButton(BuildContext context, WidgetRef ref) {
+}
+
+/// 응원 보내기 버튼. 전송 중에는 비활성화한다 — 연타하면 그만큼 상대 폰에
+/// 푸시가 나가기 때문(서버도 하루 상한을 두지만 실수 연타는 여기서 막는다).
+class _CheerButton extends ConsumerStatefulWidget {
+  const _CheerButton({required this.nickname, required this.displayName});
+
+  final String nickname;
+  final String displayName;
+
+  @override
+  ConsumerState<_CheerButton> createState() => _CheerButtonState();
+}
+
+class _CheerButtonState extends ConsumerState<_CheerButton> {
+  bool _sending = false;
+
+  Future<void> _cheer() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      await ref.read(apiClientProvider).cheer(widget.nickname, emoji: '❤️');
+      ref.invalidate(friendsProvider);
+      ref.invalidate(questsProvider);
+      if (mounted) {
+        OunToast.show(context, '${widget.displayName}님에게 응원을 보냈어요',
+            kind: OunToastKind.cheer);
+      }
+    } catch (_) {
+      if (mounted) OunToast.show(context, '응원에 실패했어요');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
         style: FilledButton.styleFrom(
           backgroundColor: OunColors.tabAccent,
           foregroundColor: OunColors.onTabAccent,
+          disabledBackgroundColor: OunColors.cardBorder,
           padding: const EdgeInsets.symmetric(vertical: 15),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        onPressed: () => _cheer(context, ref),
+        onPressed: _sending ? null : _cheer,
         icon: const Icon(Icons.favorite_rounded, size: 18),
         label: const Text('응원 보내기',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
