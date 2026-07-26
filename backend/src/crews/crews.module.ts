@@ -2,11 +2,17 @@ import { Module } from '@nestjs/common';
 import { WalletModule } from '../wallet/wallet.module';
 import { AchievementsModule } from '../achievements/achievements.module';
 import { StorageModule } from '../storage/storage.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { CrewsService } from './crews.service';
 import { CrewsController } from './crews.controller';
 
 @Module({
-  imports: [WalletModule, AchievementsModule, StorageModule],
+  imports: [
+    WalletModule,
+    AchievementsModule,
+    StorageModule,
+    NotificationsModule,
+  ],
   providers: [CrewsService],
   controllers: [CrewsController],
   exports: [CrewsService],

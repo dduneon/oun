@@ -46,6 +46,48 @@ export class NotificationsService {
     void this.push.sendToUser(userId, payload).catch(() => undefined);
   }
 
+  /**
+   * 트랜잭션이 없는 호출부용: 알림 생성 + 푸시를 한 번에.
+   * 자기 자신에게는 보내지 않는다(내 행동의 알림을 내가 받을 이유가 없다).
+   */
+  async notify(
+    userId: string,
+    actorId: string | null,
+    input: NotificationInput,
+  ): Promise<void> {
+    if (actorId && actorId === userId) return;
+    await this.create(this.prisma, userId, input);
+    this.pushLater(userId, {
+      title: input.title,
+      body: input.body,
+      data: { type: input.type, ...(input.data ?? {}) },
+    });
+  }
+
+  /**
+   * 같은 대상에 같은 종류 알림이 이미 있으면 건너뛴다.
+   * 크루 글 응원처럼 **토글로 껐다 켰다 할 수 있는** 이벤트가 알림을
+   * 반복 생성하는 걸 막는 용도.
+   */
+  async notifyOnce(
+    userId: string,
+    actorId: string | null,
+    dedupeKey: { path: string; value: string },
+    input: NotificationInput,
+  ): Promise<void> {
+    if (actorId && actorId === userId) return;
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        userId,
+        type: input.type,
+        data: { path: [dedupeKey.path], equals: dedupeKey.value },
+      },
+      select: { id: true },
+    });
+    if (existing) return;
+    await this.notify(userId, actorId, input);
+  }
+
   /** GET /notifications — 최근 50건 + 안 읽은 수. */
   async list(userId: string) {
     const [items, unread] = await Promise.all([

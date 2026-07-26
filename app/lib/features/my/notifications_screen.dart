@@ -181,6 +181,16 @@ class _NotificationList extends ConsumerWidget {
   }
 }
 
+/// 알림 종류별 아이콘. 서버가 새 type을 늘려도 기본 종 아이콘으로 떨어진다.
+IconData _iconFor(String type) => switch (type) {
+      'cheer' || 'crew_post_cheer' => Icons.favorite_rounded,
+      'friend_request' || 'friend_accepted' => Icons.person_add_rounded,
+      'crew_join_request' || 'crew_join_result' || 'crew_invite' =>
+        Icons.groups_rounded,
+      'crew_comment' => Icons.mode_comment_rounded,
+      _ => Icons.notifications_rounded,
+    };
+
 class _NotificationTile extends StatelessWidget {
   const _NotificationTile(this.n);
   final NotificationItem n;
@@ -204,13 +214,7 @@ class _NotificationTile extends StatelessWidget {
               color: OunColors.tabAccent.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
-              n.type == 'cheer'
-                  ? Icons.favorite_rounded
-                  : Icons.notifications_rounded,
-              size: 20,
-              color: OunColors.tabAccent,
-            ),
+            child: Icon(_iconFor(n.type), size: 20, color: OunColors.tabAccent),
           ),
           const SizedBox(width: 12),
           Expanded(

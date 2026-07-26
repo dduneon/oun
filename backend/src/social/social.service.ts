@@ -135,6 +135,16 @@ export class SocialService {
       create: { fromUserId: userId, toUserId: target.id, status: 'pending' },
       update: { status: 'pending' }, // 예전에 거절됐어도 다시 요청 가능
     });
+
+    // 알림이 없으면 상대가 요청을 영영 모른다(소셜 탭에 우연히 들어가야 발견).
+    const me = await this.prisma.user.findUnique({ where: { id: userId } });
+    await this.notifications.notify(target.id, userId, {
+      type: 'friend_request',
+      title: '친구 요청이 왔어요',
+      body: `${me!.displayName}님이 친구가 되고 싶어해요`,
+      data: { fromNickname: me!.nickname },
+    });
+
     return { status: 'requested' as const, displayName: target.displayName };
   }
 
@@ -167,6 +177,14 @@ export class SocialService {
     }
     if (accept) {
       await this.makeFriends(userId, req.fromUserId);
+      // 수락만 알린다 — 거절은 알리지 않는 게 이 앱의 정서에 맞다.
+      const me = await this.prisma.user.findUnique({ where: { id: userId } });
+      await this.notifications.notify(req.fromUserId, userId, {
+        type: 'friend_accepted',
+        title: '친구가 되었어요',
+        body: `${me!.displayName}님이 친구 요청을 수락했어요`,
+        data: { fromNickname: me!.nickname },
+      });
     } else {
       await this.prisma.friendRequest.update({
         where: { id: reqId },

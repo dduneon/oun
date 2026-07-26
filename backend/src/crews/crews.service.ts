@@ -11,6 +11,7 @@ import { LedgerService } from '../wallet/ledger.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { workoutSummary } from '../social/social.service';
 import { StorageService } from '../storage/storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { crewLevelOf, crewLevelRewards } from './crew-level';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class CrewsService {
     private readonly ledger: LedgerService,
     private readonly achievements: AchievementsService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** 멤버십 확인. 아니면 403. */
@@ -223,7 +225,32 @@ export class CrewsService {
       create: { crewId, userId, type: 'request', status: 'pending' },
       update: { status: 'pending' }, // 이전에 거절됐어도 다시 신청 가능
     });
+
+    // 방장이 모르면 신청이 방치된다.
+    const applicant = await this.prisma.user.findUnique({ where: { id: userId } });
+    await this.notifyLeaders(crewId, userId, {
+      type: 'crew_join_request',
+      title: '크루 가입 신청이 왔어요',
+      body: `${applicant!.displayName}님이 ${crew.name}에 가입하고 싶어해요`,
+      data: { crewId, fromNickname: applicant!.nickname },
+    });
+
     return { requested: true };
+  }
+
+  /** 크루 방장 전원에게 알림(방장이 여럿일 수 있는 구조라 leader 전체). */
+  private async notifyLeaders(
+    crewId: string,
+    actorId: string,
+    input: { type: string; title: string; body: string; data?: Record<string, string> },
+  ) {
+    const leaders = await this.prisma.crewMember.findMany({
+      where: { crewId, role: 'leader' },
+      select: { userId: true },
+    });
+    await Promise.all(
+      leaders.map((l) => this.notifications.notify(l.userId, actorId, input)),
+    );
   }
 
   /** GET /crews/:id/join-requests — 방장이 보는 대기중 가입 신청. */
@@ -261,7 +288,7 @@ export class CrewsService {
       throw new ConflictException('이미 처리된 신청이에요');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (accept) {
         await this.admit(tx, crewId, req.userId);
       } else {
@@ -272,6 +299,19 @@ export class CrewsService {
       }
       return { accepted: accept };
     });
+
+    // 신청자는 결과를 기다리고 있으므로 거절도 알린다(친구 요청과 다른 점).
+    const crew = await this.prisma.crew.findUnique({ where: { id: crewId } });
+    await this.notifications.notify(req.userId, userId, {
+      type: 'crew_join_result',
+      title: accept ? '크루에 합류했어요' : '가입 신청이 거절됐어요',
+      body: accept
+        ? `${crew!.name}의 크루원이 되었어요`
+        : `${crew!.name} 가입 신청이 받아들여지지 않았어요`,
+      data: { crewId, accepted: String(accept) },
+    });
+
+    return result;
   }
 
   // ── 초대 (크루 → 유저) ────────────────────────────────────
@@ -298,6 +338,18 @@ export class CrewsService {
       },
       update: { status: 'pending', invitedBy: userId },
     });
+
+    const [crew, inviter] = await Promise.all([
+      this.prisma.crew.findUnique({ where: { id: crewId } }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    ]);
+    await this.notifications.notify(target.id, userId, {
+      type: 'crew_invite',
+      title: '크루 초대가 왔어요',
+      body: `${inviter!.displayName}님이 ${crew!.name}에 초대했어요`,
+      data: { crewId, fromNickname: inviter!.nickname },
+    });
+
     return { nickname: target.nickname, displayName: target.displayName };
   }
 
@@ -512,6 +564,14 @@ export class CrewsService {
       data: { postId, userId, text },
       include: { user: true },
     });
+
+    await this.notifications.notify(post.userId, userId, {
+      type: 'crew_comment',
+      title: '내 글에 댓글이 달렸어요',
+      body: `${c.user.displayName}: ${text}`,
+      data: { crewId: post.crewId, postId, fromNickname: c.user.nickname },
+    });
+
     return {
       id: c.id,
       author: { nickname: c.user.nickname, displayName: c.user.displayName, isMe: true },
@@ -533,6 +593,26 @@ export class CrewsService {
       await this.prisma.crewPostCheer.delete({ where: { id: existing.id } });
     } else {
       await this.prisma.crewPostCheer.create({ data: { postId, userId } });
+
+      // 토글이라 껐다 켜면 알림이 반복 생성된다. 이 사람이 이 글에 보낸
+      // 응원 알림이 이미 있으면 건너뛴다(취소해도 알림은 남는 쪽을 택함).
+      const actor = await this.prisma.user.findUnique({ where: { id: userId } });
+      await this.notifications.notifyOnce(
+        post.userId,
+        userId,
+        { path: 'cheerKey', value: `${postId}:${userId}` },
+        {
+          type: 'crew_post_cheer',
+          title: '내 글에 응원이 왔어요',
+          body: `${actor!.displayName}님이 응원했어요`,
+          data: {
+            crewId: post.crewId,
+            postId,
+            fromNickname: actor!.nickname,
+            cheerKey: `${postId}:${userId}`,
+          },
+        },
+      );
     }
     const cheers = await this.prisma.crewPostCheer.count({ where: { postId } });
     return { cheered: !existing, cheers };
