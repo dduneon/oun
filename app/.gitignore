@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase 설정 (푸시). 공개 저장소라 커밋하지 않는다 — 각자 Firebase 콘솔에서
+# 받아 아래 경로에 두면 된다. 자세한 건 BUILD.md "푸시(FCM) 설정" 참고.
+/ios/Runner/GoogleService-Info.plist
+/android/app/google-services.json

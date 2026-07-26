@@ -107,6 +107,29 @@ open -a Simulator
 
 ---
 
+## E. 푸시(FCM) 설정 — 설정 파일은 커밋되지 않는다
+
+공개 저장소라 Firebase 설정 파일 2개는 **gitignore**되어 있다. 클론 후 직접 배치해야 한다.
+
+| 파일 | 위치 | 없으면 |
+| :--- | :--- | :--- |
+| `GoogleService-Info.plist` | `app/ios/Runner/` | iOS 푸시만 비활성(앱은 정상 동작) |
+| `google-services.json` | `app/android/app/` | **Android 빌드 실패** (google-services 플러그인이 요구) |
+
+Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모두 ID는 `com.dduneon.oun`.
+
+- iOS는 파일을 두는 것만으로 부족하고 **Runner 타깃의 Resources 빌드 단계**에 들어가야 한다
+  (이미 `project.pbxproj`에 등록돼 있어 같은 경로에 두면 그대로 잡힌다).
+- Firebase 콘솔이 안내하는 **"SDK 추가(SPM)" · "초기화 코드 추가" 단계는 건너뛴다.**
+  네이티브 SDK는 CocoaPods로 이미 들어오고(`firebase_core`/`firebase_messaging`),
+  초기화는 Dart 쪽 `firebase_core`가 한다. SPM으로 또 추가하면 심볼이 중복돼 링크가 깨진다.
+- 서버 전송에는 별도로 `backend/.env`의 `FIREBASE_SERVICE_ACCOUNT`(서비스 계정 JSON)가 필요하다.
+  **이건 진짜 비밀키다 — 절대 커밋 금지.** 없으면 푸시만 no-op이고 인앱 알림함은 정상 동작한다.
+- 실기기 푸시에는 Xcode의 **Push Notifications capability**(`Runner.entitlements`)와
+  Firebase에 업로드한 **APNs 인증 키(.p8)** 가 필요하다. 시뮬레이터는 토큰이 잡히지 않는 게 정상.
+
+---
+
 ## 왜 이렇게 하나 (Unity 6.5 + Flutter 3.44 조합에서 겪은 벽)
 
 | 증상 | 원인 | 해결 |
