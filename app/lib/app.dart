@@ -5,6 +5,7 @@ import 'features/auth/login_screen.dart';
 import 'router.dart';
 import 'shared/api/providers.dart';
 import 'shared/global_keys.dart';
+import 'shared/push/push_messaging.dart';
 import 'theme/app_theme.dart';
 import 'unity/unity_stage.dart';
 
@@ -14,6 +15,19 @@ class OunApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authProvider);
+
+    // 로그인/로그아웃에 맞춰 푸시 토큰을 등록·해제한다.
+    // (Firebase 미설정이면 start()가 조용히 no-op)
+    ref.listen(authProvider, (prev, next) {
+      if (prev?.status == next.status) return;
+      final push = ref.read(pushMessagingProvider);
+      if (next.status == AuthStatus.loggedIn) {
+        push.start();
+      } else if (next.status == AuthStatus.loggedOut) {
+        push.stop();
+      }
+    });
+
     return MaterialApp.router(
       title: '오운',
       debugShowCheckedModeBanner: false,
