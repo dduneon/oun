@@ -649,6 +649,8 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
 
   @override
   Widget build(BuildContext context) {
+    // 오늘 이 친구에게 보낼 응원을 다 썼으면 버튼을 잠근다(서버 계산값).
+    final soldOut = friend.cheersLeftToday <= 0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
@@ -704,14 +706,14 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
                   shape: const CircleBorder(
                       side: BorderSide(color: OunColors.cardBorder)),
                   child: InkWell(
-                    onTap: _sending ? null : () => _cheer(context),
+                    onTap: _sending || soldOut ? null : () => _cheer(context),
                     customBorder: const CircleBorder(),
                     child: SizedBox(
                       width: 28,
                       height: 28,
                       child: Icon(Icons.add_rounded,
                           size: 16,
-                          color: _sending
+                          color: _sending || soldOut
                               ? OunColors.textFaint
                               : OunColors.textMuted),
                     ),

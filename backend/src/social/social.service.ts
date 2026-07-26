@@ -72,11 +72,16 @@ export class SocialService {
     });
 
     const todayStart = kstDateOnly(new Date());
+    const left = await this.cheersLeftToday(
+      userId,
+      rows.map((r) => r.friendId),
+    );
     return {
       items: rows.map((r) => {
         const f = r.friend;
         const latest = f.workouts[0] ?? null;
         return {
+          cheersLeftToday: left.get(f.id) ?? CHEER_DAILY_LIMIT_PER_TARGET,
           nickname: f.nickname,
           displayName: f.displayName,
           gender: f.gender,
@@ -200,8 +205,35 @@ export class SocialService {
     return { accepted: accept };
   }
 
+  /**
+   * 오늘(KST) 내가 이 사람들에게 응원을 몇 번 더 보낼 수 있는지.
+   * 클라이언트가 세지 않도록 서버가 계산해 내려준다(제한의 근거는 서버).
+   */
+  private async cheersLeftToday(
+    userId: string,
+    targetIds: string[],
+  ): Promise<Map<string, number>> {
+    if (targetIds.length === 0) return new Map();
+    const rows = await this.prisma.cheer.groupBy({
+      by: ['toUserId'],
+      where: {
+        fromUserId: userId,
+        toUserId: { in: targetIds },
+        createdAt: { gte: kstDateOnly(new Date()) },
+      },
+      _count: { _all: true },
+    });
+    const sent = new Map(rows.map((r) => [r.toUserId, r._count._all]));
+    return new Map(
+      targetIds.map((id) => [
+        id,
+        Math.max(0, CHEER_DAILY_LIMIT_PER_TARGET - (sent.get(id) ?? 0)),
+      ]),
+    );
+  }
+
   /** GET /users/:nickname/home — 친구 홈(주간 스트립 + 스탯 + 최근 활동). */
-  async friendHome(nickname: string) {
+  async friendHome(nickname: string, viewerId: string) {
     const user = await this.prisma.user.findUnique({
       where: { nickname },
       include: { streak: true, characterStat: true },
@@ -240,6 +272,11 @@ export class SocialService {
       weekCount: weekDone.filter(Boolean).length,
       weekMinutes: weekLogs.reduce((s, w) => s + Math.floor(w.durationSec / 60), 0),
       recent: recent.map(workoutSummary),
+      cheersLeftToday:
+        user.id === viewerId
+          ? 0 // 나 자신은 응원할 수 없다
+          : (await this.cheersLeftToday(viewerId, [user.id])).get(user.id) ?? 0,
+      cheerDailyLimit: CHEER_DAILY_LIMIT_PER_TARGET,
     };
   }
 

@@ -40,6 +40,22 @@ describe('오운 받은 응원·알림 (e2e)', () => {
   const asSender = () => ({ Authorization: `Bearer ${sender}` });
   const asReceiver = () => ({ Authorization: `Bearer ${receiver}` });
 
+  /**
+   * 이 수신자에게 쌓인 응원의 시각을 1분 뒤로 물린다.
+   * 5초 쿨다운을 기다리지 않고 연속 케이스를 검증하기 위한 것 —
+   * 하루 상한(날짜 경계)은 건드리지 않는다.
+   */
+  async function rewindCheers() {
+    const { PrismaClient } = await import('@prisma/client');
+    const p = new PrismaClient();
+    await p.$executeRawUnsafe(
+      `UPDATE "Cheer" SET "createdAt" = "createdAt" - interval '1 minute'
+       WHERE "toUserId" = (SELECT id FROM "User" WHERE nickname = $1)`,
+      receiverNick,
+    );
+    await p.$disconnect();
+  }
+
   it('응원을 받으면 받은 목록·미확인 수·알림함에 모두 남는다', async () => {
     const before = await request(app.getHttpServer())
       .get('/cheers/received')
@@ -112,7 +128,15 @@ describe('오운 받은 응원·알림 (e2e)', () => {
   });
 
   it('연속으로 보내면 쿨다운에 걸린다', async () => {
-    // 바로 앞 테스트에서 방금 응원을 보낸 상태 → 5초 안에 재시도는 거절.
+    // 앞 테스트와의 실제 경과 시간에 기대지 않도록, 이 테스트 안에서
+    // 직접 보낸 직후 재시도한다(그래야 느린 머신에서도 결과가 같다).
+    await rewindCheers();
+    await request(app.getHttpServer())
+      .post(`/users/${receiverNick}/cheer`)
+      .set(asSender())
+      .send({ emoji: '👏' })
+      .expect(201);
+
     const res = await request(app.getHttpServer())
       .post(`/users/${receiverNick}/cheer`)
       .set(asSender())
@@ -122,21 +146,9 @@ describe('오운 받은 응원·알림 (e2e)', () => {
   });
 
   it('한 사람에게는 하루 5번까지만 보낼 수 있다', async () => {
-    // 앞선 테스트에서 1번 성공했으므로 4번 더 보내면 상한에 닿는다.
-    // (쿨다운을 피하려고 응원 시각을 과거로 되돌리며 진행)
-    const rewind = async () => {
-      const { PrismaClient } = await import('@prisma/client');
-      const p = new PrismaClient();
-      await p.$executeRawUnsafe(
-        `UPDATE "Cheer" SET "createdAt" = "createdAt" - interval '1 minute'
-         WHERE "toUserId" = (SELECT id FROM "User" WHERE nickname = $1)`,
-        receiverNick,
-      );
-      await p.$disconnect();
-    };
-
-    for (let i = 0; i < 4; i++) {
-      await rewind();
+    // 여기까지 2번 보냈다(첫 테스트 1 + 쿨다운 테스트 1). 3번 더 = 5.
+    for (let i = 0; i < 3; i++) {
+      await rewindCheers();
       await request(app.getHttpServer())
         .post(`/users/${receiverNick}/cheer`)
         .set(asSender())
@@ -145,7 +157,7 @@ describe('오운 받은 응원·알림 (e2e)', () => {
     }
 
     // 6번째는 하루 상한에 걸린다(쿨다운이 아니라 상한 메시지).
-    await rewind();
+    await rewindCheers();
     const res = await request(app.getHttpServer())
       .post(`/users/${receiverNick}/cheer`)
       .set(asSender())
@@ -165,6 +177,23 @@ describe('오운 받은 응원·알림 (e2e)', () => {
       .set(asReceiver())
       .expect(200);
     expect(notis.body.items.filter((n: any) => n.type === 'cheer')).toHaveLength(5);
+  });
+
+  it('남은 응원 횟수를 서버가 내려준다', async () => {
+    // 앞 테스트에서 이 대상에게 5번을 다 썼다.
+    const home = await request(app.getHttpServer())
+      .get(`/users/${receiverNick}/home`)
+      .set(asSender())
+      .expect(200);
+    expect(home.body.cheersLeftToday).toBe(0);
+    expect(home.body.cheerDailyLimit).toBe(5);
+
+    // 아직 아무에게도 안 보낸 쪽에서 보면 가득 차 있다.
+    const fresh = await request(app.getHttpServer())
+      .get(`/users/${senderNick}/home`)
+      .set(asReceiver())
+      .expect(200);
+    expect(fresh.body.cheersLeftToday).toBe(5);
   });
 
   it('푸시 토큰을 등록·해제할 수 있다', async () => {

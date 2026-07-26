@@ -58,8 +58,11 @@ export class SocialController {
   }
 
   @Get('users/:nickname/home')
-  friendHome(@Param('nickname') nickname: string) {
-    return this.social.friendHome(nickname);
+  friendHome(
+    @CurrentUser() user: AuthUser,
+    @Param('nickname') nickname: string,
+  ) {
+    return this.social.friendHome(nickname, user.userId);
   }
 
   @Post('users/:nickname/cheer')

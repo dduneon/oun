@@ -227,6 +227,7 @@ class Friend {
     required this.streakCurrent,
     required this.workedOutToday,
     required this.reactions,
+    required this.cheersLeftToday,
     this.latestWorkout,
   });
 
@@ -236,6 +237,9 @@ class Friend {
   final int streakCurrent;
   final bool workedOutToday;
   final List<String> reactions;
+
+  /// 오늘 이 친구에게 더 보낼 수 있는 응원 횟수(0이면 버튼 비활성).
+  final int cheersLeftToday;
   final Workout? latestWorkout;
 
   factory Friend.fromJson(Map<String, dynamic> j) => Friend(
@@ -245,6 +249,7 @@ class Friend {
         streakCurrent: j['streakCurrent'] as int,
         workedOutToday: j['workedOutToday'] as bool,
         reactions: (j['reactions'] as List).cast<String>(),
+        cheersLeftToday: j['cheersLeftToday'] as int? ?? 0,
         latestWorkout: j['latestWorkout'] == null
             ? null
             : Workout.fromJson(j['latestWorkout'] as Map<String, dynamic>),
@@ -381,6 +386,8 @@ class FriendHome {
     required this.weekCount,
     required this.weekMinutes,
     required this.recent,
+    required this.cheersLeftToday,
+    required this.cheerDailyLimit,
   });
 
   final String nickname;
@@ -393,6 +400,10 @@ class FriendHome {
   final int weekMinutes;
   final List<Workout> recent;
 
+  /// 오늘 이 친구에게 더 보낼 수 있는 응원 횟수(서버 계산).
+  final int cheersLeftToday;
+  final int cheerDailyLimit;
+
   factory FriendHome.fromJson(Map<String, dynamic> j) => FriendHome(
         nickname: j['nickname'] as String,
         displayName: j['displayName'] as String,
@@ -404,6 +415,8 @@ class FriendHome {
         weekMinutes: j['weekMinutes'] as int,
         recent:
             (j['recent'] as List).map((e) => Workout.fromJson(e as Map<String, dynamic>)).toList(),
+        cheersLeftToday: j['cheersLeftToday'] as int? ?? 0,
+        cheerDailyLimit: j['cheerDailyLimit'] as int? ?? 0,
       );
 }
 

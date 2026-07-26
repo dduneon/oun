@@ -78,7 +78,12 @@ class FriendHomeScreen extends ConsumerWidget {
                   '${w.minutes}분',
                 ),
             const SizedBox(height: 24),
-            _CheerButton(nickname: nickname, displayName: displayName),
+            _CheerButton(
+              nickname: nickname,
+              displayName: displayName,
+              cheersLeft: home.cheersLeftToday,
+              dailyLimit: home.cheerDailyLimit,
+            ),
           ],
         ),
       ),
@@ -190,10 +195,19 @@ class FriendHomeScreen extends ConsumerWidget {
 /// 응원 보내기 버튼. 전송 중에는 비활성화한다 — 연타하면 그만큼 상대 폰에
 /// 푸시가 나가기 때문(서버도 하루 상한을 두지만 실수 연타는 여기서 막는다).
 class _CheerButton extends ConsumerStatefulWidget {
-  const _CheerButton({required this.nickname, required this.displayName});
+  const _CheerButton({
+    required this.nickname,
+    required this.displayName,
+    required this.cheersLeft,
+    required this.dailyLimit,
+  });
 
   final String nickname;
   final String displayName;
+
+  /// 오늘 더 보낼 수 있는 횟수(서버 계산). 0이면 버튼을 잠근다.
+  final int cheersLeft;
+  final int dailyLimit;
 
   @override
   ConsumerState<_CheerButton> createState() => _CheerButtonState();
@@ -209,6 +223,8 @@ class _CheerButtonState extends ConsumerState<_CheerButton> {
       await ref.read(apiClientProvider).cheer(widget.nickname, emoji: '❤️');
       ref.invalidate(friendsProvider);
       ref.invalidate(questsProvider);
+      // 남은 횟수를 다시 받아 버튼 표시를 갱신한다.
+      ref.invalidate(friendHomeProvider(widget.nickname));
       if (mounted) {
         OunToast.show(context, '${widget.displayName}님에게 응원을 보냈어요',
             kind: OunToastKind.cheer);
@@ -222,22 +238,36 @@ class _CheerButtonState extends ConsumerState<_CheerButton> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        style: FilledButton.styleFrom(
-          backgroundColor: OunColors.tabAccent,
-          foregroundColor: OunColors.onTabAccent,
-          disabledBackgroundColor: OunColors.cardBorder,
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    final soldOut = widget.cheersLeft <= 0;
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: OunColors.tabAccent,
+              foregroundColor: OunColors.onTabAccent,
+              disabledBackgroundColor: OunColors.cardBorder,
+              disabledForegroundColor: OunColors.textFaint,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: _sending || soldOut ? null : _cheer,
+            icon: const Icon(Icons.favorite_rounded, size: 18),
+            label: Text(soldOut ? '오늘 응원을 다 보냈어요' : '응원 보내기',
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700)),
+          ),
         ),
-        onPressed: _sending ? null : _cheer,
-        icon: const Icon(Icons.favorite_rounded, size: 18),
-        label: const Text('응원 보내기',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          soldOut
+              ? '내일 다시 보낼 수 있어요'
+              : '오늘 ${widget.cheersLeft}번 더 보낼 수 있어요',
+          style: const TextStyle(fontSize: 12, color: OunColors.textMuted),
+        ),
+      ],
     );
   }
 }
