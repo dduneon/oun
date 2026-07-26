@@ -12,6 +12,7 @@ import { ShopModule } from './shop/shop.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { GameModule } from './game/game.module';
 import { SocialModule } from './social/social.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { CrewsModule } from './crews/crews.module';
 import { StorageModule } from './storage/storage.module';
 import { HealthController } from './health.controller';
@@ -30,6 +31,7 @@ import { HealthController } from './health.controller';
     ShopModule,
     AchievementsModule,
     SocialModule,
+    NotificationsModule,
     CrewsModule,
     StorageModule,
   ],

@@ -48,6 +48,8 @@ model User {
   friendReqReceived FriendRequest[] @relation("FriendReqTo")
   cheersSent       Cheer[]           @relation("CheerFrom")
   cheersReceived   Cheer[]           @relation("CheerTo")
+  notifications    Notification[]
+  deviceTokens     DeviceToken[]
   crewMemberships  CrewMember[]
   crewJoinRequests CrewJoinRequest[]
   crewPosts        CrewPost[]
@@ -400,12 +402,53 @@ model Cheer {
   toUserId   String
   emoji      String   @default("❤️")
   createdAt  DateTime @default(now())
+  // 받은 사람이 확인한 시각. null이면 아직 못 본 응원(홈 캐릭터 반응 트리거).
+  seenAt     DateTime?
 
   from User @relation("CheerFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
   to   User @relation("CheerTo", fields: [toUserId], references: [id], onDelete: Cascade)
 
   @@index([toUserId, createdAt])
+  @@index([toUserId, seenAt])
   @@index([fromUserId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// 알림: 인앱 알림함(원본) + 푸시 전송 대상 기기
+// ─────────────────────────────────────────────────────────────
+
+// 인앱 알림 한 건. 푸시는 이 행을 근거로 "추가 전송"될 뿐이라,
+// 푸시가 실패하거나 꺼져 있어도 알림함에는 남는다.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // 'cheer' | 'friend_request' | 'crew_join' …
+  title     String
+  body      String
+  // 탭했을 때 이동할 곳 등 부가 정보(발신자 닉네임 등).
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+// 푸시를 받을 기기 토큰. 같은 토큰이 다른 유저에게 재등록될 수 있어
+// token을 unique로 두고 등록 시 소유자를 옮긴다(기기 공유·재로그인).
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String // ios | android
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─────────────────────────────────────────────────────────────

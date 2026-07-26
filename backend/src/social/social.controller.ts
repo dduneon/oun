@@ -70,4 +70,15 @@ export class SocialController {
   ) {
     return this.social.cheer(user.userId, nickname, dto.emoji);
   }
+
+  // 내가 받은 응원 (보낸 쪽만 있던 기능의 수신자 측)
+  @Get('cheers/received')
+  receivedCheers(@CurrentUser() user: AuthUser) {
+    return this.social.receivedCheers(user.userId);
+  }
+
+  @Post('cheers/received/seen')
+  markCheersSeen(@CurrentUser() user: AuthUser) {
+    return this.social.markCheersSeen(user.userId);
+  }
 }

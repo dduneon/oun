@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { QuestsService } from '../quests/quests.service';
 import { AchievementsService } from '../achievements/achievements.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { statLevel } from '../game/leveling';
 import { kstDateOnly, kstWeekStart } from '../common/time';
 
@@ -41,6 +42,7 @@ export class SocialService {
     private readonly prisma: PrismaService,
     private readonly quests: QuestsService,
     private readonly achievements: AchievementsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** GET /friends — 친구 목록 + 최근 활동 + 받은 반응 이모지. */
@@ -217,19 +219,83 @@ export class SocialService {
     };
   }
 
-  /** POST /users/:nickname/cheer — 응원 보내기(퀘스트·업적 반영). */
+  /** POST /users/:nickname/cheer — 응원 보내기(퀘스트·업적 + 받는 사람 알림). */
   async cheer(userId: string, nickname: string, emoji?: string) {
-    const target = await this.prisma.user.findUnique({ where: { nickname } });
+    const [target, sender] = await Promise.all([
+      this.prisma.user.findUnique({ where: { nickname } }),
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    ]);
     if (!target) throw new NotFoundException('해당 닉네임의 유저가 없어요');
     if (target.id === userId) throw new BadRequestException('나 자신은 응원할 수 없어요');
 
-    return this.prisma.$transaction(async (tx) => {
+    const mark = emoji ?? '❤️';
+    const body = `${sender!.displayName}님이 응원을 보냈어요 ${mark}`;
+
+    await this.prisma.$transaction(async (tx) => {
       await tx.cheer.create({
-        data: { fromUserId: userId, toUserId: target.id, emoji: emoji ?? '❤️' },
+        data: { fromUserId: userId, toUserId: target.id, emoji: mark },
       });
       await this.quests.onCheer(tx, userId);
       await this.achievements.evaluate(tx, userId);
-      return { ok: true };
+      // 인앱 알림은 트랜잭션 안에서 같이 커밋 — 응원만 남고 알림이 새는 일 방지.
+      await this.notifications.create(tx, target.id, {
+        type: 'cheer',
+        title: '응원이 도착했어요',
+        body,
+        data: { fromNickname: sender!.nickname, emoji: mark },
+      });
     });
+
+    // 푸시는 커밋 후 fire-and-forget (실패해도 응원 자체는 성공).
+    this.notifications.pushLater(target.id, {
+      title: '응원이 도착했어요',
+      body,
+      data: { type: 'cheer', fromNickname: sender!.nickname },
+    });
+
+    return { ok: true };
+  }
+
+  /**
+   * GET /cheers/received — 내가 받은 응원.
+   *
+   * `unseen`은 아직 확인하지 않은 응원 수로, 홈 캐릭터 반응 트리거로 쓰인다.
+   * 조회만으로는 확인 처리하지 않는다(반응을 재생한 뒤 앱이 명시적으로 seen 호출).
+   */
+  async receivedCheers(userId: string) {
+    const [rows, unseen] = await Promise.all([
+      this.prisma.cheer.findMany({
+        where: { toUserId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        include: {
+          from: { select: { nickname: true, displayName: true, gender: true } },
+        },
+      }),
+      this.prisma.cheer.count({ where: { toUserId: userId, seenAt: null } }),
+    ]);
+
+    return {
+      unseen,
+      total: rows.length,
+      items: rows.map((c) => ({
+        id: c.id,
+        emoji: c.emoji,
+        createdAt: c.createdAt,
+        seen: c.seenAt !== null,
+        fromNickname: c.from.nickname,
+        fromDisplayName: c.from.displayName,
+        fromGender: c.from.gender,
+      })),
+    };
+  }
+
+  /** POST /cheers/received/seen — 받은 응원 전체를 확인 처리. */
+  async markCheersSeen(userId: string) {
+    await this.prisma.cheer.updateMany({
+      where: { toUserId: userId, seenAt: null },
+      data: { seenAt: new Date() },
+    });
+    return { ok: true, unseen: 0 };
   }
 }
