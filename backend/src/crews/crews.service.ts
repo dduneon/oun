@@ -44,11 +44,18 @@ export class CrewsService {
 
   /** 크루에 새 멤버를 넣고, 관련 대기중 신청/초대를 정리한다(멱등). */
   private async admit(tx: Prisma.TransactionClient, crewId: string, userId: string) {
+    const already = await tx.crewMember.findUnique({
+      where: { crewId_userId: { crewId, userId } },
+    });
     await tx.crewMember.upsert({
       where: { crewId_userId: { crewId, userId } },
       create: { crewId, userId },
       update: {},
     });
+    // 처음 들어온 경우에만 피드에 합류 글을 남긴다(멱등 재호출 시 중복 방지).
+    if (!already) {
+      await tx.crewPost.create({ data: { crewId, userId, kind: 'join' } });
+    }
     // 같은 크루에 남아있는 이 유저의 대기중 신청/초대는 모두 처리 완료로.
     await tx.crewJoinRequest.updateMany({
       where: { crewId, userId, status: 'pending' },
@@ -101,7 +108,14 @@ export class CrewsService {
   async myCrews(userId: string) {
     const memberships = await this.prisma.crewMember.findMany({
       where: { userId },
-      include: { crew: { include: { _count: { select: { members: true, posts: true } } } } },
+      include: {
+        crew: {
+          include: {
+            // 레벨은 유저가 쓴 글만 센다(합류 시스템 글 제외).
+            _count: { select: { members: true, posts: { where: { kind: 'post' } } } },
+          },
+        },
+      },
       orderBy: { joinedAt: 'asc' },
     });
 
@@ -131,7 +145,7 @@ export class CrewsService {
       where: { id: crewId },
       include: {
         members: { include: { user: true }, orderBy: { joinedAt: 'asc' } },
-        _count: { select: { posts: true } },
+        _count: { select: { posts: { where: { kind: 'post' } } } },
       },
     });
     if (!crew) throw new NotFoundException('크루를 찾을 수 없어요');
@@ -182,7 +196,9 @@ export class CrewsService {
         id: { notIn: myCrewIds },
         ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}),
       },
-      include: { _count: { select: { members: true, posts: true } } },
+      include: {
+        _count: { select: { members: true, posts: { where: { kind: 'post' } } } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -468,6 +484,7 @@ export class CrewsService {
   ) {
     const post = await this.prisma.crewPost.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException('글을 찾을 수 없어요');
+    if (post.kind !== 'post') throw new ForbiddenException('수정할 수 없는 글이에요');
     if (post.userId !== userId) throw new ForbiddenException('내 글만 수정할 수 있어요');
 
     const message = input.message?.trim() || null;
@@ -504,6 +521,7 @@ export class CrewsService {
   async deletePost(postId: string, userId: string) {
     const post = await this.prisma.crewPost.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException('글을 찾을 수 없어요');
+    if (post.kind !== 'post') throw new ForbiddenException('삭제할 수 없는 글이에요');
     if (post.userId !== userId) throw new ForbiddenException('내 글만 삭제할 수 있어요');
 
     await this.prisma.crewPost.delete({ where: { id: postId } });
@@ -536,6 +554,7 @@ export class CrewsService {
         const w = p.workoutLogId ? workoutMap.get(p.workoutLogId) : undefined;
         return {
           id: p.id,
+          kind: p.kind, // 'post' | 'join'
           author: {
             nickname: p.user.nickname,
             displayName: p.user.displayName,
@@ -580,7 +599,10 @@ export class CrewsService {
 
     await this.notifications.notify(post.userId, userId, {
       type: 'crew_comment',
-      title: '내 글에 댓글이 달렸어요',
+      title:
+        post.kind === 'join'
+          ? '합류 소식에 댓글이 달렸어요'
+          : '내 글에 댓글이 달렸어요',
       body: `${c.user.displayName}: ${text}`,
       data: {
         crewId: post.crewId,
@@ -625,7 +647,10 @@ export class CrewsService {
         { path: 'cheerKey', value: `${postId}:${userId}` },
         {
           type: 'crew_post_cheer',
-          title: '내 글에 응원이 왔어요',
+          title:
+            post.kind === 'join'
+              ? '합류 소식에 응원이 왔어요'
+              : '내 글에 응원이 왔어요',
           body: `${actor!.displayName}님이 응원했어요`,
           data: {
             crewId: post.crewId,

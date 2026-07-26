@@ -253,5 +253,45 @@ describe('오운 소셜·크루 (e2e)', () => {
       .set(sAuth)
       .expect(200);
     expect(detail.body.members).toHaveLength(2);
+
+    // 합류하면 피드에 시스템 글이 남고, 응원·댓글은 일반 글과 똑같이 된다.
+    const feed = await request(app.getHttpServer())
+      .get(`/crews/${crewId}/feed`)
+      .set(sAuth)
+      .expect(200);
+    const joinPost = feed.body.items.find((p: any) => p.kind === 'join');
+    expect(joinPost).toBeTruthy();
+    expect(joinPost.author.isMe).toBe(false); // 방장이 보면 새 크루원의 글
+    expect(joinPost.workout).toBeNull();
+
+    await request(app.getHttpServer())
+      .post(`/crews/posts/${joinPost.id}/cheer`)
+      .set(sAuth)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/crews/posts/${joinPost.id}/comments`)
+      .set(sAuth)
+      .send({ text: '어서 와요!' })
+      .expect(201);
+
+    const after = await request(app.getHttpServer())
+      .get(`/crews/${crewId}/feed`)
+      .set(auth())
+      .expect(200);
+    const mine = after.body.items.find((p: any) => p.id === joinPost.id);
+    expect(mine.cheers).toBe(1);
+    expect(mine.comments).toHaveLength(1);
+    expect(mine.author.isMe).toBe(true);
+
+    // 시스템 글은 본인 글이어도 수정·삭제 불가.
+    await request(app.getHttpServer())
+      .patch(`/crews/posts/${joinPost.id}`)
+      .set(auth())
+      .send({ message: '바꿔보기' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .delete(`/crews/posts/${joinPost.id}`)
+      .set(auth())
+      .expect(403);
   });
 });

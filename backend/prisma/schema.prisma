@@ -504,9 +504,12 @@ model CrewMember {
 }
 
 // 크루 피드 글. 유저가 직접 올린다 — 자기 운동 기록을 태그(선택)하거나 글만.
-// 크루 레벨의 '누적 활동' = 이 글 수.
+// 크루 레벨의 '누적 활동' = 이 글 수(kind='post'만; 시스템 글은 제외).
 model CrewPost {
-  id           String   @id @default(cuid())
+  id String @id @default(cuid())
+  // 'post' = 유저가 쓴 글, 'join' = 새 크루원 합류 알림(시스템 글, 수정·삭제 불가).
+  // 시스템 글도 같은 테이블이라 응원·댓글이 그대로 붙는다.
+  kind         String   @default("post")
   crewId       String
   userId       String
   workoutLogId String? // 태그한 운동(선택). null이면 글만.

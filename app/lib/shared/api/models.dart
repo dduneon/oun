@@ -665,11 +665,15 @@ class CrewPostData {
     required this.cheers,
     required this.cheered,
     required this.comments,
+    this.kind = 'post',
     this.message,
     this.workout,
   });
 
   final String id;
+
+  /// 'post' = 크루원이 쓴 글, 'join' = 새 크루원 합류 소식(시스템 글).
+  final String kind;
   final PostAuthor author;
   final DateTime createdAt;
   final String? message;
@@ -678,8 +682,12 @@ class CrewPostData {
   bool cheered;
   final List<CrewCommentData> comments;
 
+  /// 합류 소식(시스템 글) — 수정·삭제는 못 하고 응원·댓글만 된다.
+  bool get isJoin => kind == 'join';
+
   factory CrewPostData.fromJson(Map<String, dynamic> j) => CrewPostData(
         id: j['id'] as String,
+        kind: (j['kind'] as String?) ?? 'post',
         author: PostAuthor.fromJson(j['author'] as Map<String, dynamic>),
         createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
         message: j['message'] as String?,

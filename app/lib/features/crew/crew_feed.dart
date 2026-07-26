@@ -296,6 +296,13 @@ class _CrewPostCardState extends ConsumerState<CrewPostCard> {
   Widget build(BuildContext context) {
     final p = widget.post;
     final w = p.workout;
+    if (p.isJoin) {
+      return _JoinPostCard(
+        post: p,
+        onTap: widget.onTap,
+        onCheer: _toggleCheer,
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -412,6 +419,107 @@ class _CrewPostCardState extends ConsumerState<CrewPostCard> {
   }
 }
 
+/// 합류 소식 카드 — 새 크루원이 들어오면 서버가 피드에 남기는 시스템 글.
+/// 운동 글과 톤을 구분하되(따뜻한 카드색 + 환영 문구), 응원·댓글은 똑같이 된다.
+class _JoinPostCard extends StatelessWidget {
+  const _JoinPostCard(
+      {required this.post, required this.onTap, required this.onCheer});
+  final CrewPostData post;
+  final VoidCallback onTap;
+  final VoidCallback onCheer;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = post;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: OunColors.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: OunColors.cardBorder),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    PostAvatar(
+                        name: p.author.displayName,
+                        nickname: p.author.nickname,
+                        size: 34),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(joinPostHeadline(p),
+                              style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: OunColors.textPrimary)),
+                          Text(relativeTime(p.createdAt),
+                              style: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: OunColors.textFaint)),
+                        ],
+                      ),
+                    ),
+                    const WorkoutChip(
+                        icon: Icons.waving_hand_rounded, label: '합류'),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                Text(
+                    p.author.isMe
+                        ? '앞으로 잘 부탁드려요!'
+                        : '반갑게 맞아주세요 · 응원 한 번 눌러주기',
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.5,
+                        color: OunColors.textMuted)),
+                const SizedBox(height: 11),
+                Container(
+                  padding: const EdgeInsets.only(top: 10),
+                  decoration: const BoxDecoration(
+                    border:
+                        Border(top: BorderSide(color: OunColors.cardBorder)),
+                  ),
+                  child: Row(
+                    children: [
+                      CheerButton(
+                          cheered: p.cheered, count: p.cheers, onTap: onCheer),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.mode_comment_outlined,
+                          size: 15, color: OunColors.textMuted),
+                      const SizedBox(width: 5),
+                      Text('댓글 ${p.comments.length}',
+                          style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: OunColors.textMuted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 합류 소식 한 줄 문구.
+String joinPostHeadline(CrewPostData p) => p.author.isMe
+    ? '내가 크루에 합류했어요!'
+    : '${p.author.displayName}님이 크루에 합류했어요!';
+
 /// 글 상세: 기록 상세 + 댓글 스레드 + 입력창. 댓글은 서버에 저장된다.
 class CrewPostDetailScreen extends ConsumerStatefulWidget {
   const CrewPostDetailScreen(
@@ -483,13 +591,14 @@ class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         foregroundColor: OunColors.textPrimary,
-        title: Text('${p.author.displayName}님의 기록',
+        title: Text(p.isJoin ? '합류 소식' : '${p.author.displayName}님의 기록',
             style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: OunColors.textPrimary)),
         actions: [
-          if (p.author.isMe)
+          // 합류 소식은 시스템 글이라 수정·삭제가 없다.
+          if (p.author.isMe && !p.isJoin)
             _PostMenu(
               onEdit: () async {
                 if (await editCrewPostFlow(context, ref, widget.crewId, p) &&
@@ -523,7 +632,10 @@ class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(p.author.displayName,
+                          Text(
+                              p.isJoin
+                                  ? joinPostHeadline(p)
+                                  : p.author.displayName,
                               style: const TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
@@ -534,12 +646,26 @@ class _CrewPostDetailScreenState extends ConsumerState<CrewPostDetailScreen> {
                         ],
                       ),
                     ),
-                    if (w != null)
+                    if (p.isJoin)
+                      const WorkoutChip(
+                          icon: Icons.waving_hand_rounded, label: '합류')
+                    else if (w != null)
                       WorkoutChip(
                           icon: sportIcons[w.sport] ?? Icons.sports_gymnastics,
                           label: workoutChipLabel(w)),
                   ],
                 ),
+                if (p.isJoin) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                      p.author.isMe
+                          ? '앞으로 잘 부탁드려요!'
+                          : '반갑게 맞아주세요 · 응원과 인사를 남겨보세요',
+                      style: const TextStyle(
+                          fontSize: 13.5,
+                          height: 1.5,
+                          color: OunColors.textMuted)),
+                ],
                 if (p.message != null && p.message!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(p.message!,
