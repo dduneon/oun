@@ -28,6 +28,14 @@ docker run --rm \
   --env-file .env \
   "$IMAGE" ./node_modules/.bin/prisma migrate deploy
 
+# 상점/퀘스트/업적 정의를 채운다(upsert라 매 배포마다 돌려도 안전하고,
+# 정의가 바뀌면 함께 갱신된다). 데모 유저는 들어가지 않는다.
+echo "== 정의 시드 =="
+docker run --rm \
+  --network "$NETWORK" \
+  --env-file .env \
+  "$IMAGE" node dist/seed/main.js
+
 echo "== 컨테이너 교체 =="
 docker stop "$NAME" 2>/dev/null || true
 docker rm "$NAME" 2>/dev/null || true
