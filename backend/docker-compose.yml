@@ -1,19 +1,24 @@
-# 오운 로컬 개발 인프라. Postgres는 필수, Redis는 다음 단계(세션/실시간) 대비로 띄워둔다.
+# 오운 로컬 개발 인프라. MariaDB는 필수, Redis는 다음 단계(세션/실시간) 대비로 띄워둔다.
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: oun-postgres
+  mariadb:
+    image: mariadb:11
+    container_name: oun-mariadb
     restart: unless-stopped
+    # 한글(이모지 포함)을 담으려면 서버 기본 문자셋을 utf8mb4로 강제해야 한다.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
-      POSTGRES_USER: oun
-      POSTGRES_PASSWORD: oun_dev_pw
-      POSTGRES_DB: oun
+      MARIADB_DATABASE: oun
+      MARIADB_USER: oun
+      MARIADB_PASSWORD: oun_dev_pw
+      MARIADB_ROOT_PASSWORD: oun_dev_root_pw
     ports:
-      - '5432:5432'
+      - '3306:3306'
     volumes:
-      - oun_pgdata:/var/lib/postgresql/data
+      - oun_mariadata:/var/lib/mysql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U oun -d oun']
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -43,6 +48,6 @@ services:
       - oun_miniodata:/data
 
 volumes:
-  oun_pgdata:
+  oun_mariadata:
   oun_redisdata:
   oun_miniodata:

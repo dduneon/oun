@@ -1,13 +1,13 @@
 # 오운(Oun) 백엔드
 
-NestJS + Prisma + PostgreSQL API 서버. 구현된 Flutter 앱 화면이 필요로 하는 데이터를 제공한다.
+NestJS + Prisma + MariaDB API 서버. 구현된 Flutter 앱 화면이 필요로 하는 데이터를 제공한다.
 **서버가 재화·상태의 source of truth**이며, 클라이언트는 표현만 담당한다.
 
 ## 빠른 시작
 
 ```bash
 cp .env.example .env
-docker compose up -d          # Postgres + Redis
+docker compose up -d          # MariaDB + Redis
 npm install
 npx prisma migrate dev        # 스키마 적용
 npm run prisma:seed           # 상점/퀘스트/업적 정의 시드
@@ -16,7 +16,7 @@ npm run start:dev             # http://localhost:3000
 
 ## 스택
 - NestJS (모듈별 도메인 분리) + REST
-- Prisma ORM / PostgreSQL 15
+- Prisma ORM / MariaDB 11 (`mysql` 프로바이더)
 - JWT (access/refresh), 카카오 로그인 + 개발용 dev 로그인 스텁
 - Redis (다음 단계: 세션/실시간 크루 라운지 대비, 현재 미사용)
 

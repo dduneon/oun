@@ -194,7 +194,9 @@ export class CrewsService {
       where: {
         isPublic: true,
         id: { notIn: myCrewIds },
-        ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}),
+        // MySQL/MariaDB의 기본 콜레이션(utf8mb4_unicode_ci)이 대소문자를
+        // 구분하지 않아 mode 지정이 필요 없다(mysql 프로바이더는 지원도 안 한다).
+        ...(q ? { name: { contains: q } } : {}),
       },
       include: {
         _count: { select: { members: true, posts: { where: { kind: 'post' } } } },

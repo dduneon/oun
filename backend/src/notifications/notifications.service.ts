@@ -80,7 +80,9 @@ export class NotificationsService {
       where: {
         userId,
         type: input.type,
-        data: { path: [dedupeKey.path], equals: dedupeKey.value },
+        // MySQL/MariaDB의 JSON 경로 문법($.key). Postgres 프로바이더처럼
+        // 배열(['key'])로 주면 타입·쿼리 모두 맞지 않는다.
+        data: { path: `$.${dedupeKey.path}`, equals: dedupeKey.value },
       },
       select: { id: true },
     });

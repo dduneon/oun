@@ -5,8 +5,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// MariaDB. Prisma는 MariaDB를 mysql 프로바이더로 다룬다.
+// Postgres와 달리 String 기본형이 varchar(191)이라, 191자를 넘을 수 있는
+// 자유 입력 필드에는 @db.Text를 명시한다(누락하면 런타임에 잘림/에러).
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -27,35 +30,35 @@ model User {
   nickname     String   @unique // @nickname (친구 추가·프로필)
   displayName  String
   gender       Gender   @default(f)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  ledger           CurrencyLedger[]
-  workouts         WorkoutLog[]
-  characterStat    CharacterStat?
-  characterMood    CharacterMood?
-  streak           Streak?
-  streakProtector  StreakProtector?
-  restDays         RestDay[]
-  userQuests       UserQuest[]
-  inventory        Inventory[]
-  equipped         Equipped[]
-  shopOrders       ShopOrder[]
-  userAchievements UserAchievement[]
-  friendships       Friendship[]    @relation("FriendshipOwner")
-  friendOf          Friendship[]    @relation("FriendshipTarget")
-  friendReqSent     FriendRequest[] @relation("FriendReqFrom")
-  friendReqReceived FriendRequest[] @relation("FriendReqTo")
-  cheersSent       Cheer[]           @relation("CheerFrom")
-  cheersReceived   Cheer[]           @relation("CheerTo")
-  notifications    Notification[]
-  deviceTokens     DeviceToken[]
-  crewMemberships  CrewMember[]
-  crewJoinRequests CrewJoinRequest[]
-  crewPosts        CrewPost[]
-  crewComments     CrewComment[]
-  crewPostCheers   CrewPostCheer[]
-  crewRewardClaims CrewRewardClaim[]
+  ledger            CurrencyLedger[]
+  workouts          WorkoutLog[]
+  characterStat     CharacterStat?
+  characterMood     CharacterMood?
+  streak            Streak?
+  streakProtector   StreakProtector?
+  restDays          RestDay[]
+  userQuests        UserQuest[]
+  inventory         Inventory[]
+  equipped          Equipped[]
+  shopOrders        ShopOrder[]
+  userAchievements  UserAchievement[]
+  friendships       Friendship[]      @relation("FriendshipOwner")
+  friendOf          Friendship[]      @relation("FriendshipTarget")
+  friendReqSent     FriendRequest[]   @relation("FriendReqFrom")
+  friendReqReceived FriendRequest[]   @relation("FriendReqTo")
+  cheersSent        Cheer[]           @relation("CheerFrom")
+  cheersReceived    Cheer[]           @relation("CheerTo")
+  notifications     Notification[]
+  deviceTokens      DeviceToken[]
+  crewMemberships   CrewMember[]
+  crewJoinRequests  CrewJoinRequest[]
+  crewPosts         CrewPost[]
+  crewComments      CrewComment[]
+  crewPostCheers    CrewPostCheer[]
+  crewRewardClaims  CrewRewardClaim[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -129,10 +132,10 @@ model WorkoutLog {
   bodyPart     BodyPart? // 웨이트
   sets         Int? // 웨이트
   calories     Int?
-  photoRef     String? // 운동 인증 사진 (S3 키 등, 현재는 존재 여부만)
+  photoRef     String?       @db.VarChar(512) // 운동 인증 사진 (S3 키 등, 현재는 존재 여부만)
   source       WorkoutSource @default(manual)
   verifyStatus VerifyStatus  @default(pending)
-  rejectReason String?
+  rejectReason String?       @db.Text
   performedAt  DateTime // 운동 수행 시각 (mood/캘린더 기준)
   verifiedAt   DateTime?
   createdAt    DateTime      @default(now())
@@ -168,11 +171,11 @@ enum Mood {
 
 // mood는 lastWorkoutAt·streak로 산출되는 파생값. 조회 시 재계산 후 캐시.
 model CharacterMood {
-  userId        String   @id
-  mood          Mood     @default(neutral)
+  userId        String    @id
+  mood          Mood      @default(neutral)
   lastWorkoutAt DateTime?
-  streakActive  Boolean  @default(false)
-  updatedAt     DateTime @updatedAt
+  streakActive  Boolean   @default(false)
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -280,15 +283,15 @@ enum ItemRarity {
 
 // 모든 아이템은 기능 스탯 0 (순수 치장). hasSpecialFx는 시각 효과일 뿐.
 model Item {
-  key           String       @id // 예: hood_daily
-  category      ItemCategory
-  name          String
-  price         Int // 운동 재화 단위 (무과금)
-  rarity        ItemRarity   @default(common)
-  hasSpecialFx  Boolean      @default(false)
+  key            String       @id // 예: hood_daily
+  category       ItemCategory
+  name           String
+  price          Int // 운동 재화 단위 (무과금)
+  rarity         ItemRarity   @default(common)
+  hasSpecialFx   Boolean      @default(false)
   addressableKey String? // Unity Addressables 원격 에셋 키
-  colorHex      String? // 앱 목업 카드 색 (에셋 전까지 표현용)
-  sortOrder     Int          @default(0)
+  colorHex       String? // 앱 목업 카드 색 (에셋 전까지 표현용)
+  sortOrder      Int          @default(0)
 
   inventory  Inventory[]
   equipped   Equipped[]
@@ -341,7 +344,7 @@ model AchievementDef {
   id        String  @id @default(cuid())
   key       String  @unique // 예: first_step, week_perfect
   name      String
-  condition String
+  condition String  @db.Text
   trigger   String // 조건 판정 키 (first_workout | streak_7 | photo_10 ...)
   threshold Int     @default(1)
   icon      String?
@@ -397,11 +400,11 @@ model FriendRequest {
 
 // 응원 한 번(이모지). 친구 행의 반응 아이콘·응원 퀘스트/업적의 근거.
 model Cheer {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   fromUserId String
   toUserId   String
-  emoji      String   @default("❤️")
-  createdAt  DateTime @default(now())
+  emoji      String    @default("❤️")
+  createdAt  DateTime  @default(now())
   // 받은 사람이 확인한 시각. null이면 아직 못 본 응원(홈 캐릭터 반응 트리거).
   seenAt     DateTime?
 
@@ -424,7 +427,7 @@ model Notification {
   userId    String
   type      String // 'cheer' | 'friend_request' | 'crew_join' …
   title     String
-  body      String
+  body      String    @db.Text
   // 탭했을 때 이동할 곳 등 부가 정보(발신자 닉네임 등).
   data      Json?
   readAt    DateTime?
@@ -441,7 +444,7 @@ model Notification {
 model DeviceToken {
   id        String   @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String   @unique @db.VarChar(255)
   platform  String // ios | android
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -458,7 +461,7 @@ model DeviceToken {
 model Crew {
   id          String   @id @default(cuid())
   name        String
-  description String? // 크루 소개/설명
+  description String?  @db.Text // 크루 소개/설명
   isPublic    Boolean  @default(true) // 크루 탐방에 노출할지 여부
   createdAt   DateTime @default(now())
 
@@ -506,14 +509,14 @@ model CrewMember {
 // 크루 피드 글. 유저가 직접 올린다 — 자기 운동 기록을 태그(선택)하거나 글만.
 // 크루 레벨의 '누적 활동' = 이 글 수(kind='post'만; 시스템 글은 제외).
 model CrewPost {
-  id String @id @default(cuid())
+  id           String   @id @default(cuid())
   // 'post' = 유저가 쓴 글, 'join' = 새 크루원 합류 알림(시스템 글, 수정·삭제 불가).
   // 시스템 글도 같은 테이블이라 응원·댓글이 그대로 붙는다.
   kind         String   @default("post")
   crewId       String
   userId       String
   workoutLogId String? // 태그한 운동(선택). null이면 글만.
-  message      String? // 남긴 한마디
+  message      String?  @db.Text // 남긴 한마디
   createdAt    DateTime @default(now())
 
   crew     Crew            @relation(fields: [crewId], references: [id], onDelete: Cascade)
@@ -530,7 +533,7 @@ model CrewComment {
   id        String   @id @default(cuid())
   postId    String
   userId    String
-  text      String
+  text      String   @db.Text
   createdAt DateTime @default(now())
 
   post CrewPost @relation(fields: [postId], references: [id], onDelete: Cascade)

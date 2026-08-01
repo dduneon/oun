@@ -36,7 +36,7 @@
               ┌─────────────▼──────────────┐
               │        Backend             │
               │  API(NestJS) + WS + Worker │
-              │  PostgreSQL / Redis / S3   │
+              │   MariaDB / Redis / S3     │
               └────────────────────────────┘
 ```
 
@@ -81,7 +81,7 @@
 | 헬스 연동 | `health` 패키지 or 네이티브 채널 | HealthKit / Health Connect |
 | API 서버 | NestJS (TypeScript) | REST + 도메인 모듈화 |
 | 실시간 | Socket.IO (별도 게이트웨이) | 크루 라운지, 이모지 반응 |
-| DB | PostgreSQL 15 | 재화 원장, 운동 기록(트랜잭션) |
+| DB | MariaDB 11 | 재화 원장, 운동 기록(트랜잭션) |
 | 캐시/실시간 | Redis | 세션, 랭킹/피드 캐시, WS pub-sub |
 | 오브젝트 스토리지 | S3 + CloudFront | Addressables, 리포트 이미지 |
 | 인증 | Sign in with Apple / Google + JWT | 서버 발급 access/refresh |

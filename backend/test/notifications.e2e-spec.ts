@@ -48,9 +48,12 @@ describe('오운 받은 응원·알림 (e2e)', () => {
   async function rewindCheers() {
     const { PrismaClient } = await import('@prisma/client');
     const p = new PrismaClient();
+    // MariaDB 문법: 식별자는 백틱, 파라미터는 ?, 시간 연산은 DATE_SUB.
+    // (같은 테이블을 서브쿼리로 다시 읽을 수 없어 User는 조인으로 건다)
     await p.$executeRawUnsafe(
-      `UPDATE "Cheer" SET "createdAt" = "createdAt" - interval '1 minute'
-       WHERE "toUserId" = (SELECT id FROM "User" WHERE nickname = $1)`,
+      'UPDATE `Cheer` c JOIN `User` u ON u.id = c.toUserId ' +
+        'SET c.createdAt = DATE_SUB(c.createdAt, INTERVAL 1 MINUTE) ' +
+        'WHERE u.nickname = ?',
       receiverNick,
     );
     await p.$disconnect();

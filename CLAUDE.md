@@ -60,11 +60,11 @@ Any change under `unity/` (camera, materials, scripts, character) requires re-ex
 
 ## Backend (`backend/`, NestJS + Prisma)
 
-Fully implemented API. Postgres (Prisma), Redis (reserved), and MinIO (object storage) run via `backend/docker-compose.yml`.
+Fully implemented API. MariaDB (Prisma `mysql` provider), Redis (reserved), and MinIO (object storage) run via `backend/docker-compose.yml`.
 
 **Local loop** (from `backend/`):
 ```bash
-docker compose up -d                 # postgres :5432, redis :6379, minio :9000 (console :9001)
+docker compose up -d                 # mariadb :3306, redis :6379, minio :9000 (console :9001)
 npm run prisma:migrate               # apply migrations (dev)
 npm run prisma:seed                  # demo users: jimin, hyunwoo, seoyeon (+ achievements)
 npm run start:dev                    # nest watch on :3000
