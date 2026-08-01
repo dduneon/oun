@@ -16,7 +16,7 @@ export class StorageService implements OnModuleInit {
   private readonly publicUrl: string;
 
   constructor(private readonly config: ConfigService) {
-    this.bucket = config.get<string>('MINIO_BUCKET') ?? 'oun-media';
+    this.bucket = config.get<string>('MINIO_BUCKET') ?? 'oun';
     this.publicUrl = (
       config.get<string>('MINIO_PUBLIC_URL') ?? 'http://localhost:9000'
     ).replace(/\/$/, '');
