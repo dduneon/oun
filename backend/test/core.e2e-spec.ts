@@ -59,8 +59,11 @@ describe('오운 코어 루프 (e2e)', () => {
     const mood = await request(app.getHttpServer()).get('/character/mood').set(auth()).expect(200);
     expect(mood.body.mood).toBe('energetic');
 
+    // 방금 기록한 운동은 "오늘"이므로 KST 기준 이번 달을 조회해야 한다.
+    // (월을 고정하면 달이 바뀌는 순간부터 실패한다)
+    const month = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
     const cal = await request(app.getHttpServer())
-      .get('/workouts/calendar?month=2026-07')
+      .get(`/workouts/calendar?month=${month}`)
       .set(auth())
       .expect(200);
     expect(cal.body.days.length).toBeGreaterThan(0);
