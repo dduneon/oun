@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/api/providers.dart';
 import '../shared/global_keys.dart';
+import '../shared/system_ui.dart';
 import '../shared/widgets/oun_toast.dart';
 import '../theme/app_theme.dart';
 
@@ -133,6 +134,9 @@ class _UnityHostState extends ConsumerState<UnityHost> {
     // Unity 엔진 준비 완료 → 현재 씬을 (사용자 토큰 포함해) 최초 1회 전송.
     // 엔진 로드 전에 보낸 메시지는 유실되므로 이 신호를 받고 나서 스폰을 시작한다.
     if (message == 'unity_ready') {
+      // UnityPlayer가 뜨면서 창을 전체화면으로 만들어 상태바를 먹는다(안드로이드).
+      // 엔진이 올라온 뒤에 다시 세워야 한다.
+      restoreSystemBars();
       _apply(ref.read(unitySceneProvider));
       return;
     }
