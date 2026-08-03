@@ -130,6 +130,74 @@ Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모
 
 ---
 
+## F. Android — export · 빌드 · 배포
+
+iOS와 달리 **`flutter build`가 그대로 동작한다.** `unityLibrary`가 gradle 서브프로젝트로 들어가
+같이 빌드되므로 `xcodebuild` 같은 우회가 필요 없다.
+
+### F-1. Unity export (에디터 수동 작업)
+
+1. `File → Build Profiles → Android → Switch Platform`
+2. `Player Settings → Other Settings`: Scripting Backend = **IL2CPP**, Target Architectures = **ARM64**
+3. `Flutter Embed → Export project to Flutter app → Android` → 대상 폴더 **`app/android/unityLibrary`**
+4. export 후 Unity 콘솔에 뜨는 `unityStreamingAssets=` 값을 확인.
+   기본은 빈 값이라 그대로 두면 되고, StreamingAssets를 쓰기 시작하면
+   `app/android/gradle.properties`의 같은 키를 그 값으로 바꾼다.
+
+> `app/android/unityLibrary/`는 gitignore. export 전에는 gradle이
+> "android/unityLibrary가 없습니다"라며 멈춘다 — 정상이다.
+> **iOS와 export 폴더가 다르니** 플랫폼을 오갈 때마다 Switch Platform + 재export가 필요하다.
+
+gradle 쪽 배선(서브프로젝트 include, `implementation(project(":unityLibrary"))`, NDK r27c,
+flatDir, noCompress)은 이미 저장소에 들어가 있다. 추가로 손댈 것 없다.
+
+### F-2. 디버그 빌드 / 실기기 확인
+
+```bash
+cd app
+flutter run --dart-define=OUN_API_BASE_URL=http://10.0.2.2:3000
+```
+> 에뮬레이터에서 호스트의 백엔드는 `localhost`가 아니라 **`10.0.2.2`** 다. 실기기는 PC의 LAN IP.
+
+### F-3. 릴리스 서명 (최초 1회)
+
+업로드 키를 만들고 `app/android/key.properties`(gitignore)에 경로·비밀번호를 적는다.
+양식은 `app/android/key.properties.example` 참고.
+
+```bash
+keytool -genkey -v -keystore ~/oun-upload.jks -storetype JKS \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+`key.properties`가 **없으면 릴리스도 debug 키로 서명된다** — 로컬 확인은 되지만 Play에는 못 올린다.
+키를 잃어버리면 같은 앱으로 업데이트가 불가능하니 별도 백업할 것.
+
+### F-4. Play 스토어 업로드
+
+```bash
+cd app
+flutter build appbundle --release --dart-define=OUN_API_BASE_URL=https://<api-host>
+```
+산출물: `app/build/app/outputs/bundle/release/app-release.aab` → Play Console 내부 테스트 트랙에 업로드.
+
+- 업로드할 때마다 **versionCode를 올려야 한다.** `app/pubspec.yaml`의 `version: 1.0.0+1`에서
+  `+` 뒤 숫자를 올리거나, `--build-number=<n>`으로 지정한다.
+- APK로 실기기에 바로 꽂아볼 때: `flutter build apk --release` 후
+  `adb install -r app/build/app/outputs/flutter-apk/app-release.apk`
+- `google-services.json`이 `app/android/app/`에 없으면 **빌드가 실패한다**(E 참고).
+
+### F-5. 버전 충돌이 나면
+
+현재 저장소는 Gradle 9.1 + AGP 9.0.1인데, Unity 6.5가 검증한 조합은 **Gradle 8.13 + AGP 8.10**이다.
+`unityLibrary`가 이 조합에서 안 붙으면 다음을 내려서 맞춘다:
+
+| 파일 | 값 |
+| :--- | :--- |
+| `app/android/gradle/wrapper/gradle-wrapper.properties` | `gradle-8.13-all.zip` |
+| `app/android/settings.gradle.kts` | `com.android.application` 버전 `8.10.0` |
+
+---
+
 ## 왜 이렇게 하나 (Unity 6.5 + Flutter 3.44 조합에서 겪은 벽)
 
 | 증상 | 원인 | 해결 |
@@ -144,6 +212,6 @@ Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모
 
 ## 상태 (2026-07-18)
 - ✅ iOS 시뮬레이터: 홈 화면에 Unity 3D 캐릭터 임베드 동작 확인
-- ⬜ Android UaaL 연동 (동일 패턴: 플랫폼 전환 → export → gradle 링크)
+- 🔶 Android UaaL: gradle 배선·릴리스 서명은 완료(F), Unity export + 실제 빌드는 미검증
 - ⬜ Flutter ↔ Unity 메시지 통신
 - ⬜ 배경 투명화(스카이박스 제거)
