@@ -138,9 +138,15 @@ iOS와 달리 **`flutter build`가 그대로 동작한다.** `unityLibrary`가 g
 ### F-1. Unity export (에디터 수동 작업)
 
 1. `File → Build Profiles → Android → Switch Platform`
-2. `Player Settings → Other Settings`: Scripting Backend = **IL2CPP**, Target Architectures = **ARM64**
-3. `Flutter Embed → Export project to Flutter app → Android` → 대상 폴더 **`app/android/unityLibrary`**
-4. export 후 Unity 콘솔에 뜨는 `unityStreamingAssets=` 값을 확인.
+2. `Build Profiles`의 Android 패널에서 **`Export Project` 체크**
+   — APK를 굽지 않고 gradle 프로젝트를 내보내게 하는 옵션. 안 켜면 export가 거부된다.
+   이 값은 `unity/UserSettings/`(gitignore)에 저장되는 **머신 로컬 설정**이라 클론할 때마다 다시 켜야 한다.
+3. `Player Settings → Other Settings`에서 3개:
+   - Scripting Backend = **IL2CPP**
+   - Application Entry Point = **Activity** (GameActivity는 해제 — 임베드 방식과 호환되지 않는다)
+   - Target Architectures = **ARMv7 + ARM64 둘 다** (하나만 켜면 export 체커가 막는다)
+4. `Flutter Embed → Export project to Flutter app → Android` → 대상 폴더 **`app/android/unityLibrary`**
+5. export 후 Unity 콘솔에 뜨는 `unityStreamingAssets=` 값을 확인.
    기본은 빈 값이라 그대로 두면 되고, StreamingAssets를 쓰기 시작하면
    `app/android/gradle.properties`의 같은 키를 그 값으로 바꾼다.
 
@@ -150,6 +156,10 @@ iOS와 달리 **`flutter build`가 그대로 동작한다.** `unityLibrary`가 g
 
 gradle 쪽 배선(서브프로젝트 include, `implementation(project(":unityLibrary"))`, NDK r27c,
 flatDir, noCompress)은 이미 저장소에 들어가 있다. 추가로 손댈 것 없다.
+
+> **minSdk는 Unity가 정한다.** 앱 gradle은 `minSdk = 26`인데, 이건 Unity의
+> `AndroidMinSdkVersion`에 맞춘 값이다(라이브러리 모듈이 앱보다 높으면 AGP가 거부한다).
+> Android 6·7 기기까지 받으려면 Unity 쪽 값을 먼저 낮추고 gradle을 따라 낮춰야 한다.
 
 ### F-2. 디버그 빌드 / 실기기 확인
 
