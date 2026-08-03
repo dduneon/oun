@@ -48,3 +48,8 @@ app.*.map.json
 # 받아 아래 경로에 두면 된다. 자세한 건 BUILD.md "푸시(FCM) 설정" 참고.
 /ios/Runner/GoogleService-Info.plist
 /android/app/google-services.json
+
+# Android 릴리스 서명 키. 절대 커밋하지 않는다 (BUILD.md "Android 릴리스 서명" 참고).
+/android/key.properties
+*.jks
+*.keystore

@@ -1,0 +1,14 @@
+# 안드로이드 릴리스 서명 키 설정 예시.
+# 이 파일을 key.properties로 복사해 값을 채운다 (key.properties는 gitignore된다).
+#
+# 업로드 키가 없다면 먼저 만든다:
+#   keytool -genkey -v -keystore ~/oun-upload.jks -storetype JKS \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# storeFile은 android/ 기준 상대경로거나 절대경로.
+# 키를 잃어버리면 Play 스토어에 같은 앱으로 업데이트할 수 없으니 따로 백업해둘 것.
+
+storeFile=/Users/<나>/oun-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=
