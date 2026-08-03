@@ -86,7 +86,7 @@ npx jest --config test/jest-e2e.json <name>   # a single e2e suite (e.g. "auth",
 - **Storage:** `StorageService` (MinIO) issues **presigned PUT** URLs (`POST /uploads/workout-photo`) so the app uploads directly; the bucket is public-read and read endpoints return a `photoUrl`.
 - **Time:** KST day/week boundaries live in `common/time.ts` (used for streaks, weekly counts, calendar).
 
-**App ↔ backend wiring:** base URL is `--dart-define=OUN_API_BASE_URL` (default `http://localhost:3000`; Android emulator needs `http://10.0.2.2:3000`). `ApiClient` (`app/lib/shared/api/api_client.dart`) attaches the access token and retries once via `/auth/refresh` on 401. Riverpod `FutureProvider`s in `providers.dart` are the app's read layer; mutations call `apiClientProvider` then `ref.invalidate(...)` the relevant provider.
+**App ↔ backend wiring:** base URL is `--dart-define=OUN_API_BASE_URL` (default `http://localhost:3000`; Android emulator needs `http://10.0.2.2:3000`; the deployed server is `https://oun-api.dduneon.com`). `ApiClient` (`app/lib/shared/api/api_client.dart`) attaches the access token and retries once via `/auth/refresh` on 401. Riverpod `FutureProvider`s in `providers.dart` are the app's read layer; mutations call `apiClientProvider` then `ref.invalidate(...)` the relevant provider.
 
 ## Conventions
 

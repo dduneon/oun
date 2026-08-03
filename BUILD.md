@@ -176,6 +176,13 @@ flutter run --dart-define=OUN_API_BASE_URL=http://10.0.2.2:3000
 > 에뮬레이터는 **arm64 이미지 + API 26 이상**이어야 한다. x86_64 이미지를 쓴다면
 > Unity에서 Target Architectures에 `x86-64`를 추가로 켜고 재export해야 한다.
 
+배포된 서버를 보게 하려면 그 주소를 넘긴다:
+```bash
+flutter run --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
+```
+> https라 그냥 붙지만, **평문 http 서버로 붙일 때는 막힌다** — Android 9+가 기본 차단하고
+> 이 프로젝트의 debug 매니페스트에 `usesCleartextTraffic`이 없다(`10.0.2.2`는 예외로 허용).
+
 ### F-3. 릴리스 서명 (최초 1회)
 
 업로드 키를 만들고 `app/android/key.properties`(gitignore)에 경로·비밀번호를 적는다.
@@ -193,7 +200,7 @@ keytool -genkey -v -keystore ~/oun-upload.jks -storetype JKS \
 
 ```bash
 cd app
-flutter build appbundle --release --dart-define=OUN_API_BASE_URL=https://<api-host>
+flutter build appbundle --release --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
 ```
 산출물: `app/build/app/outputs/bundle/release/app-release.aab` → Play Console 내부 테스트 트랙에 업로드.
 

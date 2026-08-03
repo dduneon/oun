@@ -7,6 +7,7 @@ import 'models.dart';
 /// - iOS 시뮬레이터: 호스트와 네트워크를 공유하므로 localhost 사용.
 /// - Android 에뮬레이터: `--dart-define=OUN_API_BASE_URL=http://10.0.2.2:3000`
 /// - 실기기: 개발 PC의 LAN IP 지정.
+/// - 배포 서버: `--dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com`
 const String kApiBaseUrl = String.fromEnvironment(
   'OUN_API_BASE_URL',
   defaultValue: 'http://localhost:3000',
