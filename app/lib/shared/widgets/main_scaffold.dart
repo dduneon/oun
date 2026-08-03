@@ -56,10 +56,19 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       bottomNavigationBar: FloatingTabBar(
         currentIndex: index,
         items: _items,
-        onTap: (i) => widget.navigationShell.goBranch(
-          i,
-          initialLocation: i == widget.navigationShell.currentIndex,
-        ),
+        onTap: (i) {
+          // 홈 복귀는 아래 post-frame에서야 시작되므로, 탭이 그려지는 첫 프레임에는
+          // 아직 크루 씬이 남아 있다(홈은 투명이라 그대로 비친다). 탭을 누른
+          // 이 시점에 미리 가려둔다 — 내리는 건 새 씬이 준비된 뒤 UnityHost가 한다.
+          if (i == _homeIndex &&
+              ref.read(unitySceneProvider).scene != UnityScene.home) {
+            ref.read(unityCoverProvider.notifier).raise();
+          }
+          widget.navigationShell.goBranch(
+            i,
+            initialLocation: i == widget.navigationShell.currentIndex,
+          );
+        },
       ),
     );
   }

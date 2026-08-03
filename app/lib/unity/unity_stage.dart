@@ -57,6 +57,37 @@ class UnityBootController extends Notifier<bool> {
 final unityBootedProvider =
     NotifierProvider<UnityBootController, bool>(UnityBootController.new);
 
+/// Unity 뷰를 미리 가려두는 스위치.
+///
+/// 홈 복귀는 홈 탭이 실제로 보이는 프레임 **뒤에** 시작된다(main_scaffold의
+/// post-frame). 그래서 씬 전환이 시작되기 전 한 프레임 동안 이전 씬(크루)이
+/// 투명한 홈 화면 뒤로 그대로 비친다. 전환이 예정된 순간(탭을 누른 시점)에
+/// 미리 올려두면 그 프레임부터 가려진다. 내리는 건 UnityHost가 새 씬 준비 후에.
+class UnityCoverController extends Notifier<bool> {
+  Timer? _failsafe;
+
+  @override
+  bool build() {
+    ref.onDispose(() => _failsafe?.cancel());
+    return false;
+  }
+
+  void raise() {
+    _failsafe?.cancel();
+    // 전환 신호가 끝내 오지 않아도 화면이 영구히 덮이지 않게.
+    _failsafe = Timer(const Duration(seconds: 3), lower);
+    state = true;
+  }
+
+  void lower() {
+    _failsafe?.cancel();
+    if (state) state = false;
+  }
+}
+
+final unityCoverProvider =
+    NotifierProvider<UnityCoverController, bool>(UnityCoverController.new);
+
 /// Unity 뷰가 차지할 화면 영역. null이면 전체 화면(홈), 사각형이면 그 박스에만
 /// 렌더(크루 무대처럼 일부 영역에 딱 맞춤).
 class UnityViewportController extends Notifier<Rect?> {
@@ -120,7 +151,9 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   void _uncoverSoon() {
     _uncoverDelay?.cancel();
     _uncoverDelay = Timer(const Duration(milliseconds: 200), () {
-      if (mounted) _setBusy(false);
+      if (!mounted) return;
+      _setBusy(false);
+      ref.read(unityCoverProvider.notifier).lower();
     });
   }
 
@@ -202,13 +235,15 @@ class _UnityHostState extends ConsumerState<UnityHost> {
       }
     });
     final rect = ref.watch(unityViewportProvider);
+    // 전환이 예정돼 미리 올려둔 가림막 + 실제 전환 중인 가림막.
+    final covered = _busy || ref.watch(unityCoverProvider);
     final view = EmbedUnity(onMessageFromUnity: _onMessage);
     // 씬 전환 중 Unity 뷰 바로 위를 덮는 가림막(전환 중 즉시 불투명, 완료 후 페이드).
     final cover = IgnorePointer(
       child: AnimatedOpacity(
-        opacity: _busy ? 1 : 0,
+        opacity: covered ? 1 : 0,
         duration:
-            _busy ? Duration.zero : const Duration(milliseconds: 180),
+            covered ? Duration.zero : const Duration(milliseconds: 180),
         child: const ColoredBox(color: OunColors.background),
       ),
     );
