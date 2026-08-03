@@ -39,40 +39,73 @@ class OunApp extends ConsumerWidget {
       // Unity는 앱 생명주기 동안 한 번만 로드된다.
       //
       // 로그인 전에는 라우터 위를 로그인/스플래시가 덮는다(인증 게이트).
-      builder: (context, child) => Stack(
-        children: [
-          const Positioned.fill(child: UnityHost()),
-          Positioned.fill(child: child ?? const SizedBox.shrink()),
-          if (auth.status == AuthStatus.loggedOut)
-            const Positioned.fill(child: LoginScreen())
-          else if (auth.status == AuthStatus.restoring)
-            const Positioned.fill(child: _Splash()),
-        ],
-      ),
+      builder: (context, child) {
+        // 로그인 직후 홈은 투명하고 그 뒤에서 Unity가 로드된다. 캐릭터가 설
+        // 때까지(home_ready) 로딩 화면을 유지해, Unity 스플래시와 빈 무대가
+        // 사용자에게 보이지 않게 한다.
+        final waitingForUnity = auth.status == AuthStatus.loggedIn &&
+            !ref.watch(unityBootedProvider);
+        return Stack(
+          children: [
+            const Positioned.fill(child: UnityHost()),
+            Positioned.fill(child: child ?? const SizedBox.shrink()),
+            if (auth.status == AuthStatus.loggedOut)
+              const Positioned.fill(child: LoginScreen())
+            else
+              Positioned.fill(
+                child: _Splash(
+                  visible:
+                      auth.status == AuthStatus.restoring || waitingForUnity,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
 
-/// 세션 복원 중 스플래시.
+/// 세션 복원 + Unity 캐릭터 로딩 동안의 스플래시.
+/// 걷힐 때만 부드럽게 사라진다(나타날 때는 즉시 — 뒤의 빈 무대를 보이면 안 된다).
 class _Splash extends StatelessWidget {
-  const _Splash();
+  const _Splash({required this.visible});
+  final bool visible;
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: OunColors.background,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.pets_rounded, size: 44, color: OunColors.tabAccent),
-            SizedBox(height: 14),
-            Text('오운',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: OunColors.textPrimary)),
-          ],
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: visible ? Duration.zero : const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+        child: const ColoredBox(
+          color: OunColors.background,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.pets_rounded, size: 44, color: OunColors.tabAccent),
+                SizedBox(height: 14),
+                Text('오운',
+                    style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: OunColors.textPrimary)),
+                SizedBox(height: 20),
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.2, color: OunColors.tabAccent),
+                ),
+                SizedBox(height: 12),
+                Text('오운이를 깨우는 중…',
+                    style:
+                        TextStyle(fontSize: 12.5, color: OunColors.textMuted)),
+              ],
+            ),
+          ),
         ),
       ),
     );

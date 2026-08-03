@@ -41,6 +41,21 @@ final unitySceneProvider =
     NotifierProvider<UnitySceneController, UnitySceneState>(
         UnitySceneController.new);
 
+/// Unity 홈 씬이 "처음" 준비됐는지. 앱 첫 로딩 화면을 언제 걷을지 판단하는 신호다.
+/// 엔진 로드 + 씬 로드 + 캐릭터 스폰까지 몇 초 걸리는데, 그동안 Unity가 자체
+/// 스플래시와 빈 화면을 보여주므로 오운 로딩 화면으로 덮는다.
+class UnityBootController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void markReady() {
+    if (!state) state = true;
+  }
+}
+
+final unityBootedProvider =
+    NotifierProvider<UnityBootController, bool>(UnityBootController.new);
+
 /// Unity 뷰가 차지할 화면 영역. null이면 전체 화면(홈), 사각형이면 그 박스에만
 /// 렌더(크루 무대처럼 일부 영역에 딱 맞춤).
 class UnityViewportController extends Notifier<Rect?> {
@@ -73,10 +88,22 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   // 서브트리에서 바로 위를 덮어 원천적으로 가린다.
   bool _busy = false;
   Timer? _busyTimeout; // *_ready가 안 오는 최악의 경우 대비 안전 해제.
+  Timer? _bootTimeout; // 첫 로딩 화면이 영원히 안 걷히는 것 방지.
+
+  @override
+  void initState() {
+    super.initState();
+    // Unity가 끝내 준비 신호를 못 보내도(엔진 실패 등) 사용자를 로딩 화면에
+    // 가둬두지 않는다. 첫 로드는 기기에 따라 수 초 걸리므로 넉넉히 잡는다.
+    _bootTimeout = Timer(const Duration(seconds: 12), () {
+      if (mounted) ref.read(unityBootedProvider.notifier).markReady();
+    });
+  }
 
   @override
   void dispose() {
     _busyTimeout?.cancel();
+    _bootTimeout?.cancel();
     super.dispose();
   }
 
@@ -96,6 +123,11 @@ class _UnityHostState extends ConsumerState<UnityHost> {
     // 씬 로드 완료 → 가림막 해제.
     if (message == 'crew_ready' || message == 'home_ready') {
       _setBusy(false);
+      // 캐릭터가 실제로 화면에 선 시점 = 첫 로딩 화면을 걷을 시점.
+      if (message == 'home_ready') {
+        _bootTimeout?.cancel();
+        ref.read(unityBootedProvider.notifier).markReady();
+      }
       return;
     }
     // Unity 엔진 준비 완료 → 현재 씬을 (사용자 토큰 포함해) 최초 1회 전송.
