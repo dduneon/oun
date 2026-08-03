@@ -31,8 +31,10 @@ android {
         applicationId = "com.dduneon.oun"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // flutter_secure_storage의 EncryptedSharedPreferences가 API 23+ 필요.
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        // flutter_secure_storage의 EncryptedSharedPreferences가 API 23+,
+        // unityLibrary가 Unity의 AndroidMinSdkVersion(26)을 요구한다. 라이브러리
+        // 모듈의 minSdk가 앱보다 높으면 AGP가 빌드를 거부하므로 26으로 맞춘다.
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
