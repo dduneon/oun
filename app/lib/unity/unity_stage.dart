@@ -90,6 +90,7 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   bool _busy = false;
   Timer? _busyTimeout; // *_ready가 안 오는 최악의 경우 대비 안전 해제.
   Timer? _bootTimeout; // 첫 로딩 화면이 영원히 안 걷히는 것 방지.
+  Timer? _uncoverDelay; // 씬 준비 후에도 잠깐 더 가려두기 위한 지연.
 
   @override
   void initState() {
@@ -105,12 +106,28 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   void dispose() {
     _busyTimeout?.cancel();
     _bootTimeout?.cancel();
+    _uncoverDelay?.cancel();
     super.dispose();
+  }
+
+  /// 가림막을 바로 내리지 않고 몇 프레임 뒤에 내린다.
+  ///
+  /// 안드로이드의 Unity 뷰는 가상 디스플레이(AndroidView)라서 뷰 크기가 바뀌면
+  /// 서피스를 다시 만든다. 크루(박스) ↔ 홈(전체화면) 전환이 딱 그 경우이고,
+  /// 이 재생성은 씬 준비 신호(*_ready)보다 늦게 끝나 검은 프레임이 새어나온다.
+  /// 준비 신호 직후 조금 더 들고 있으면 그 사이에 리사이즈가 마무리된다.
+  /// (iOS는 리사이즈가 즉시라 이 지연이 눈에 띄지 않는다.)
+  void _uncoverSoon() {
+    _uncoverDelay?.cancel();
+    _uncoverDelay = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) _setBusy(false);
+    });
   }
 
   void _setBusy(bool v) {
     _busyTimeout?.cancel();
     if (v) {
+      _uncoverDelay?.cancel();
       // 준비 완료 신호가 유실돼도 영구히 가려지지 않도록 안전장치.
       _busyTimeout = Timer(const Duration(milliseconds: 1500), () {
         if (mounted && _busy) setState(() => _busy = false);
@@ -123,7 +140,7 @@ class _UnityHostState extends ConsumerState<UnityHost> {
     debugPrint('Unity → Flutter: $message');
     // 씬 로드 완료 → 가림막 해제.
     if (message == 'crew_ready' || message == 'home_ready') {
-      _setBusy(false);
+      _uncoverSoon();
       // 캐릭터가 실제로 화면에 선 시점 = 첫 로딩 화면을 걷을 시점.
       if (message == 'home_ready') {
         _bootTimeout?.cancel();
@@ -202,9 +219,12 @@ class _UnityHostState extends ConsumerState<UnityHost> {
         Positioned.fill(child: cover),
       ]);
     }
+    // 가림막은 rect를 따라가지 않고 항상 전체 화면이다. 전환 중에는 Unity 뷰가
+    // 크루 박스 ↔ 전체화면으로 커졌다 작아지는데, 가림막이 옛 rect에만 있으면
+    // 그 바깥으로 이전 씬이 삐져나온다.
     return Stack(children: [
       Positioned.fromRect(rect: rect, child: view),
-      Positioned.fromRect(rect: rect, child: cover),
+      Positioned.fill(child: cover),
     ]);
   }
 }
