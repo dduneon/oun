@@ -19,8 +19,10 @@ val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
 android {
     namespace = "com.dduneon.oun"
     compileSdk = flutter.compileSdkVersion
-    // Unity 6이 요구하는 NDK(r27c). flutter.ndkVersion보다 낮으면 unityLibrary 링크가 깨진다.
-    ndkVersion = "27.2.12479018"
+    // Unity 6은 r27c(27.2.12479018) 이상, Flutter 플러그인들은 28.2를 요구한다.
+    // NDK는 상위 호환이라 높은 쪽으로 맞춘다. unityLibrary 모듈은 자체 build.gradle에
+    // r27c를 그대로 쓰므로 두 버전이 모두 설치돼 있어야 한다.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
