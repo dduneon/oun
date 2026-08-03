@@ -163,11 +163,18 @@ flatDir, noCompress)은 이미 저장소에 들어가 있다. 추가로 손댈 �
 
 ### F-2. 디버그 빌드 / 실기기 확인
 
+**iOS와 달리 에뮬레이터·실기기를 나눠 빌드하지 않는다.** 시뮬레이터 SDK가 따로 있는 iOS와 달리
+안드로이드 에뮬레이터는 실기기와 같은 ABI(Apple Silicon 기준 `arm64-v8a`)를 쓰기 때문에
+export 하나로 양쪽 다 돈다. 기기를 바꿔 낄 때 재export가 필요 없다 —
+**재export가 필요한 건 iOS ↔ Android 플랫폼 전환뿐.**
+
 ```bash
 cd app
 flutter run --dart-define=OUN_API_BASE_URL=http://10.0.2.2:3000
 ```
 > 에뮬레이터에서 호스트의 백엔드는 `localhost`가 아니라 **`10.0.2.2`** 다. 실기기는 PC의 LAN IP.
+> 에뮬레이터는 **arm64 이미지 + API 26 이상**이어야 한다. x86_64 이미지를 쓴다면
+> Unity에서 Target Architectures에 `x86-64`를 추가로 켜고 재export해야 한다.
 
 ### F-3. 릴리스 서명 (최초 1회)
 
