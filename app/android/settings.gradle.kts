@@ -26,3 +26,11 @@ plugins {
 }
 
 include(":app")
+
+// Unity export 산출물(UaaL). gitignore되어 있어 클론 직후에는 없다 —
+// Unity 에디터에서 `Flutter Embed → Export project to Flutter app → Android`로
+// android/unityLibrary에 내보내야 한다. (BUILD.md 참고)
+require(file("unityLibrary/build.gradle").exists()) {
+    "android/unityLibrary가 없습니다. Unity 에디터에서 Android로 export하세요 (BUILD.md의 'Android' 절 참고)."
+}
+include(":unityLibrary")

@@ -8,7 +8,8 @@ plugins {
 android {
     namespace = "com.dduneon.oun"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Unity 6이 요구하는 NDK(r27c). flutter.ndkVersion보다 낮으면 unityLibrary 링크가 깨진다.
+    ndkVersion = "27.2.12479018"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -24,6 +25,18 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Unity가 export 시 이미 압축해둔 리소스를 gradle이 다시 압축하지 않게 한다(로딩 지연 방지).
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~"
+        noCompress += listOf(".unity3d", ".ress", ".resource", ".obb", ".bundle", ".unityexp")
+        noCompress +=
+            (project.findProperty("unityStreamingAssets") as? String)
+                ?.split(",")
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?: emptyList()
     }
 
     buildTypes {
@@ -43,4 +56,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Unity export 산출물(android/unityLibrary). settings.gradle.kts에서 include한다.
+    implementation(project(":unityLibrary"))
 }
