@@ -237,7 +237,14 @@ class _UnityHostState extends ConsumerState<UnityHost> {
     final rect = ref.watch(unityViewportProvider);
     // 전환이 예정돼 미리 올려둔 가림막 + 실제 전환 중인 가림막.
     final covered = _busy || ref.watch(unityCoverProvider);
-    final view = EmbedUnity(onMessageFromUnity: _onMessage);
+    // Unity 뷰는 터치를 받지 않는다. 플러그인이 이 플랫폼 뷰를
+    // WaitUntilTouchesEnded 정책으로 붙이는데, 그러면 터치가 끝날 때까지 Flutter
+    // 제스처 인식기가 묶여 진행 중에 판정돼야 하는 스와이프 백이 성립하지 않는다.
+    // 이 뷰는 앱 내내 라우터 뒤에 전체화면으로 깔려 있어 영향이 앱 전체에 간다.
+    // Unity 씬은 입력을 쓰지 않으므로(캐릭터 반응도 Flutter 버튼 → React 메시지)
+    // 히트 테스트에서 아예 빼는 게 맞다.
+    final view =
+        IgnorePointer(child: EmbedUnity(onMessageFromUnity: _onMessage));
     // 씬 전환 중 Unity 뷰 바로 위를 덮는 가림막(전환 중 즉시 불투명, 완료 후 페이드).
     final cover = IgnorePointer(
       child: AnimatedOpacity(
