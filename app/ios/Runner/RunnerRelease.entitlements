@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- TestFlight/App Store 빌드는 프로덕션 APNs를 쓴다.
+	     development로 올리면 푸시 토큰이 샌드박스라 서버가 보낸 알림이 안 온다. -->
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>

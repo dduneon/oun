@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- xcarchive → App Store Connect(TestFlight)용 ipa export 설정. BUILD.md §G 참고. -->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>A4YL85FB4L</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<!-- 크래시 로그 심볼화용 dSYM 업로드(UnityFramework 포함). -->
+	<key>uploadSymbols</key>
+	<true/>
+	<!-- App Store Connect가 알아서 얇게 만들도록 — 비트코드는 이미 폐지됨. -->
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>

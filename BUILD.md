@@ -127,6 +127,9 @@ Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모
   **이건 진짜 비밀키다 — 절대 커밋 금지.** 없으면 푸시만 no-op이고 인앱 알림함은 정상 동작한다.
 - 실기기 푸시에는 Xcode의 **Push Notifications capability**(`Runner.entitlements`)와
   Firebase에 업로드한 **APNs 인증 키(.p8)** 가 필요하다. 시뮬레이터는 토큰이 잡히지 않는 게 정상.
+- 엔타이틀먼트는 설정별로 다르다: Debug/Profile은 `Runner/Runner.entitlements`(`aps-environment
+  = development`), **Release는 `Runner/RunnerRelease.entitlements`(`production`)**.
+  TestFlight 빌드는 프로덕션 APNs를 쓰므로 development로 올리면 토큰이 샌드박스라 푸시가 안 온다.
 
 ---
 
@@ -219,6 +222,78 @@ flutter build appbundle --release --dart-define=OUN_API_BASE_URL=https://oun-api
 | :--- | :--- |
 | `app/android/gradle/wrapper/gradle-wrapper.properties` | `gradle-8.13-all.zip` |
 | `app/android/settings.gradle.kts` | `com.android.application` 버전 `8.10.0` |
+
+---
+
+## G. iOS 배포 — xcarchive → TestFlight
+
+`flutter build ipa`도 **동작하지 않는다**(D와 같은 이유 — UnityFramework를 안 만든다).
+아카이브도 `xcodebuild`로 직접 만든다.
+
+### G-1. 준비
+
+1. **Unity를 Device SDK로 재export**(A-3). 시뮬레이터 export 상태면 링크가 깨진다.
+   확인: `grep -m1 "SDKROOT = " app/ios/unityLibrary/Unity-iPhone.xcodeproj/project.pbxproj`
+   → `iphoneos`여야 한다(`iphonesimulator`면 재export).
+2. **버전 올리기:** `app/pubspec.yaml`의 `version: <이름>+<빌드번호>`.
+   TestFlight는 **같은 빌드번호를 두 번 받지 않는다** — 올릴 때마다 `+` 뒤를 올린다.
+3. **Generated.xcconfig 갱신 (놓치기 쉬움).** 버전·`--dart-define`은 이 파일을 통해서만
+   xcodebuild에 전달된다. flutter 툴이 만들어 주므로 아카이브 전에 반드시 한 번:
+   ```bash
+   cd app
+   flutter build ios --release --config-only \
+     --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
+   grep -E "FLUTTER_BUILD_(NAME|NUMBER)" ios/Flutter/Generated.xcconfig   # 새 버전인지 확인
+   ```
+   이걸 빼먹으면 **예전 버전 번호와 예전 API 주소(기본값 localhost)로 빌드된다.**
+4. 필요하면 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install`(B 참고).
+
+### G-2. 아카이브
+
+```bash
+cd app/ios
+xcodebuild -workspace Runner.xcworkspace -scheme Runner \
+  -configuration Release -sdk iphoneos \
+  -destination 'generic/platform=iOS' \
+  -archivePath build/Runner.xcarchive \
+  -derivedDataPath build/ios_release \
+  -allowProvisioningUpdates \
+  archive
+```
+- 서명은 자동(팀 `A4YL85FB4L`). `-allowProvisioningUpdates`가 있어야 프로비저닝 프로파일을
+  필요할 때 새로 받아온다.
+- 최초 아카이브는 IL2CPP 때문에 수십 분 걸릴 수 있다.
+
+### G-3. ipa export & 업로드
+
+```bash
+xcodebuild -exportArchive \
+  -archivePath build/Runner.xcarchive \
+  -exportOptionsPlist ExportOptions.plist \
+  -exportPath build/ipa \
+  -allowProvisioningUpdates
+```
+산출물: `app/ios/build/ipa/*.ipa`(이름은 `Runner.ipa`). 업로드는 셋 중 하나 —
+
+| 방법 | 명령/도구 |
+| :--- | :--- |
+| Transporter 앱 | ipa를 끌어다 놓기(가장 단순) |
+| App Store Connect API 키 | `xcrun altool --upload-app -f build/ipa/*.ipa -t ios --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>` |
+| 앱 암호 | `xcrun altool --upload-app -f build/ipa/*.ipa -t ios -u <Apple ID> -p <app-specific password>` |
+
+> 업로드 전에 검증만 해보려면 `--validate-app`으로 같은 명령을 한 번 돌린다.
+> 처리(Processing)에 10~30분. 수출 규정(암호화) 문항은 `Info.plist`의
+> `ITSAppUsesNonExemptEncryption = false`로 이미 답해 둬서 매번 묻지 않는다.
+
+### G-4. 자주 걸리는 것
+
+| 증상 | 원인 | 해결 |
+| :--- | :--- | :--- |
+| 링크 시 `arm64 심볼 없음` | Unity가 Simulator SDK로 export됨 | Device SDK로 재export(G-1-1) |
+| 올린 빌드가 옛 버전/옛 API 주소 | `Generated.xcconfig`가 안 갱신됨 | G-1-3 실행 후 재아카이브 |
+| `ITMS-90189` 중복 빌드번호 | 같은 빌드번호 재업로드 | `pubspec.yaml`의 `+n` 올리기 |
+| TestFlight에서 푸시 안 옴 | `aps-environment`가 development | Release는 `RunnerRelease.entitlements`(E 참고) |
+| 프로파일에 Push capability 없음 | 자동 서명 갱신 안 됨 | `-allowProvisioningUpdates` 유지, ADC에서 App ID 확인 |
 
 ---
 
