@@ -9,11 +9,38 @@ import 'shared/push/push_messaging.dart';
 import 'theme/app_theme.dart';
 import 'unity/unity_stage.dart';
 
-class OunApp extends ConsumerWidget {
+class OunApp extends ConsumerStatefulWidget {
   const OunApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OunApp> createState() => _OunAppState();
+}
+
+class _OunAppState extends ConsumerState<OunApp> {
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    // 백그라운드에 있는 동안 온 푸시는 포그라운드 핸들러를 타지 않는다.
+    // (배너를 탭하지 않고 앱으로 돌아오면 아무것도 갱신되지 않아, 알림만 오고
+    //  화면엔 안 나오는 상태가 된다) 복귀할 때 알림함·소셜 목록을 다시 읽는다.
+    _lifecycle = AppLifecycleListener(onResume: _refreshOnResume);
+  }
+
+  void _refreshOnResume() {
+    if (ref.read(authProvider).status != AuthStatus.loggedIn) return;
+    invalidateAll(ref, [...inboxProviders, ...socialProviders]);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
 
     // 로그인/로그아웃에 맞춰 푸시 토큰을 등록·해제한다.

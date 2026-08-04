@@ -109,6 +109,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
     return PageScaffold(
       title: '상점',
       trailing: CoinChip(amount: coin),
+      onRefresh: () => refreshTab(ref, OunTab.shop),
       children: [
         // 캐릭터 미리보기 (라이브 프리뷰 연동 예정)
         Container(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../unity/unity_stage.dart';
+import '../api/providers.dart';
 import 'floating_tab_bar.dart';
 
 /// 하단 탭 셸. StatefulNavigationShell로 각 탭 상태를 유지한다
@@ -17,7 +18,7 @@ class MainScaffold extends ConsumerStatefulWidget {
 }
 
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
-  static const _homeIndex = 0;
+  static const _homeIndex = OunTab.home;
 
   static const _items = [
     FloatingTabItem(Icons.home_outlined, Icons.home, '홈'),
@@ -37,7 +38,19 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     // 홈 복귀(씬 전환 + 전체 화면 rect)를 홈 탭까지 미룬다. 홈 화면은 투명이라
     // UnityHost의 가림막이 최상단에 있어 전환 순간(줌)이 가려진다.
     if (index != _lastIndex) {
+      final isFirstBuild = _lastIndex == null;
       _lastIndex = index;
+      // 탭 화면은 IndexedStack으로 계속 살아 있어서 다시 열어도 스스로 서버를
+      // 읽지 않는다. 탭이 보이는 순간 그 탭의 데이터를 다시 읽어, 다른 사람이
+      // 만든 변화(친구 요청·크루 초대 등)가 바로 반영되게 한다.
+      // (첫 빌드는 각 화면이 어차피 처음 읽으므로 건너뛴다)
+      if (!isFirstBuild) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (ref.read(authProvider).status != AuthStatus.loggedIn) return;
+          invalidateAll(ref, providersForTab(index));
+        });
+      }
       if (index == _homeIndex) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;

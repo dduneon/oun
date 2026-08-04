@@ -52,13 +52,14 @@ class PushMessaging {
       FirebaseMessaging.onMessage.listen(_onForegroundMessage);
 
       // 푸시 배너를 탭해 앱으로 들어온 경우 → 알림함을 연다.
-      FirebaseMessaging.onMessageOpenedApp.listen((_) => _openInbox());
+      FirebaseMessaging.onMessageOpenedApp.listen(_openInbox);
 
       // 앱이 완전히 종료된 상태에서 푸시로 켜진 경우.
       // 첫 프레임 뒤로 미뤄야 라우터/네비게이터가 준비돼 있다.
       final initial = await messaging.getInitialMessage();
       if (initial != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _openInbox());
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _openInbox(initial));
       }
     } catch (_) {
       // 권한 거부·네트워크 실패 등 — 푸시만 포기하고 앱은 그대로.
@@ -78,6 +79,9 @@ class PushMessaging {
     }
   }
 
+  void _refresh(List<RefreshTarget> providers) =>
+      invalidateAll(_ref, providers);
+
   Future<void> _register(String token) async {
     try {
       await _ref
@@ -91,9 +95,15 @@ class PushMessaging {
 
   /// 알림함 열기. 어떤 알림을 탭했든 목록으로 보내고, 거기서 각 항목을
   /// 탭하면 대상 화면으로 간다(딥링크 분기를 한곳에만 두기 위해).
-  void _openInbox() {
-    _ref.invalidate(unreadNotificationsProvider);
-    _ref.invalidate(notificationsProvider);
+  ///
+  /// 배너를 탭해 들어온 경우엔 백그라운드에 있던 동안 쌓인 게 더 있을 수
+  /// 있으니, 해당 알림뿐 아니라 알림함·소셜 목록을 통째로 다시 읽는다.
+  void _openInbox(RemoteMessage? message) {
+    _refresh([
+      ...inboxProviders,
+      ...socialProviders,
+      ...providersForNotification(message?.data['type'] as String?),
+    ]);
     final context = rootMessengerKey.currentContext;
     if (context == null) return;
     Navigator.of(context, rootNavigator: true).push(
@@ -102,13 +112,13 @@ class PushMessaging {
   }
 
   void _onForegroundMessage(RemoteMessage message) {
-    // 서버가 이미 알림 행을 만들었으니, 화면에 보이는 수치를 새로 고친다.
-    _ref.invalidate(unreadNotificationsProvider);
-    _ref.invalidate(notificationsProvider);
-    if (message.data['type'] == 'cheer') {
-      // 홈 캐릭터가 반응하도록 미확인 응원을 다시 읽는다.
-      _ref.invalidate(receivedCheersProvider);
-    }
+    // 서버가 이미 알림 행을 만들었으니, 알림함 수치와 **그 알림이 가리키는
+    // 목록**(받은 친구 요청·받은 초대 등)을 함께 다시 읽는다. 탭 화면들은
+    // IndexedStack으로 살아 있어서 다시 읽어 주지 않으면 영영 옛 목록이다.
+    _refresh([
+      ...inboxProviders,
+      ...providersForNotification(message.data['type'] as String?),
+    ]);
 
     final body = message.notification?.body;
     final context = rootMessengerKey.currentContext;

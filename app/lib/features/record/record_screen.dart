@@ -17,14 +17,15 @@ String _monthKey(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
 /// 운동 기록·입력. 주간 스트릭 + 종목 퀵스타트 + 최근 기록. (서버 데이터)
-class RecordScreen extends StatelessWidget {
+class RecordScreen extends ConsumerWidget {
   const RecordScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
     return PageScaffold(
       title: '기록',
+      onRefresh: () => refreshTab(ref, OunTab.record),
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(

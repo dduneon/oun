@@ -25,6 +25,7 @@ class MyScreen extends ConsumerWidget {
 
     return PageScaffold(
       title: '마이',
+      onRefresh: () => refreshTab(ref, OunTab.my),
       children: [
         // 프로필 카드
         Container(

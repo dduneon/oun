@@ -125,6 +125,27 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   bool _revealed = false; // 무대 공개 여부(false면 불투명 덮개로 Unity를 가림).
 
   @override
+  void initState() {
+    super.initState();
+    // 크루 상세/피드/가입 신청은 family 프로바이더라 한 번 읽으면 캐시에 남는다.
+    // 다시 들어올 때는 그 사이 남이 만든 변화(새 글·가입 신청)를 다시 읽는다.
+    // 이미 값이 있을 때만 무효화한다 — 첫 진입에 방금 시작한 요청을 버리고
+    // 똑같은 요청을 한 번 더 보내지 않도록. (아직 만들어지지 않은
+    // crewJoinRequests는 invalidate가 아무 일도 하지 않는다)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final id = widget.crewId;
+      if (ref.read(crewDetailProvider(id)).hasValue) {
+        ref.invalidate(crewDetailProvider(id));
+      }
+      if (ref.read(crewFeedProvider(id)).hasValue) {
+        ref.invalidate(crewFeedProvider(id));
+      }
+      ref.invalidate(crewJoinRequestsProvider(id));
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final route = ModalRoute.of(context);

@@ -96,6 +96,7 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
     final segment = ref.watch(socialSegmentProvider);
     return PageScaffold(
       title: '소셜',
+      onRefresh: () => refreshTab(ref, OunTab.social),
       children: [
         _Segment(
           value: segment,

@@ -302,3 +302,141 @@ void invalidateAfterWorkout(WidgetRef ref) {
   ref.invalidate(crewFeedProvider);
   ref.invalidate(crewDetailProvider);
 }
+
+// ─────────────────────────────────────────────────────────────
+// 갱신 묶음
+//
+// 화면들은 IndexedStack으로 계속 살아 있어서, FutureProvider가 한 번 읽은
+// 값을 스스로 다시 읽는 일이 없다. 그래서 "밖에서 벌어진 일"(다른 사람이 보낸
+// 친구 요청·크루 초대 등)은 아래 묶음으로 명시적으로 다시 읽어 준다.
+// ─────────────────────────────────────────────────────────────
+
+/// 무효화 대상 목록의 원소 타입.
+///
+/// riverpod 3은 `ProviderOrFamily`를 공개 API로 내보내지 않아 목록에 정적
+/// 타입을 줄 수 없다. 실제 무효화는 [invalidateAll]이 한곳에서 처리한다.
+typedef RefreshTarget = Object;
+
+/// 묶음 무효화. 같은 프로바이더가 겹쳐 들어와도 한 번만 처리한다.
+///
+/// [ref]는 `WidgetRef`(화면) 또는 `Ref`(프로바이더/서비스) 둘 다 받는다 —
+/// 두 타입이 공통 상위 타입을 갖지 않아 여기서만 동적으로 호출한다.
+void invalidateAll(Object ref, List<RefreshTarget> providers) {
+  final dynamic r = ref;
+  for (final p in providers.toSet()) {
+    r.invalidate(p);
+  }
+}
+
+/// 알림함/뱃지.
+final inboxProviders = <RefreshTarget>[
+  unreadNotificationsProvider,
+  notificationsProvider,
+  receivedCheersProvider,
+];
+
+/// 소셜 탭(친구/크루)에서 남이 만들어 내는 목록들.
+final socialProviders = <RefreshTarget>[
+  friendsProvider,
+  friendRequestsProvider,
+  crewsProvider,
+  crewInvitationsProvider,
+  crewJoinRequestsProvider,
+];
+
+/// 하단 탭 순서. 갱신 묶음을 탭 번호로 고르므로 한곳에 이름을 둔다.
+abstract final class OunTab {
+  static const home = 0;
+  static const record = 1;
+  static const shop = 2;
+  static const social = 3;
+  static const my = 4;
+}
+
+/// 탭별로 화면에 보이는 데이터. 탭을 다시 열 때 이만큼 다시 읽는다.
+List<RefreshTarget> providersForTab(int index) => switch (index) {
+      0 => [
+          profileProvider,
+          walletProvider,
+          todayMinutesProvider,
+          questsProvider,
+          receivedCheersProvider,
+          unreadNotificationsProvider,
+        ],
+      1 => [
+          recentWorkoutsProvider,
+          todayMinutesProvider,
+          calendarProvider,
+          monthSummaryProvider,
+          profileProvider,
+        ],
+      2 => [walletProvider, shopItemsProvider, profileProvider],
+      3 => socialProviders,
+      4 => [
+          profileProvider,
+          walletProvider,
+          achievementsProvider,
+          unreadNotificationsProvider,
+        ],
+      _ => [],
+    };
+
+/// 푸시/인앱 알림 한 건이 바꿔 놓는 데이터.
+///
+/// 알림함 수치만 갱신하면 "알림은 왔는데 목록엔 없는" 상태가 된다 —
+/// 알림이 가리키는 목록(받은 친구 요청·받은 초대 등)도 같이 다시 읽는다.
+List<RefreshTarget> providersForNotification(String? type) => switch (type) {
+      'friend_request' => [friendRequestsProvider],
+      'friend_accepted' => [
+          friendsProvider,
+          friendRequestsProvider,
+          questsProvider,
+        ],
+      'cheer' => [receivedCheersProvider],
+      'crew_invite' => [crewInvitationsProvider],
+      'crew_join_request' => [crewJoinRequestsProvider],
+      'crew_join_result' => [
+          crewsProvider,
+          crewInvitationsProvider,
+          crewJoinRequestsProvider,
+        ],
+      'crew_comment' || 'crew_post_cheer' => [
+          crewFeedProvider,
+          crewDetailProvider,
+        ],
+      // 모르는 종류(서버가 늘렸을 수 있다) → 소셜 목록을 통째로 다시 읽는다.
+      _ => socialProviders,
+    };
+
+/// 당겨서 새로고침. 그 탭 데이터를 다시 읽고, **다 읽을 때까지 기다린다**
+/// (인디케이터가 곧바로 사라지면 갱신된 느낌이 안 난다).
+Future<void> refreshTab(WidgetRef ref, int index) async {
+  invalidateAll(ref, providersForTab(index));
+  final waits = <Future<Object?>>[
+    ...switch (index) {
+      OunTab.home => [
+          ref.read(profileProvider.future),
+          ref.read(questsProvider.future),
+          ref.read(receivedCheersProvider.future),
+        ],
+      OunTab.record => [ref.read(recentWorkoutsProvider.future)],
+      OunTab.shop => [ref.read(walletProvider.future)],
+      OunTab.social => [
+          ref.read(friendsProvider.future),
+          ref.read(friendRequestsProvider.future),
+          ref.read(crewsProvider.future),
+          ref.read(crewInvitationsProvider.future),
+        ],
+      OunTab.my => [
+          ref.read(profileProvider.future),
+          ref.read(achievementsProvider.future),
+        ],
+      _ => <Future<Object?>>[],
+    },
+  ];
+  try {
+    await Future.wait(waits);
+  } catch (_) {
+    // 실패는 각 화면의 에러 표시가 알려 준다 — 인디케이터만 닫는다.
+  }
+}
