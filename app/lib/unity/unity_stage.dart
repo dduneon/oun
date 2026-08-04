@@ -248,8 +248,13 @@ class _UnityHostState extends ConsumerState<UnityHost> {
       ),
     );
     // rect == null: 전체 화면. rect 지정 시 그 박스에만 렌더(나머지 투명).
+    // Unity 뷰 뒤에는 아무도 칠하지 않는다(홈 화면은 투명). rect가 박스로 잡혀
+    // 있으면 그 바깥이 검게 보이므로 배경색을 항상 깔아둔다.
+    const backdrop =
+        Positioned.fill(child: ColoredBox(color: OunColors.background));
     if (rect == null) {
       return Stack(children: [
+        backdrop,
         Positioned.fill(child: view),
         Positioned.fill(child: cover),
       ]);
@@ -258,6 +263,7 @@ class _UnityHostState extends ConsumerState<UnityHost> {
     // 크루 박스 ↔ 전체화면으로 커졌다 작아지는데, 가림막이 옛 rect에만 있으면
     // 그 바깥으로 이전 씬이 삐져나온다.
     return Stack(children: [
+      backdrop,
       Positioned.fromRect(rect: rect, child: view),
       Positioned.fill(child: cover),
     ]);

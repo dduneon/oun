@@ -172,6 +172,10 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
     // 진입 중·덮임/열림 중·이탈 중: 그냥 덮어둔다.
     if (!_pageSettled || _isLeaving) {
       if (_revealed) setState(() => _revealed = false);
+      // 이탈이 시작되는 즉시 Unity를 가린다. 뒤로가기로 드러나는 화면이 홈(투명)
+      // 이면 크루 씬이 그대로 비치기 때문 — 홈 씬 복귀는 dispose에서 건다.
+      // (애니메이션 콜백이라 빌드 중이 아니고, 프로바이더를 만져도 안전하다.)
+      if (_isLeaving) ref.read(unityCoverProvider.notifier).raise();
       return;
     }
 
@@ -191,6 +195,19 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   void dispose() {
     _primaryAnim?.removeStatusListener(_onRouteAnim);
     _secondaryAnim?.removeStatusListener(_onRouteAnim);
+    // 크루 화면은 루트 내비게이터에 push된다. 알림 → 크루 → 뒤로가기처럼 탭
+    // 인덱스가 내내 그대로인 경로에서는 main_scaffold의 홈 복귀가 아예 돌지
+    // 않아, Unity가 크루 씬 + 크루 박스 rect로 남는다. 나갈 때 여기서 되돌린다.
+    //
+    // 화면이 사라진 뒤 실행해야 하므로 노티파이어를 미리 잡아두고 다음 프레임에
+    // 부른다(dispose된 State의 ref는 쓸 수 없다). 가림막은 이탈 시작 시점에
+    // 이미 올라가 있고, 홈 씬이 준비되면 UnityHost가 내린다.
+    final scene = ref.read(unitySceneProvider.notifier);
+    final viewport = ref.read(unityViewportProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      scene.showHome();
+      viewport.setRect(null);
+    });
     super.dispose();
   }
 
