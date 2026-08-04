@@ -1,8 +1,14 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- unityLibrary의 매니페스트가 enableOnBackInvokedCallback=true로 병합되면서
+         뒤로가기가 Unity의 predictive back 콜백에 먹혀 Flutter 라우터까지 오지 않는다.
+         앱 쪽에서 되돌린다(뿌리에서 끄려면 Unity의 Predictive Back Support 해제 + 재export). -->
     <application
         android:label="오운"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="false"
+        tools:replace="android:enableOnBackInvokedCallback">
         <activity
             android:name=".MainActivity"
             android:exported="true"
