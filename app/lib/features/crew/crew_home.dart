@@ -123,10 +123,16 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
   Animation<double>? _primaryAnim;
   Animation<double>? _secondaryAnim;
   bool _revealed = false; // 무대 공개 여부(false면 불투명 덮개로 Unity를 가림).
+  // dispose에서 쓸 Unity 컨트롤러. dispose 시점엔 이미 element가 unmount돼
+  // (context.mounted == false) ref가 StateError를 던지므로, 살아 있을 때 잡아둔다.
+  late final UnitySceneController _unityScene;
+  late final UnityViewportController _unityViewport;
 
   @override
   void initState() {
     super.initState();
+    _unityScene = ref.read(unitySceneProvider.notifier);
+    _unityViewport = ref.read(unityViewportProvider.notifier);
     // 크루 상세/피드/가입 신청은 family 프로바이더라 한 번 읽으면 캐시에 남는다.
     // 다시 들어올 때는 그 사이 남이 만든 변화(새 글·가입 신청)를 다시 읽는다.
     // 이미 값이 있을 때만 무효화한다 — 첫 진입에 방금 시작한 요청을 버리고
@@ -220,15 +226,17 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
     // 인덱스가 내내 그대로인 경로에서는 main_scaffold의 홈 복귀가 아예 돌지
     // 않아, Unity가 크루 씬 + 크루 박스 rect로 남는다. 나갈 때 여기서 되돌린다.
     //
-    // 화면이 사라진 뒤 실행해야 하므로 노티파이어를 미리 잡아두고 다음 프레임에
-    // 부른다(dispose된 State의 ref는 쓸 수 없다). 가림막은 이탈 시작 시점에
-    // 이미 올라가 있고, 홈 씬이 준비되면 UnityHost가 내린다.
-    final scene = ref.read(unitySceneProvider.notifier);
-    final viewport = ref.read(unityViewportProvider.notifier);
+    // 화면이 사라진 뒤 실행해야 하므로 initState에서 잡아둔 노티파이어를 다음
+    // 프레임에 부른다(dispose 시점의 ref는 StateError를 던진다 — element가 이미
+    // unmount돼 있다). 가림막은 이탈 시작 시점에 이미 올라가 있고, 홈 씬이
+    // 준비되면 UnityHost가 내린다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      scene.showHome();
-      viewport.setRect(null);
+      _unityScene.showHome();
+      _unityViewport.setRect(null);
     });
+    // 다음 프레임이 예약돼 있지 않으면 위 콜백이 사용자가 화면을 건드릴 때까지
+    // 밀린다(pop 애니메이션이 끝나 더 그릴 게 없는 상태가 딱 그렇다).
+    WidgetsBinding.instance.scheduleFrame();
     super.dispose();
   }
 
