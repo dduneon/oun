@@ -29,14 +29,26 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   Future<void> _onTapItem(ShopItem it) async {
     final api = ref.read(apiClientProvider);
     if (it.owned) {
-      // 이미 보유 → 바로 장착(입어보기)
+      // 이미 보유 → 탭할 때마다 장착/해제를 오간다. 슬롯 = 카테고리.
       try {
-        await api.equipItem(it.key);
+        if (it.equipped) {
+          await api.unequipSlot(it.category);
+        } else {
+          await api.equipItem(it.key);
+        }
+        ref.invalidate(shopItemsProvider);
+        ref.invalidate(equippedItemsProvider);
         if (mounted) {
-          OunToast.show(context, '${it.name} 입었어요', kind: OunToastKind.success);
+          OunToast.show(
+            context,
+            it.equipped ? '${it.name} 벗었어요' : '${it.name} 장착했어요',
+            kind: OunToastKind.success,
+          );
         }
       } catch (_) {
-        if (mounted) OunToast.show(context, '장착에 실패했어요');
+        if (mounted) {
+          OunToast.show(context, it.equipped ? '해제에 실패했어요' : '장착에 실패했어요');
+        }
       }
       return;
     }
@@ -84,11 +96,27 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
 
     try {
       await api.orderItem(it.key);
+      // 캐릭터가 입는 아이템(의상·헤어·소품)은 구매 즉시 장착해
+      // 홈으로 돌아갔을 때 바로 3D 캐릭터에 보이게 한다.
+      var equipped = false;
+      if (const {'clothing', 'hair', 'prop'}.contains(it.category)) {
+        try {
+          await api.equipItem(it.key);
+          equipped = true;
+        } catch (_) {
+          // 구매 자체는 끝났으므로 장착 실패를 구매 실패로 잘못 안내하지 않는다.
+        }
+      }
       ref.invalidate(walletProvider);
       ref.invalidate(shopItemsProvider);
+      ref.invalidate(equippedItemsProvider);
       ref.invalidate(achievementsProvider);
       if (mounted) {
-        OunToast.show(context, '${it.name} 구매했어요', kind: OunToastKind.success);
+        OunToast.show(
+          context,
+          equipped ? '${it.name} 구매하고 장착했어요' : '${it.name} 구매했어요',
+          kind: OunToastKind.success,
+        );
       }
     } on Exception catch (e) {
       if (!mounted) return;
@@ -231,6 +259,17 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                     decoration: BoxDecoration(
                         color: colorFromHex(it.colorHex),
                         borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.all(8),
+                    child: Image.asset(
+                      'assets/shop/${it.key}.png',
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.medium,
+                      errorBuilder: (_, _, _) => const Icon(
+                        Icons.checkroom_rounded,
+                        size: 40,
+                        color: OunColors.textFaint,
+                      ),
+                    ),
                   ),
                 ),
                 if (it.owned)
@@ -243,8 +282,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                       decoration: BoxDecoration(
                           color: OunColors.tabAccent,
                           borderRadius: BorderRadius.circular(9)),
-                      child: const Text('보유',
-                          style: TextStyle(
+                      child: Text(it.equipped ? '장착중' : '보유',
+                          style: const TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w700,
                               color: OunColors.onTabAccent)),
@@ -262,11 +301,13 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
           const SizedBox(height: 3),
           if (it.owned)
             // 이미 보유한 아이템에는 가격 대신 상태를 보여준다
-            const Text('보유중 · 탭해서 입기',
+            Text(it.equipped ? '장착중 · 탭해서 해제' : '보유중 · 탭해서 장착',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: OunColors.textMuted))
+                    color: it.equipped
+                        ? OunColors.tabAccent
+                        : OunColors.textMuted))
           else
             Row(
               children: [

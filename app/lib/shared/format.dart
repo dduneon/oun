@@ -78,7 +78,9 @@ String relativeTime(DateTime t) {
   if (diff.inMinutes < 1) return '방금';
   if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
   if (diff.inHours < 24) return '${diff.inHours}시간 전';
-  final days = DateTime.now().difference(DateTime(t.year, t.month, t.day)).inDays;
+  final days = DateTime.now()
+      .difference(DateTime(t.year, t.month, t.day))
+      .inDays;
   if (days <= 1) return '어제';
   return '$days일 전';
 }
@@ -86,8 +88,11 @@ String relativeTime(DateTime t) {
 /// 날짜만: 오늘/어제/n일 전.
 String relativeDay(DateTime t) {
   final now = DateTime.now();
-  final days =
-      DateTime(now.year, now.month, now.day).difference(DateTime(t.year, t.month, t.day)).inDays;
+  final days = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).difference(DateTime(t.year, t.month, t.day)).inDays;
   if (days <= 0) return '오늘';
   if (days == 1) return '어제';
   return '$days일 전';
@@ -95,7 +100,9 @@ String relativeDay(DateTime t) {
 
 /// 운동 주 지표 텍스트: '5.2km' / '8,200보' / '상체 5세트' / '32분'.
 String workoutMetric(Workout w) {
-  if (w.distanceM != null) return '${(w.distanceM! / 1000).toStringAsFixed(1)}km';
+  if (w.distanceM != null) {
+    return '${(w.distanceM! / 1000).toStringAsFixed(1)}km';
+  }
   if (w.steps != null) return '${comma(w.steps!)}보';
   if (w.bodyPart != null) {
     final part = bodyPartLabels[w.bodyPart] ?? w.bodyPart!;
@@ -107,9 +114,13 @@ String workoutMetric(Workout w) {
 /// 피드 칩 라벨: '러닝 5.2km' / '웨이트 · 하체'.
 String workoutChipLabel(Workout w) {
   final label = sportLabels[w.sport] ?? w.sport;
-  if (w.distanceM != null) return '$label ${(w.distanceM! / 1000).toStringAsFixed(1)}km';
+  if (w.distanceM != null) {
+    return '$label ${(w.distanceM! / 1000).toStringAsFixed(1)}km';
+  }
   if (w.steps != null) return '$label ${comma(w.steps!)}보';
-  if (w.bodyPart != null) return '$label · ${bodyPartLabels[w.bodyPart] ?? w.bodyPart}';
+  if (w.bodyPart != null) {
+    return '$label · ${bodyPartLabels[w.bodyPart] ?? w.bodyPart}';
+  }
   return '$label ${w.minutes}분';
 }
 
@@ -127,12 +138,30 @@ List<(String, String)> workoutDetails(Workout w) {
     rows.add(('거리', '${(w.distanceM! / 1000).toStringAsFixed(1)} km'));
   }
   if (w.steps != null) rows.add(('걸음 수', '${comma(w.steps!)}보'));
-  if (w.bodyPart != null) rows.add(('부위', bodyPartLabels[w.bodyPart] ?? w.bodyPart!));
+  if (w.bodyPart != null) {
+    rows.add(('부위', bodyPartLabels[w.bodyPart] ?? w.bodyPart!));
+  }
   if (w.sets != null) rows.add(('세트', '${w.sets}세트'));
   rows.add(('시간', '${w.minutes}분'));
+  if (w.customSportName != null) rows.add(('운동 이름', w.customSportName!));
+  if (w.calories != null) rows.add(('칼로리', '${w.calories} kcal'));
+  if (w.effort != null) rows.add(('운동 강도', '${w.effort}/10'));
+  if (w.exercises.isNotEmpty) {
+    rows.add(('총 볼륨', '${w.volume.toStringAsFixed(1)} kg'));
+  }
   if (w.distanceM != null && w.durationSec > 0 && w.distanceM! > 0) {
     final paceSec = (w.durationSec / (w.distanceM! / 1000)).round();
-    rows.add(('페이스', "${paceSec ~/ 60}'${(paceSec % 60).toString().padLeft(2, '0')}\""));
+    if (w.sport == 'cycling') {
+      rows.add((
+        '평균 속도',
+        '${(w.distanceM! / w.durationSec * 3.6).toStringAsFixed(1)} km/h',
+      ));
+    } else {
+      rows.add((
+        '페이스',
+        "${paceSec ~/ 60}'${(paceSec % 60).toString().padLeft(2, '0')}\" /km",
+      ));
+    }
   }
   return rows;
 }

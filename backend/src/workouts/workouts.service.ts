@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,6 +15,30 @@ import { kstDayKey } from '../common/time';
 import { StorageService } from '../storage/storage.service';
 import { CreateWorkoutDto } from './dto';
 import { verifyWorkout } from './verify';
+
+const workoutInclude = {
+  exercises: { orderBy: { position: 'asc' as const }, include: {
+    sets: { orderBy: { position: 'asc' as const } },
+  } },
+};
+
+function exerciseData(dto: CreateWorkoutDto) {
+  if (dto.sport !== 'weight' && dto.exercises?.length) {
+    throw new BadRequestException('세트별 기록은 웨이트에서 사용할 수 있어요');
+  }
+  return (dto.exercises ?? []).map((exercise, position) => {
+    if (!exercise.name.trim()) throw new BadRequestException('운동 이름을 입력해 주세요');
+    return { name: exercise.name.trim(), position, sets: { create:
+      exercise.sets.map((set, position) => ({ ...set, position })),
+    } };
+  });
+}
+
+function checkDate(dto: CreateWorkoutDto) {
+  if (dto.performedAt && new Date(dto.performedAt).getTime() > Date.now() + 60000) {
+    throw new BadRequestException('미래의 운동은 기록할 수 없어요');
+  }
+}
 
 /** 하루 총 운동 분 → 캘린더 강도(0~4). 앱 기록 화면 도트와 매핑. */
 function intensityOf(minutes: number): number {
@@ -37,6 +62,8 @@ export class WorkoutsService {
 
   /** POST /workouts — 기록 제출 → 검증 → (승인 시) 보상·스탯·스트릭·mood·퀘스트·업적. */
   async create(userId: string, dto: CreateWorkoutDto) {
+    checkDate(dto);
+    const exercises = exerciseData(dto);
     const performedAt = dto.performedAt ? new Date(dto.performedAt) : new Date();
     const hasPhoto = dto.hasPhoto === true || !!dto.photoRef;
     const { status, reason } = verifyWorkout(dto);
@@ -50,8 +77,12 @@ export class WorkoutsService {
           distanceM: dto.distanceM,
           steps: dto.steps,
           bodyPart: dto.bodyPart,
-          sets: dto.sets,
+          sets: exercises.length ? dto.exercises!.reduce((n, e) => n + e.sets.length, 0) : dto.sets,
           calories: dto.calories,
+          note: dto.note?.trim() || null,
+          effort: dto.effort,
+          customSportName: dto.customSportName?.trim() || null,
+          exercises: { create: exercises },
           photoRef: dto.photoRef,
           source: dto.source ?? 'manual',
           verifyStatus: status,
@@ -59,6 +90,7 @@ export class WorkoutsService {
           verifiedAt: status === 'verified' ? new Date() : null,
           performedAt,
         },
+        include: workoutInclude,
       });
 
       if (status === 'rejected') {
@@ -77,17 +109,14 @@ export class WorkoutsService {
       });
 
       // 스탯·스트릭·mood
-      const streak = await this.game.applyWorkout(tx, userId, {
-        sport: dto.sport,
-        durationSec: dto.durationSec,
-        performedAt,
-      });
+      const streak = await this.game.rebuildWorkouts(tx, userId);
 
       // 퀘스트 진행 + 업적 판정
       await this.quests.onWorkout(tx, userId, {
         minutes: Math.floor(dto.durationSec / 60),
         hasPhoto,
         streakCurrent: streak.current,
+        performedAt,
       });
       await this.achievements.evaluate(tx, userId);
 
@@ -102,7 +131,7 @@ export class WorkoutsService {
   }
 
   /** DELETE /workouts/:id — 본인 기록 삭제 + 지급됐던 코인 보상 회수.
-   *  (스탯·스트릭·퀘스트 진행은 되돌리지 않는다) */
+   *  스탯·스트릭은 재계산한다. 이미 지급된 퀘스트·업적 보상은 유지한다. */
   async remove(userId: string, workoutId: string) {
     const workout = await this.prisma.workoutLog.findUnique({
       where: { id: workoutId },
@@ -127,6 +156,7 @@ export class WorkoutsService {
         });
       }
       await tx.workoutLog.delete({ where: { id: workoutId } });
+      await this.game.rebuildWorkouts(tx, userId);
       const balance = await this.ledger.balanceOf(userId, tx);
       return { deleted: true, balance };
     });
@@ -144,8 +174,10 @@ export class WorkoutsService {
   }
 
   /** PATCH /workouts/:id — 본인 기록 수정. 검증·코인 보상을 다시 계산해 맞춘다.
-   *  (스탯·스트릭·퀘스트 진행은 되돌리지 않음) */
+   *  스탯·스트릭은 재계산한다. 이미 지급된 퀘스트·업적 보상은 유지한다. */
   async update(userId: string, workoutId: string, dto: CreateWorkoutDto) {
+    checkDate(dto);
+    const exercises = exerciseData(dto);
     const existing = await this.prisma.workoutLog.findUnique({
       where: { id: workoutId },
     });
@@ -185,8 +217,13 @@ export class WorkoutsService {
           distanceM: dto.distanceM ?? null,
           steps: dto.steps ?? null,
           bodyPart: dto.bodyPart ?? null,
-          sets: dto.sets ?? null,
-          calories: dto.calories ?? null,
+          sets: exercises.length ? dto.exercises!.reduce((n, e) => n + e.sets.length, 0) : dto.sets ?? null,
+          calories: dto.calories === undefined ? existing.calories : dto.calories,
+          note: dto.note === undefined ? existing.note : dto.note?.trim() || null,
+          effort: dto.effort === undefined ? existing.effort : dto.effort,
+          customSportName: dto.customSportName === undefined ? existing.customSportName : dto.customSportName?.trim() || null,
+          exercises: dto.exercises !== undefined || dto.sport !== 'weight'
+            ? { deleteMany: {}, create: exercises } : undefined,
           photoRef: dto.photoRef ?? existing.photoRef,
           verifyStatus: status,
           rejectReason: reason ?? null,
@@ -194,7 +231,9 @@ export class WorkoutsService {
             status === 'verified' ? (existing.verifiedAt ?? new Date()) : null,
           performedAt,
         },
+        include: workoutInclude,
       });
+      await this.game.rebuildWorkouts(tx, userId);
       const balance = await this.ledger.balanceOf(userId, tx);
       return {
         workout: {
@@ -210,7 +249,8 @@ export class WorkoutsService {
   }
 
   /** GET /workouts?from=&to= — 최근 기록 리스트. */
-  async list(userId: string, from?: string, to?: string) {
+  async list(userId: string, from?: string, to?: string, offset = 0) {
+    if (!Number.isInteger(offset) || offset < 0) throw new BadRequestException('잘못된 페이지예요');
     const where: { userId: string; performedAt?: { gte?: Date; lte?: Date } } = { userId };
     if (from || to) {
       where.performedAt = {};
@@ -219,8 +259,10 @@ export class WorkoutsService {
     }
     const items = await this.prisma.workoutLog.findMany({
       where,
-      orderBy: { performedAt: 'desc' },
+      orderBy: [{ performedAt: 'desc' }, { id: 'desc' }],
       take: 50,
+      skip: offset,
+      include: workoutInclude,
     });
     return {
       items: items.map((w) => ({

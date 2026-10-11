@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_embed_unity/flutter_embed_unity.dart';
@@ -122,6 +123,8 @@ class _UnityHostState extends ConsumerState<UnityHost> {
   Timer? _busyTimeout; // *_ready가 안 오는 최악의 경우 대비 안전 해제.
   Timer? _bootTimeout; // 첫 로딩 화면이 영원히 안 걷히는 것 방지.
   Timer? _uncoverDelay; // 씬 준비 후에도 잠깐 더 가려두기 위한 지연.
+  bool _unityReady = false;
+  String? _sentEquipment; // 마지막으로 Unity에 보낸 장착 JSON.
 
   @override
   void initState() {
@@ -178,12 +181,18 @@ class _UnityHostState extends ConsumerState<UnityHost> {
       if (message == 'home_ready') {
         _bootTimeout?.cancel();
         ref.read(unityBootedProvider.notifier).markReady();
+        // LoadScene 직전에 보낸 장착 메시지는 네이티브 플랫폼 뷰의 메시지 큐
+        // 타이밍에 따라 캐릭터 스폰보다 먼저 처리될 수 있다. 홈 캐릭터가 실제로
+        // 준비됐다는 신호를 받은 뒤 한 번 더 보내 구매 소품을 확실히 복원한다.
+        final equipment = ref.read(equippedItemsProvider).value;
+        if (equipment != null) _applyEquipment(equipment);
       }
       return;
     }
     // Unity 엔진 준비 완료 → 현재 씬을 (사용자 토큰 포함해) 최초 1회 전송.
     // 엔진 로드 전에 보낸 메시지는 유실되므로 이 신호를 받고 나서 스폰을 시작한다.
     if (message == 'unity_ready') {
+      _unityReady = true;
       // UnityPlayer가 뜨면서 창을 전체화면으로 만들어 상태바를 먹는다(안드로이드).
       // 엔진이 올라온 뒤에 다시 세워야 한다.
       restoreSystemBars();
@@ -216,6 +225,19 @@ class _UnityHostState extends ConsumerState<UnityHost> {
       UnityScene.crew => s.payload.isEmpty ? 'crew' : 'crew:${s.payload}',
     };
     sendToUnity('OunBridge', 'LoadScene', arg);
+    if (s.scene == UnityScene.home) {
+      final equipment = ref.read(equippedItemsProvider).value;
+      if (equipment != null) _applyEquipment(equipment);
+    }
+  }
+
+  /// 서버에 저장된 슬롯별 장착 상태를 Unity에 전달한다.
+  void _applyEquipment(Map<String, String> equipment) {
+    if (!_unityReady) return;
+    final payload = jsonEncode(equipment);
+    _sentEquipment = payload;
+    debugPrint('Flutter → Unity equipment: $payload');
+    sendToUnity('OunBridge', 'ApplyEquipment', payload);
   }
 
   /// 현재 사용자 본인의 캐릭터 토큰('m'/'f'). 크루원 charToken과 같은 규칙.
@@ -232,6 +254,16 @@ class _UnityHostState extends ConsumerState<UnityHost> {
       if (prev?.profile?.gender != next.profile?.gender &&
           ref.read(unitySceneProvider).scene == UnityScene.home) {
         _apply(ref.read(unitySceneProvider));
+      }
+    });
+    ref.listen<AsyncValue<Map<String, String>>>(equippedItemsProvider,
+        (prev, next) {
+      final equipment = next.value;
+      // 탭 새로고침처럼 내용이 그대로면 다시 보내지 않는다(소품 재생성 깜빡임 방지).
+      if (equipment != null &&
+          jsonEncode(equipment) != _sentEquipment &&
+          ref.read(unitySceneProvider).scene == UnityScene.home) {
+        _applyEquipment(equipment);
       }
     });
     final rect = ref.watch(unityViewportProvider);

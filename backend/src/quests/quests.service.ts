@@ -8,6 +8,7 @@ export interface WorkoutQuestEvent {
   minutes: number;
   hasPhoto: boolean;
   streakCurrent: number;
+  performedAt?: Date;
 }
 
 @Injectable()
@@ -48,7 +49,7 @@ export class QuestsService {
   /** 운동 검증 시 관련 퀘스트 진행도 갱신. tx 안에서 호출. */
   async onWorkout(tx: Prisma.TransactionClient, userId: string, ev: WorkoutQuestEvent) {
     const defs = await tx.questDef.findMany();
-    const now = new Date();
+    const now = ev.performedAt ?? new Date();
     for (const def of defs) {
       let nextProgress: number | null = null;
       const row = await this.ensureRow(tx, userId, def, now);

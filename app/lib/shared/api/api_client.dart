@@ -35,7 +35,8 @@ class ApiClient {
               _retrying = true;
               await _refresh();
               final res = await _dio.fetch<dynamic>(
-                e.requestOptions..headers['Authorization'] = 'Bearer $_accessToken',
+                e.requestOptions
+                  ..headers['Authorization'] = 'Bearer $_accessToken',
               );
               return handler.resolve(res);
             } catch (_) {
@@ -72,22 +73,25 @@ class ApiClient {
     required String nickname,
     required String gender,
   }) async {
-    final res = await _dio.post<Map<String, dynamic>>('/auth/register', data: {
-      'username': username,
-      'password': password,
-      'nickname': nickname,
-      'gender': gender,
-    });
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/auth/register',
+      data: {
+        'username': username,
+        'password': password,
+        'nickname': nickname,
+        'gender': gender,
+      },
+    );
     _setTokens(res.data!);
     return me();
   }
 
   /// 로그인: 아이디 + 비밀번호.
   Future<Profile> login(String username, String password) async {
-    final res = await _dio.post<Map<String, dynamic>>('/auth/login', data: {
-      'username': username,
-      'password': password,
-    });
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/auth/login',
+      data: {'username': username, 'password': password},
+    );
     _setTokens(res.data!);
     return me();
   }
@@ -101,8 +105,10 @@ class ApiClient {
 
   /// refresh 토큰으로 액세스 토큰(및 refresh 토큰) 재발급.
   Future<void> _refresh() async {
-    final res = await _dio.post<Map<String, dynamic>>('/auth/refresh',
-        data: {'refreshToken': _refreshToken});
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/auth/refresh',
+      data: {'refreshToken': _refreshToken},
+    );
     _setTokens(res.data!);
   }
 
@@ -133,8 +139,9 @@ class ApiClient {
     String contentType = 'image/jpeg',
   }) async {
     final presign = await _dio.post<Map<String, dynamic>>(
-        '/uploads/workout-photo',
-        data: {'contentType': contentType});
+      '/uploads/workout-photo',
+      data: {'contentType': contentType},
+    );
     final key = presign.data!['key'] as String;
     final uploadUrl = presign.data!['uploadUrl'] as String;
     // presigned URL은 MinIO 절대주소 → 인증 인터셉터/baseUrl 없는 순정 Dio로 PUT.
@@ -159,16 +166,21 @@ class ApiClient {
     String? bodyPart,
     int? sets,
     String? photoRef,
+    Map<String, dynamic> details = const {},
   }) async {
-    final res = await _dio.post<Map<String, dynamic>>('/workouts', data: {
-      'sport': sport,
-      'durationSec': durationSec,
-      'distanceM': ?distanceM,
-      'steps': ?steps,
-      'bodyPart': ?bodyPart,
-      'sets': ?sets,
-      'photoRef': ?photoRef,
-    });
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/workouts',
+      data: {
+        'sport': sport,
+        'durationSec': durationSec,
+        'distanceM': ?distanceM,
+        'steps': ?steps,
+        'bodyPart': ?bodyPart,
+        'sets': ?sets,
+        'photoRef': ?photoRef,
+        ...details,
+      },
+    );
     final d = res.data!;
     return WorkoutResult(
       verified: d['verified'] as bool? ?? false,
@@ -177,27 +189,39 @@ class ApiClient {
     );
   }
 
-  Future<List<Workout>> workouts({DateTime? from, DateTime? to}) async {
-    final res = await _dio.get<Map<String, dynamic>>('/workouts', queryParameters: {
-      'from': ?from?.toUtc().toIso8601String(),
-      'to': ?to?.toUtc().toIso8601String(),
-    });
+  Future<List<Workout>> workouts({
+    DateTime? from,
+    DateTime? to,
+    int offset = 0,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/workouts',
+      queryParameters: {
+        'from': ?from?.toUtc().toIso8601String(),
+        'to': ?to?.toUtc().toIso8601String(),
+        'offset': offset,
+      },
+    );
     return (res.data!['items'] as List)
         .map((e) => Workout.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<CalendarDay>> calendar(String month) async {
-    final res = await _dio
-        .get<Map<String, dynamic>>('/workouts/calendar', queryParameters: {'month': month});
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/workouts/calendar',
+      queryParameters: {'month': month},
+    );
     return (res.data!['days'] as List)
         .map((e) => CalendarDay.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<MonthSummary> monthSummary(String month) async {
-    final res = await _dio
-        .get<Map<String, dynamic>>('/workouts/summary', queryParameters: {'month': month});
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/workouts/summary',
+      queryParameters: {'month': month},
+    );
     return MonthSummary.fromJson(res.data!);
   }
 
@@ -227,9 +251,10 @@ class ApiClient {
   // ── 상점 ──────────────────────────────────────────────
 
   Future<List<ShopItem>> shopItems({String? category}) async {
-    final res = await _dio.get<Map<String, dynamic>>('/shop/items', queryParameters: {
-      'category': ?category,
-    });
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/shop/items',
+      queryParameters: {'category': ?category},
+    );
     return (res.data!['items'] as List)
         .map((e) => ShopItem.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -237,12 +262,35 @@ class ApiClient {
 
   /// 구매 → 차감 후 잔액 반환.
   Future<int> orderItem(String itemKey) async {
-    final res = await _dio.post<Map<String, dynamic>>('/shop/orders', data: {'itemKey': itemKey});
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/shop/orders',
+      data: {'itemKey': itemKey},
+    );
     return res.data!['balance'] as int;
   }
 
   Future<void> equipItem(String itemKey) async {
-    await _dio.put<Map<String, dynamic>>('/character/equip', data: {'itemKey': itemKey});
+    await _dio.put<Map<String, dynamic>>(
+      '/character/equip',
+      data: {'itemKey': itemKey},
+    );
+  }
+
+  /// 슬롯(카테고리)의 장착을 해제한다. 비어 있어도 성공.
+  Future<void> unequipSlot(String slot) async {
+    await _dio.delete<Map<String, dynamic>>('/character/equip/$slot');
+  }
+
+  /// 현재 캐릭터에 슬롯별로 장착된 아이템 키.
+  /// 서버 인벤토리가 source of truth라 앱 재시작 뒤에도 같은 모습으로 복원된다.
+  Future<Map<String, String>> equippedItems() async {
+    final res = await _dio.get<Map<String, dynamic>>('/inventory');
+    final items = res.data!['items'] as List;
+    return {
+      for (final raw in items)
+        if ((raw as Map<String, dynamic>)['equipped'] == true)
+          raw['category'] as String: raw['key'] as String,
+    };
   }
 
   // ── 소셜: 친구/응원 ────────────────────────────────────
@@ -257,12 +305,11 @@ class ApiClient {
   /// @nickname에게 친구 요청. 상대가 이미 나를 요청했다면 바로 친구가 된다.
   /// 반환: (status, displayName) — status는 'requested' | 'accepted'.
   Future<(String, String)> sendFriendRequest(String nickname) async {
-    final res = await _dio.post<Map<String, dynamic>>('/friends/requests',
-        data: {'nickname': nickname});
-    return (
-      res.data!['status'] as String,
-      res.data!['displayName'] as String,
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/friends/requests',
+      data: {'nickname': nickname},
     );
+    return (res.data!['status'] as String, res.data!['displayName'] as String);
   }
 
   /// 내가 받은 대기중 친구 요청 목록.
@@ -276,8 +323,9 @@ class ApiClient {
   /// 받은 친구 요청 수락/거절.
   Future<void> respondFriendRequest(String requestId, bool accept) async {
     final action = accept ? 'accept' : 'reject';
-    await _dio
-        .post<Map<String, dynamic>>('/friends/requests/$requestId/$action');
+    await _dio.post<Map<String, dynamic>>(
+      '/friends/requests/$requestId/$action',
+    );
   }
 
   Future<FriendHome> friendHome(String nickname) async {
@@ -286,7 +334,10 @@ class ApiClient {
   }
 
   Future<void> cheer(String nickname, {String? emoji}) async {
-    await _dio.post<Map<String, dynamic>>('/users/$nickname/cheer', data: {'emoji': ?emoji});
+    await _dio.post<Map<String, dynamic>>(
+      '/users/$nickname/cheer',
+      data: {'emoji': ?emoji},
+    );
   }
 
   /// 내가 받은 응원. 조회만으로는 확인 처리되지 않는다([markCheersSeen] 별도 호출).
@@ -308,8 +359,9 @@ class ApiClient {
   }
 
   Future<int> unreadNotificationCount() async {
-    final res =
-        await _dio.get<Map<String, dynamic>>('/notifications/unread-count');
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/notifications/unread-count',
+    );
     return res.data!['unread'] as int;
   }
 
@@ -342,11 +394,15 @@ class ApiClient {
     String? description,
     required bool isPublic,
   }) async {
-    final res = await _dio.post<Map<String, dynamic>>('/crews', data: {
-      'name': name,
-      if (description != null && description.isNotEmpty) 'description': description,
-      'isPublic': isPublic,
-    });
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/crews',
+      data: {
+        'name': name,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        'isPublic': isPublic,
+      },
+    );
     return CrewDetail.fromJson(res.data!);
   }
 
@@ -357,11 +413,10 @@ class ApiClient {
     String? description,
     bool? isPublic,
   }) async {
-    final res = await _dio.patch<Map<String, dynamic>>('/crews/$crewId', data: {
-      'name': ?name,
-      'description': ?description,
-      'isPublic': ?isPublic,
-    });
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/crews/$crewId',
+      data: {'name': ?name, 'description': ?description, 'isPublic': ?isPublic},
+    );
     return CrewDetail.fromJson(res.data!);
   }
 
@@ -381,8 +436,10 @@ class ApiClient {
 
   /// 공개 크루 탐방. q로 이름 검색.
   Future<List<CrewSummary>> discoverCrews({String? q}) async {
-    final res = await _dio.get<Map<String, dynamic>>('/crews/discover',
-        queryParameters: {if (q != null && q.isNotEmpty) 'q': q});
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/crews/discover',
+      queryParameters: {if (q != null && q.isNotEmpty) 'q': q},
+    );
     return (res.data!['items'] as List)
         .map((e) => CrewSummary.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -395,8 +452,9 @@ class ApiClient {
 
   /// 방장: 대기중 가입 신청 목록.
   Future<List<CrewJoinRequestItem>> crewJoinRequests(String crewId) async {
-    final res =
-        await _dio.get<Map<String, dynamic>>('/crews/$crewId/join-requests');
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/crews/$crewId/join-requests',
+    );
     return (res.data!['items'] as List)
         .map((e) => CrewJoinRequestItem.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -404,18 +462,24 @@ class ApiClient {
 
   /// 방장: 가입 신청 승인/거절.
   Future<void> respondJoinRequest(
-      String crewId, String requestId, bool accept) async {
+    String crewId,
+    String requestId,
+    bool accept,
+  ) async {
     final action = accept ? 'accept' : 'reject';
     await _dio.post<Map<String, dynamic>>(
-        '/crews/$crewId/join-requests/$requestId/$action');
+      '/crews/$crewId/join-requests/$requestId/$action',
+    );
   }
 
   // ── 크루 초대 ──────────────────────────────────────────
 
   /// 방장: @nickname 초대(대기중 초대 생성). 상대가 수락해야 가입된다.
   Future<String> inviteToCrew(String crewId, String nickname) async {
-    final res = await _dio
-        .post<Map<String, dynamic>>('/crews/$crewId/invite', data: {'nickname': nickname});
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/crews/$crewId/invite',
+      data: {'nickname': nickname},
+    );
     return res.data!['displayName'] as String;
   }
 
@@ -430,8 +494,9 @@ class ApiClient {
   /// 초대 수락/거절.
   Future<void> respondCrewInvitation(String invitationId, bool accept) async {
     final action = accept ? 'accept' : 'decline';
-    await _dio
-        .post<Map<String, dynamic>>('/crews/invitations/$invitationId/$action');
+    await _dio.post<Map<String, dynamic>>(
+      '/crews/invitations/$invitationId/$action',
+    );
   }
 
   Future<void> leaveCrew(String crewId) async {
@@ -451,10 +516,10 @@ class ApiClient {
     String? message,
     String? workoutLogId,
   }) async {
-    await _dio.patch<Map<String, dynamic>>('/crews/posts/$postId', data: {
-      'message': message ?? '',
-      'workoutLogId': workoutLogId ?? '',
-    });
+    await _dio.patch<Map<String, dynamic>>(
+      '/crews/posts/$postId',
+      data: {'message': message ?? '', 'workoutLogId': workoutLogId ?? ''},
+    );
   }
 
   /// 내 크루 글 삭제(댓글·응원 함께 삭제).
@@ -478,17 +543,21 @@ class ApiClient {
     String? bodyPart,
     int? sets,
     String? photoRef,
+    Map<String, dynamic> details = const {},
   }) async {
-    final res = await _dio.patch<Map<String, dynamic>>('/workouts/$workoutId',
-        data: {
-          'sport': sport,
-          'durationSec': durationSec,
-          'distanceM': ?distanceM,
-          'steps': ?steps,
-          'bodyPart': ?bodyPart,
-          'sets': ?sets,
-          'photoRef': ?photoRef,
-        });
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/workouts/$workoutId',
+      data: {
+        'sport': sport,
+        'durationSec': durationSec,
+        'distanceM': ?distanceM,
+        'steps': ?steps,
+        'bodyPart': ?bodyPart,
+        'sets': ?sets,
+        'photoRef': ?photoRef,
+        ...details,
+      },
+    );
     final d = res.data!;
     return WorkoutResult(
       verified: d['verified'] as bool? ?? false,
@@ -503,21 +572,28 @@ class ApiClient {
     String? workoutLogId,
     String? message,
   }) async {
-    await _dio.post<Map<String, dynamic>>('/crews/$crewId/posts', data: {
-      'workoutLogId': ?workoutLogId,
-      if (message != null && message.isNotEmpty) 'message': message,
-    });
+    await _dio.post<Map<String, dynamic>>(
+      '/crews/$crewId/posts',
+      data: {
+        'workoutLogId': ?workoutLogId,
+        if (message != null && message.isNotEmpty) 'message': message,
+      },
+    );
   }
 
   Future<CrewCommentData> commentOnPost(String postId, String text) async {
-    final res = await _dio
-        .post<Map<String, dynamic>>('/crews/posts/$postId/comments', data: {'text': text});
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/crews/posts/$postId/comments',
+      data: {'text': text},
+    );
     return CrewCommentData.fromJson(res.data!);
   }
 
   /// 응원 토글 → (cheered, cheers).
   Future<(bool, int)> togglePostCheer(String postId) async {
-    final res = await _dio.post<Map<String, dynamic>>('/crews/posts/$postId/cheer');
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/crews/posts/$postId/cheer',
+    );
     return (res.data!['cheered'] as bool, res.data!['cheers'] as int);
   }
 
@@ -530,7 +606,9 @@ class ApiClient {
 
   /// 레벨 보상 수령 → (coins, balance).
   Future<(int, int)> claimCrewReward(String crewId, int level) async {
-    final res = await _dio.post<Map<String, dynamic>>('/crews/$crewId/rewards/$level/claim');
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/crews/$crewId/rewards/$level/claim',
+    );
     return (res.data!['coins'] as int, res.data!['balance'] as int);
   }
 }

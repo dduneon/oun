@@ -99,6 +99,14 @@ describe('오운 코어 루프 (e2e)', () => {
   });
 
   it('상점 구매 → 차감 + 중복/잔액부족 거절', async () => {
+    for (const category of ['clothing', 'hair', 'prop', 'furniture']) {
+      const shop = await request(app.getHttpServer())
+        .get(`/shop/items?category=${category}`)
+        .set(auth())
+        .expect(200);
+      expect(shop.body.items).toHaveLength(3);
+    }
+
     await request(app.getHttpServer())
       .post('/quests/daily_30min/claim')
       .set(auth())
@@ -125,6 +133,47 @@ describe('오운 코어 루프 (e2e)', () => {
 
     const inv = await request(app.getHttpServer()).get('/inventory').set(auth()).expect(200);
     expect(inv.body.items.map((i: any) => i.key)).toContain('tee_runner');
+
+    await request(app.getHttpServer())
+      .put('/character/equip')
+      .set(auth())
+      .send({ itemKey: 'tee_runner' })
+      .expect(200);
+    const equippedInventory = await request(app.getHttpServer())
+      .get('/inventory')
+      .set(auth())
+      .expect(200);
+    expect(equippedInventory.body.items.find((i: any) => i.key === 'tee_runner').equipped).toBe(
+      true,
+    );
+    const equippedShopItem = await request(app.getHttpServer())
+      .get('/shop/items?category=clothing')
+      .set(auth())
+      .expect(200);
+    expect(equippedShopItem.body.items.find((i: any) => i.key === 'tee_runner').equipped).toBe(
+      true,
+    );
+
+    await request(app.getHttpServer())
+      .delete('/character/equip/clothing')
+      .set(auth())
+      .expect(200);
+    const unequipped = await request(app.getHttpServer())
+      .get('/inventory')
+      .set(auth())
+      .expect(200);
+    expect(unequipped.body.items.find((i: any) => i.key === 'tee_runner').equipped).toBe(false);
+    // 비어 있는 슬롯 해제도 멱등하게 성공한다
+    await request(app.getHttpServer())
+      .delete('/character/equip/clothing')
+      .set(auth())
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/shop/orders')
+      .set(auth())
+      .send({ itemKey: 'windbreaker' })
+      .expect(404); // 정의에서 빠진 기존 목업은 구매 불가
   });
 
   it('첫 운동으로 "첫 걸음" 업적을 획득한다', async () => {

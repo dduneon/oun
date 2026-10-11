@@ -7,10 +7,66 @@ import {
   IsString,
   Max,
   Min,
+  IsArray,
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsNumber,
+  MaxLength,
+  MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { BodyPart, Sport, WorkoutSource } from '@prisma/client';
 
+export class WorkoutSetDto {
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1000)
+  weightKg!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  reps!: number;
+}
+
+export class WorkoutExerciseDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => WorkoutSetDto)
+  sets!: WorkoutSetDto[];
+}
+
 export class CreateWorkoutDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  effort?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  customSportName?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => WorkoutExerciseDto)
+  exercises?: WorkoutExerciseDto[];
   @IsEnum(Sport)
   sport!: Sport;
 

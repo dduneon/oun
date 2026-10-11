@@ -14,7 +14,16 @@ npm run prisma:seed           # 상점/퀘스트/업적 정의 시드
 npm run start:dev             # http://localhost:3000
 ```
 
-## 스택
+## 운동 상세 기록
+
+- `POST /workouts`, `PATCH /workouts/:id`는 `performedAt`, `calories`, `note`(최대 2,000자), `effort`(1~10), `customSportName`을 지원한다.
+- 웨이트는 `exercises: [{ name, sets: [{ weightKg, reps }] }]`로 저장한다. 맨몸은 `weightKg: 0`, 총 세트 수는 서버가 계산한다.
+- 기존 기록은 그대로 호환된다. 수정 시 `exercises` 생략은 기존 세트 유지, 빈 배열은 상세 세트 제거다. `calories`와 `effort`는 `null`, `note`는 빈 문자열로 해제한다.
+- `GET /workouts?offset=50`으로 50개씩 조회한다. 기존 `from`, `to` 날짜 필터와 함께 사용할 수 있다.
+- 날짜는 미래를 허용하지 않는다. 기록 추가·수정·삭제 후 스탯·스트릭·최근 운동 시각을 다시 계산한다. 퀘스트 생성 이벤트는 운동 날짜 기준이며, 수정·삭제 시 기존 퀘스트 진행과 이미 받은 업적/퀘스트 보상은 유지한다.
+- 배포 전 `npx prisma migrate deploy`와 `npx prisma generate`를 실행한다. 로컬 개발 DB에는 `20261006000000_workout_details` 마이그레이션이 필요하다.
+
+## 스택 구성
 - NestJS (모듈별 도메인 분리) + REST
 - Prisma ORM / MariaDB 11 (`mysql` 프로바이더)
 - JWT (access/refresh), 카카오 로그인 + 개발용 dev 로그인 스텁
@@ -39,7 +48,7 @@ npm run start:dev             # http://localhost:3000
 | 운동 | `POST /workouts`, `GET /workouts`, `GET /workouts/calendar`, `GET /workouts/summary` |
 | 캐릭터 | `GET /character`, `GET /character/mood` |
 | 퀘스트 | `GET /quests`, `POST /quests/:key/claim` |
-| 상점 | `GET /shop/items`, `POST /shop/orders`, `GET /inventory`, `PUT /character/equip` |
+| 상점 | `GET /shop/items`, `POST /shop/orders`, `GET /inventory`, `PUT /character/equip`, `DELETE /character/equip/:slot` |
 | 업적 | `GET /achievements` |
 | 친구 | `GET /friends`, `POST /friends`, `GET /users/:nickname/home`, `POST /users/:nickname/cheer` |
 | 크루 | `POST /crews`, `GET /crews`, `GET /crews/:id`, `POST /crews/:id/members`, `DELETE /crews/:id/members/me` |

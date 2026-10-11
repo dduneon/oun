@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { GameService } from '../game/game.service';
@@ -26,5 +26,10 @@ export class CharacterController {
   @Put('equip')
   equip(@CurrentUser() user: AuthUser, @Body() dto: EquipDto) {
     return this.shop.equip(user.userId, dto.itemKey, dto.slot);
+  }
+
+  @Delete('equip/:slot')
+  unequip(@CurrentUser() user: AuthUser, @Param('slot') slot: string) {
+    return this.shop.unequip(user.userId, slot);
   }
 }

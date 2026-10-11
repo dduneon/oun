@@ -6,6 +6,14 @@ using UnityEngine;
 // 반대로 SendToFlutter.Send()로 Flutter에 응답을 보낸다.
 public class OunBridge : MonoBehaviour
 {
+    [System.Serializable]
+    class EquipmentPayload
+    {
+        public string clothing;
+        public string hair;
+        public string prop;
+    }
+
     [Tooltip("반응시킬 캐릭터의 Transform. 비워두면 이 오브젝트 자신을 움직인다.")]
     public Transform character;
 
@@ -49,6 +57,7 @@ public class OunBridge : MonoBehaviour
     public float crewCamFov = 45f;
 
     bool isReacting;
+    EquipmentPayload equipment = new EquipmentPayload();
 
     void Awake()
     {
@@ -97,6 +106,7 @@ public class OunBridge : MonoBehaviour
                     animator = spawned.GetComponentInChildren<Animator>(true);
                     if (animator != null) animator.enabled = true;
                     else Debug.LogWarning("홈 아바타에 Animator가 없다 — React()가 점프로 폴백한다");
+                    ApplyEquipmentToHome();
                 }
             }
         }
@@ -127,6 +137,38 @@ public class OunBridge : MonoBehaviour
 
         // Flutter에 준비 완료 알림(로딩 오버레이 제거용)
         SendToFlutter.Send(crew ? "crew_ready" : "home_ready");
+    }
+
+    // Flutter가 서버의 슬롯별 장착 상태를 JSON으로 전달한다.
+    // 예: {"clothing":"hood_daily","hair":"hair_bob","prop":"cap_sports"}.
+    // 마지막 설정을 보관해 성별 변경 등으로
+    // 홈 캐릭터가 다시 스폰되어도 같은 소품을 즉시 복원한다.
+    public void ApplyEquipment(string json)
+    {
+        try
+        {
+            equipment = string.IsNullOrEmpty(json)
+                ? new EquipmentPayload()
+                : JsonUtility.FromJson<EquipmentPayload>(json);
+            if (equipment == null) equipment = new EquipmentPayload();
+            ApplyEquipmentToHome();
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("장착 설정을 읽지 못했다: " + e.Message);
+            SendToFlutter.Send("equipment_error:" + e.Message);
+        }
+    }
+
+    void ApplyEquipmentToHome()
+    {
+        if (homeStage == null || homeStage.FirstSpawned == null) return;
+        var spawned = homeStage.FirstSpawned;
+        var avatarEquipment = spawned.GetComponent<AvatarEquipment>();
+        if (avatarEquipment == null) avatarEquipment = spawned.AddComponent<AvatarEquipment>();
+        var e = equipment ?? new EquipmentPayload();
+        string result = avatarEquipment.Apply(e.clothing, e.hair, e.prop);
+        SendToFlutter.Send("equipment_applied:" + result);
     }
 
     // "crew:지민,현우,서연" → ["지민","현우","서연"]

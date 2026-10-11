@@ -8,23 +8,21 @@ import { PrismaClient } from '@prisma/client';
 
 export const items = [
   // 의상 (앱 상점 화면 그대로)
-  { key: 'hood_daily', category: 'clothing', name: '데일리 후드', price: 120, colorHex: '#D9B38C' },
-  { key: 'tee_runner', category: 'clothing', name: '러너 티셔츠', price: 90, colorHex: '#B8C4A9' },
-  { key: 'cardigan_knit', category: 'clothing', name: '니트 가디건', price: 210, colorHex: '#E0A9A0' },
-  { key: 'windbreaker', category: 'clothing', name: '바람막이', price: 180, colorHex: '#A9BBD0' },
-  { key: 'fleece_vest', category: 'clothing', name: '후리스 조끼', price: 150, colorHex: '#D6C08A' },
-  { key: 'track_jacket', category: 'clothing', name: '트랙 자켓', price: 240, colorHex: '#C9A9CE', rarity: 'rare' },
+  { key: 'hood_daily', category: 'clothing', name: '데일리 후드', price: 120, colorHex: '#D9B38C', sortOrder: 0 },
+  { key: 'tee_runner', category: 'clothing', name: '러너 티셔츠', price: 90, colorHex: '#B8C4A9', sortOrder: 1 },
+  { key: 'cardigan_knit', category: 'clothing', name: '니트 가디건', price: 210, colorHex: '#E0A9A0', sortOrder: 2 },
   // 헤어
-  { key: 'hair_bob', category: 'hair', name: '단정 단발', price: 100, colorHex: '#C8A27A' },
-  { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63' },
+  { key: 'hair_bob', category: 'hair', name: '단정 단발', price: 100, colorHex: '#C8A27A', sortOrder: 0 },
+  { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63', sortOrder: 1 },
+  { key: 'hair_braids', category: 'hair', name: '양갈래 브레이드', price: 160, colorHex: '#A87958', rarity: 'rare', sortOrder: 2 },
   // 소품
-  { key: 'cap_sports', category: 'prop', name: '스포츠 캡', price: 80, colorHex: '#A9BBD0' },
-  { key: 'towel_gym', category: 'prop', name: '운동 타월', price: 60, colorHex: '#D6C08A' },
-  { key: 'earbuds', category: 'prop', name: '무선 이어폰', price: 160, colorHex: '#C9A9CE', rarity: 'rare', hasSpecialFx: true },
+  { key: 'cap_sports', category: 'prop', name: '스포츠 캡', price: 80, colorHex: '#A9BBD0', sortOrder: 0 },
+  { key: 'towel_gym', category: 'prop', name: '운동 타월', price: 60, colorHex: '#D6C08A', sortOrder: 1 },
+  { key: 'earbuds', category: 'prop', name: '무선 이어폰', price: 160, colorHex: '#C9A9CE', rarity: 'rare', hasSpecialFx: true, sortOrder: 2 },
   // 가구
-  { key: 'mat_yoga', category: 'furniture', name: '요가 매트', price: 110, colorHex: '#B8C4A9' },
-  { key: 'plant_small', category: 'furniture', name: '작은 화분', price: 90, colorHex: '#7FA98C' },
-  { key: 'rug_round', category: 'furniture', name: '라운드 러그', price: 140, colorHex: '#E0A9A0' },
+  { key: 'mat_yoga', category: 'furniture', name: '요가 매트', price: 110, colorHex: '#B8C4A9', sortOrder: 0 },
+  { key: 'plant_small', category: 'furniture', name: '작은 화분', price: 90, colorHex: '#7FA98C', sortOrder: 1 },
+  { key: 'rug_round', category: 'furniture', name: '라운드 러그', price: 140, colorHex: '#E0A9A0', sortOrder: 2 },
 ] as const;
 
 export const quests = [
@@ -57,9 +55,15 @@ export const achievements = [
 
 /** 정의를 upsert로 채운다 — 여러 번 실행해도 안전하고, 값이 바뀌면 갱신된다. */
 export async function seedDefinitions(prisma: PrismaClient) {
+  // 정의에서 빠진 목업 아이템은 구매 이력을 삭제하지 않고 상점에서만 숨긴다.
+  await prisma.item.updateMany({ data: { isActive: false } });
   for (const it of items) {
     const { key, ...rest } = it;
-    await prisma.item.upsert({ where: { key }, create: { key, ...(rest as any) }, update: rest as any });
+    await prisma.item.upsert({
+      where: { key },
+      create: { key, ...(rest as any), isActive: true },
+      update: { ...rest, isActive: true } as any,
+    });
   }
   for (const q of quests) {
     const { key, ...rest } = q;

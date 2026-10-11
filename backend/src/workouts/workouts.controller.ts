@@ -34,8 +34,9 @@ export class WorkoutsController {
     @CurrentUser() user: AuthUser,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.workouts.list(user.userId, from, to);
+    return this.workouts.list(user.userId, from, to, offset === undefined ? 0 : Number(offset));
   }
 
   @Patch(':id')

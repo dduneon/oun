@@ -19,14 +19,16 @@ export class ShopService {
 
   /** GET /shop/items?category= — 유저 보유 여부 포함. */
   async items(userId: string, category?: ItemCategory) {
-    const [items, owned] = await Promise.all([
+    const [items, owned, equipped] = await Promise.all([
       this.prisma.item.findMany({
-        where: category ? { category } : undefined,
+        where: { isActive: true, ...(category ? { category } : {}) },
         orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
       }),
       this.prisma.inventory.findMany({ where: { userId }, select: { itemKey: true } }),
+      this.prisma.equipped.findMany({ where: { userId }, select: { itemKey: true } }),
     ]);
     const ownedSet = new Set(owned.map((o) => o.itemKey));
+    const equippedSet = new Set(equipped.map((e) => e.itemKey));
     return {
       items: items.map((it) => ({
         key: it.key,
@@ -37,6 +39,7 @@ export class ShopService {
         hasSpecialFx: it.hasSpecialFx,
         colorHex: it.colorHex,
         owned: ownedSet.has(it.key),
+        equipped: equippedSet.has(it.key),
       })),
     };
   }
@@ -44,7 +47,7 @@ export class ShopService {
   /** POST /shop/orders — 잔액 검증 → 원장 차감 → 인벤토리 등록(트랜잭션·멱등). */
   async order(userId: string, itemKey: string) {
     const item = await this.prisma.item.findUnique({ where: { key: itemKey } });
-    if (!item) throw new NotFoundException('없는 아이템이에요');
+    if (!item || !item.isActive) throw new NotFoundException('없는 아이템이에요');
 
     return this.prisma.$transaction(async (tx) => {
       const already = await tx.inventory.findUnique({
@@ -114,5 +117,11 @@ export class ShopService {
       update: { itemKey },
     });
     return { slot: resolvedSlot, itemKey };
+  }
+
+  /** DELETE /character/equip/:slot — 슬롯을 비운다. 이미 비어 있어도 성공(멱등). */
+  async unequip(userId: string, slot: string) {
+    await this.prisma.equipped.deleteMany({ where: { userId, slot } });
+    return { slot, itemKey: null };
   }
 }

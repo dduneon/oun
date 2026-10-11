@@ -132,6 +132,10 @@ model WorkoutLog {
   bodyPart     BodyPart? // 웨이트
   sets         Int? // 웨이트
   calories     Int?
+  note         String?       @db.Text
+  effort       Int?
+  customSportName String?    @db.VarChar(80)
+  exercises    WorkoutExercise[]
   photoRef     String?       @db.VarChar(512) // 운동 인증 사진 (S3 키 등, 현재는 존재 여부만)
   source       WorkoutSource @default(manual)
   verifyStatus VerifyStatus  @default(pending)
@@ -143,6 +147,26 @@ model WorkoutLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, performedAt])
+}
+
+model WorkoutExercise {
+  id String @id @default(cuid())
+  workoutId String
+  name String @db.VarChar(80)
+  position Int
+  workout WorkoutLog @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  sets WorkoutSet[]
+  @@index([workoutId, position])
+}
+
+model WorkoutSet {
+  id String @id @default(cuid())
+  exerciseId String
+  position Int
+  weightKg Float
+  reps Int
+  exercise WorkoutExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  @@index([exerciseId, position])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -292,6 +316,7 @@ model Item {
   addressableKey String? // Unity Addressables 원격 에셋 키
   colorHex       String? // 앱 목업 카드 색 (에셋 전까지 표현용)
   sortOrder      Int          @default(0)
+  isActive       Boolean      @default(true) // 상점 노출 여부. 기존 구매 이력은 보존.
 
   inventory  Inventory[]
   equipped   Equipped[]

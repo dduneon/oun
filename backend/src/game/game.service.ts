@@ -13,6 +13,27 @@ import { computeMood } from './mood';
 export class GameService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** 날짜를 소급 입력하거나 수정해도 기록 순서에 영향받지 않는 파생값. */
+  async rebuildWorkouts(tx: Prisma.TransactionClient, userId: string) {
+    const rows = await tx.workoutLog.findMany({ where: { userId, verifyStatus: 'verified' }, orderBy: { performedAt: 'asc' } });
+    const stats = { endurance: 0, strength: 0, agility: 0, balance: 0 };
+    let current = 0;
+    let longest = 0;
+    let last: Date | null = null;
+    for (const row of rows) {
+      stats[sportToStat(row.sport)] += Math.max(1, Math.floor(row.durationSec / 60));
+      const diff = last ? dayDiff(row.performedAt, last) : null;
+      if (diff !== 0) current = diff === 1 ? current + 1 : 1;
+      longest = Math.max(longest, current);
+      last = row.performedAt;
+    }
+    if (last && dayDiff(new Date(), last) > 1) current = 0;
+    await tx.characterStat.update({ where: { userId }, data: stats });
+    await tx.streak.update({ where: { userId }, data: { current, longest, lastActiveDate: last ? kstDateOnly(last) : null } });
+    await tx.characterMood.update({ where: { userId }, data: { lastWorkoutAt: last, streakActive: current >= 2, mood: computeMood(new Date(), last, current >= 2) } });
+    return { current, longest };
+  }
+
   /** 검증된 운동 반영: 스탯 증가 + 스트릭 갱신 + mood 재계산. 갱신된 스트릭을 반환. */
   async applyWorkout(
     tx: Prisma.TransactionClient,

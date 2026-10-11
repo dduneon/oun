@@ -193,6 +193,12 @@ final shopItemsProvider =
   return api.shopItems(category: category);
 });
 
+/// 슬롯별 장착 아이템. Unity 홈 캐릭터와 상점의 장착 표시가 함께 구독한다.
+final equippedItemsProvider = FutureProvider<Map<String, String>>((ref) async {
+  final api = await _authed(ref);
+  return api.equippedItems();
+});
+
 final friendsProvider = FutureProvider<List<Friend>>((ref) async {
   final api = await _authed(ref);
   return api.friends();
@@ -357,6 +363,7 @@ abstract final class OunTab {
 List<RefreshTarget> providersForTab(int index) => switch (index) {
       0 => [
           profileProvider,
+          equippedItemsProvider,
           walletProvider,
           todayMinutesProvider,
           questsProvider,
@@ -370,7 +377,12 @@ List<RefreshTarget> providersForTab(int index) => switch (index) {
           monthSummaryProvider,
           profileProvider,
         ],
-      2 => [walletProvider, shopItemsProvider, profileProvider],
+      2 => [
+          walletProvider,
+          shopItemsProvider,
+          equippedItemsProvider,
+          profileProvider,
+        ],
       3 => socialProviders,
       4 => [
           profileProvider,
