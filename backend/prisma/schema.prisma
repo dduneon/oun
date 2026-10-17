@@ -293,10 +293,12 @@ model UserQuest {
 // ─────────────────────────────────────────────────────────────
 
 enum ItemCategory {
-  clothing // 의상
+  clothing // 상의
   hair // 헤어
   prop // 소품
-  furniture // 가구
+  furniture // 가구(상점에서 내림 — 기존 데이터 보존용)
+  bottom // 하의
+  shoes // 신발
 }
 
 enum ItemRarity {
@@ -337,7 +339,7 @@ model Inventory {
   @@index([userId])
 }
 
-// 슬롯당 하나 장착. slot은 카테고리 기준(의상/헤어/소품).
+// 슬롯당 하나 장착. slot은 카테고리 기준(상의/하의/신발/헤어/소품).
 model Equipped {
   id      String @id @default(cuid())
   userId  String

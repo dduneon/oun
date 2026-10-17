@@ -99,12 +99,13 @@ describe('오운 코어 루프 (e2e)', () => {
   });
 
   it('상점 구매 → 차감 + 중복/잔액부족 거절', async () => {
-    for (const category of ['clothing', 'prop', 'furniture']) {
+    const counts = { clothing: 5, bottom: 3, shoes: 3, prop: 3, furniture: 0 };
+    for (const [category, n] of Object.entries(counts)) {
       const shop = await request(app.getHttpServer())
         .get(`/shop/items?category=${category}`)
         .set(auth())
         .expect(200);
-      expect(shop.body.items).toHaveLength(3);
+      expect(shop.body.items).toHaveLength(n); // 가구는 상점에서 내렸다
     }
     // 헤어는 성별 전용 — 기본(f) 캐릭터에게는 여자 헤어만 보인다.
     const hair = await request(app.getHttpServer())
@@ -178,8 +179,8 @@ describe('오운 코어 루프 (e2e)', () => {
     await request(app.getHttpServer())
       .post('/shop/orders')
       .set(auth())
-      .send({ itemKey: 'windbreaker' })
-      .expect(404); // 정의에서 빠진 기존 목업은 구매 불가
+      .send({ itemKey: 'mat_yoga' })
+      .expect(404); // 상점에서 내린 아이템(가구)은 구매 불가
   });
 
   it('성별 전용 헤어는 자기 성별 것만 보이고 살 수 있다', async () => {

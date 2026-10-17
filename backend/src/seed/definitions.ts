@@ -7,10 +7,20 @@
 import { PrismaClient } from '@prisma/client';
 
 export const items = [
-  // 의상 (앱 상점 화면 그대로)
+  // 상의 (clothing)
   { key: 'hood_daily', category: 'clothing', name: '데일리 후드', price: 120, colorHex: '#D9B38C', sortOrder: 0 },
   { key: 'tee_runner', category: 'clothing', name: '러너 티셔츠', price: 90, colorHex: '#B8C4A9', sortOrder: 1 },
   { key: 'cardigan_knit', category: 'clothing', name: '니트 가디건', price: 210, colorHex: '#E0A9A0', sortOrder: 2 },
+  { key: 'tank_sleeveless', category: 'clothing', name: '민소매 탱크톱', price: 100, colorHex: '#8FC1E3', sortOrder: 3 },
+  { key: 'windbreaker', category: 'clothing', name: '바람막이 집업', price: 180, colorHex: '#3F7F8C', rarity: 'rare', sortOrder: 4 },
+  // 하의
+  { key: 'jogger_pants', category: 'bottom', name: '조거 팬츠', price: 110, colorHex: '#8E96A3', sortOrder: 0 },
+  { key: 'running_shorts', category: 'bottom', name: '러닝 쇼츠', price: 80, colorHex: '#E8836B', sortOrder: 1 },
+  { key: 'leggings', category: 'bottom', name: '레깅스', price: 120, colorHex: '#4A4550', sortOrder: 2 },
+  // 신발
+  { key: 'sneakers_run', category: 'shoes', name: '러닝화', price: 100, colorHex: '#7FC8B4', sortOrder: 0 },
+  { key: 'hightop', category: 'shoes', name: '하이탑 스니커즈', price: 150, colorHex: '#D9574A', rarity: 'rare', sortOrder: 1 },
+  { key: 'rain_boots', category: 'shoes', name: '레인부츠', price: 130, colorHex: '#F2C14E', sortOrder: 2 },
   // 헤어 — 캐릭터 성별 전용(gender). 단정 단발은 여자 기본 머리와 겹쳐 뺐다(시드가 비활성화).
   { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63', gender: 'f', sortOrder: 1 },
   { key: 'hair_braids', category: 'hair', name: '양갈래', price: 160, colorHex: '#A87958', rarity: 'rare', gender: 'f', sortOrder: 2 },
@@ -20,10 +30,7 @@ export const items = [
   { key: 'cap_sports', category: 'prop', name: '스포츠 캡', price: 80, colorHex: '#A9BBD0', sortOrder: 0 },
   { key: 'towel_gym', category: 'prop', name: '운동 타월', price: 60, colorHex: '#D6C08A', sortOrder: 1 },
   { key: 'earbuds', category: 'prop', name: '무선 이어폰', price: 160, colorHex: '#C9A9CE', rarity: 'rare', hasSpecialFx: true, sortOrder: 2 },
-  // 가구
-  { key: 'mat_yoga', category: 'furniture', name: '요가 매트', price: 110, colorHex: '#B8C4A9', sortOrder: 0 },
-  { key: 'plant_small', category: 'furniture', name: '작은 화분', price: 90, colorHex: '#7FA98C', sortOrder: 1 },
-  { key: 'rug_round', category: 'furniture', name: '라운드 러그', price: 140, colorHex: '#E0A9A0', sortOrder: 2 },
+  // 가구는 아직 꾸밀 공간이 없어 상점에서 내렸다(시드가 비활성화).
 ] as const;
 
 export const quests = [
