@@ -7,6 +7,7 @@ import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../shared/widgets/page_scaffold.dart';
 import '../../theme/app_theme.dart';
+import '../character/character_avatar.dart';
 
 /// 커스터마이징 상점 (무과금, 운동 재화). 서버 아이템/보유/구매.
 class ShopScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,15 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
 
   /// true면 '내 아이템' — 구매해서 보유한 것만 모아 본다.
   bool _mine = false;
+
+  /// 상점에서 입어보는 중인 아이템(슬롯 → 아이템). 서버 장착 상태 위에 덮어 미리보기에만 쓴다.
+  final Map<String, ShopItem> _tryOn = {};
+
+  /// 미리보기 아래 구매 버튼이 가리키는, 마지막으로 입어본 아이템.
+  ShopItem? _trying;
+
+  /// 캐릭터가 입는 카테고리 = 장착 슬롯. 가구는 입어볼 수 없다.
+  static const _wearable = {'clothing', 'hair', 'prop'};
   // (표시명, 서버 카테고리)
   static const _categories = [
     ('의상', 'clothing'),
@@ -56,6 +66,34 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       return;
     }
 
+    if (_wearable.contains(it.category)) {
+      // 탭하면 미리보기에 입혀 보고, 입어보는 중인 걸 다시 탭하면 벗긴다.
+      // 구매는 미리보기의 구매 버튼으로만 한다.
+      setState(() {
+        if (_tryOn[it.category]?.key == it.key) {
+          _tryOn.remove(it.category);
+          if (_trying?.key == it.key) {
+            _trying = _tryOn.values.isEmpty ? null : _tryOn.values.last;
+          }
+        } else {
+          _tryOn[it.category] = it;
+          _trying = it;
+        }
+      });
+      return;
+    }
+    // 가구는 입어볼 수 없으니 바로 구매 확인.
+    await _buy(it);
+  }
+
+  /// 입어보던 걸 모두 벗기고 지금 장착한 모습으로 되돌린다.
+  void _resetTryOn() => setState(() {
+        _tryOn.clear();
+        _trying = null;
+      });
+
+  Future<void> _buy(ShopItem it) async {
+    final api = ref.read(apiClientProvider);
     // 구매 확인
     final confirmed = await showDialog<bool>(
       context: context,
@@ -102,13 +140,20 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       // 캐릭터가 입는 아이템(의상·헤어·소품)은 구매 즉시 장착해
       // 홈으로 돌아갔을 때 바로 3D 캐릭터에 보이게 한다.
       var equipped = false;
-      if (const {'clothing', 'hair', 'prop'}.contains(it.category)) {
+      if (_wearable.contains(it.category)) {
         try {
           await api.equipItem(it.key);
           equipped = true;
         } catch (_) {
           // 구매 자체는 끝났으므로 장착 실패를 구매 실패로 잘못 안내하지 않는다.
         }
+      }
+      if (mounted) {
+        // 산 아이템은 이제 실제로 입고 있으니 입어보기 목록에서 뺀다.
+        setState(() {
+          _tryOn.remove(it.category);
+          if (_trying?.key == it.key) _trying = null;
+        });
       }
       ref.invalidate(walletProvider);
       ref.invalidate(shopItemsProvider);
@@ -142,30 +187,19 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       trailing: CoinChip(amount: coin),
       onRefresh: () => refreshTab(ref, OunTab.shop),
       children: [
-        // 캐릭터 미리보기 (라이브 프리뷰 연동 예정)
-        Container(
-          height: 120,
-          decoration: BoxDecoration(
-            color: OunColors.card,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.checkroom, size: 30, color: OunColors.textFaint),
-                SizedBox(height: 6),
-                Text('입어보기 미리보기',
-                    style: TextStyle(fontSize: 12, color: OunColors.textMuted)),
-              ],
-            ),
-          ),
-        ),
+        _preview(),
         const SizedBox(height: 14),
         _segment(
           labels: const ['상점', '내 아이템'],
           selected: _mine ? 1 : 0,
-          onTap: (i) => setState(() => _mine = i == 1),
+          onTap: (i) => setState(() {
+            _mine = i == 1;
+            // 내 아이템에서는 실제 장착 모습을 보여 준다.
+            if (_mine) {
+              _tryOn.clear();
+              _trying = null;
+            }
+          }),
         ),
         const SizedBox(height: 8),
         _segment(
@@ -208,6 +242,89 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
           },
         ),
       ],
+    );
+  }
+
+  /// 캐릭터 미리보기. 지금 장착한 모습 위에 상점에서 입어보는 아이템을 덮어 그린다.
+  /// 내 아이템에서 장착/해제하면 서버 장착 상태가 바뀌어 바로 반영된다.
+  Widget _preview() {
+    final equipment = {
+      ...?ref.watch(equippedItemsProvider).value,
+      for (final e in _tryOn.entries) e.key: e.value.key,
+    };
+    final look = CharacterLook(
+      gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
+      equipment: equipment,
+    );
+    final trying = _trying;
+    return Container(
+      height: 230,
+      decoration: BoxDecoration(
+        color: OunColors.card,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 5,
+            child: Center(child: LivingCharacter(look: look)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 4,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  trying != null
+                      ? '${trying.name} 입어보는 중'
+                      : _mine
+                          ? '지금 내 모습'
+                          : '입어보기',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: OunColors.textPrimary),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  trying != null
+                      ? '마음에 들면 구매하면 바로 입혀 줄게요'
+                      : _mine
+                          ? '아이템을 탭해 장착하면 홈에도 이 모습으로 보여요'
+                          : '아이템을 탭하면 구매 전에 입어볼 수 있어요',
+                  style: const TextStyle(
+                      fontSize: 12, height: 1.4, color: OunColors.textMuted),
+                ),
+                if (trying != null) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: OunColors.tabAccent,
+                      foregroundColor: OunColors.onTabAccent,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => _buy(trying),
+                    icon: const Icon(Icons.paid_rounded, size: 16),
+                    label: Text('${trying.price} 구매'),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 4)),
+                    onPressed: _resetTryOn,
+                    child: const Text('원래대로',
+                        style: TextStyle(
+                            fontSize: 12.5, color: OunColors.textMuted)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -294,11 +411,14 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   }
 
   Widget _itemCard(ShopItem it) {
+    final trying = !it.owned && _tryOn[it.category]?.key == it.key;
     return Material(
       color: OunColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: OunColors.cardBorder),
+        side: trying
+            ? const BorderSide(color: OunColors.tabAccent, width: 2)
+            : const BorderSide(color: OunColors.cardBorder),
       ),
       child: InkWell(
         onTap: () => _onTapItem(it),
@@ -336,7 +456,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                     ),
                   ),
                 ),
-                if (it.owned)
+                if (it.owned || _tryOn[it.category]?.key == it.key)
                   Positioned(
                     top: 6,
                     right: 6,
@@ -346,7 +466,12 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                       decoration: BoxDecoration(
                           color: OunColors.tabAccent,
                           borderRadius: BorderRadius.circular(9)),
-                      child: Text(it.equipped ? '장착중' : '보유',
+                      child: Text(
+                          !it.owned
+                              ? '입어보는 중'
+                              : it.equipped
+                                  ? '장착중'
+                                  : '보유',
                           style: const TextStyle(
                               fontSize: 9.5,
                               fontWeight: FontWeight.w700,
