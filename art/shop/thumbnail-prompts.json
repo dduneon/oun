@@ -1,0 +1,97 @@
+{
+  "tool": "built-in image_gen",
+  "output": "app/assets/shop/<key>.png",
+  "size": 512,
+  "items": [
+    {
+      "key": "hood_daily",
+      "reference": "app/assets/character/top_hood_daily.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail from the reference character clothing layer. Reference is the authoritative design, not a background. Isolate and enlarge the warm caramel pullover hoodie, complete its hidden hood naturally. Preserve its short rounded chibi proportions, solid caramel body, two ivory drawstrings and single oval kangaroo pocket. No zipper, no contrasting body panels, no leaf motifs. Soft simple matte 3D toy rendering matching reference, near frontal view, centered filling 80% of square. Genuinely transparent PNG background, no person, skin, mannequin, hanger, text, floor or extra objects. Image is a finished standalone shop icon."
+    },
+    {
+      "key": "tee_runner",
+      "reference": "app/assets/character/top_tee_runner.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Sage green short-sleeve round-neck tee. White narrow bands around both sleeves. Front white race bib with coral orange header and exact navy numerals 07. Preserve squat wide silhouette; no side panels."
+    },
+    {
+      "key": "cardigan_knit",
+      "reference": "app/assets/character/top_cardigan_knit.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Salmon pink cardigan, simple subtle vertical ribbing, V neck over cream undershirt, exactly three round cream buttons and darker coral placket, folded cuffs. No cable knit pattern."
+    },
+    {
+      "key": "tank_sleeveless",
+      "reference": "app/assets/character/top_tank_sleeveless.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Plain sky blue sleeveless tank top. Wide shoulders, round neckline, squat rounded torso. Complete the side arm openings cleanly; no sleeves, print or stripes."
+    },
+    {
+      "key": "windbreaker",
+      "reference": "app/assets/character/top_windbreaker.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Muted deep teal hooded zip jacket with cream hood lining, two ivory drawstrings, straight ivory central zipper and subtle rounded front pocket. Solid teal, no color panels."
+    },
+    {
+      "key": "jogger_pants",
+      "reference": "app/assets/character/bottom_jogger_pants.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Cool gray blue short chibi jogger pants with two short cylindrical legs and darker gray cuffs. Keep reference proportions, smooth plain waist, no drawstrings, pockets or invented stripes."
+    },
+    {
+      "key": "running_shorts",
+      "reference": "app/assets/character/bottom_running_shorts.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Coral salmon running shorts with white narrow trim at both leg hems. Short wide rounded chibi silhouette, smooth plain waistband, no drawstring or logos."
+    },
+    {
+      "key": "leggings",
+      "reference": "app/assets/character/bottom_leggings.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Dark muted charcoal purple plain leggings, two stubby straight chibi legs like reference. Preserve short wide game character proportions. No stripes, drawstring or additional features."
+    },
+    {
+      "key": "sneakers_run",
+      "reference": "app/assets/character/shoes_sneakers_run.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. A pair of simple rounded mint green low shoes with ivory white sole bands. No laces, panels, logos or extra decoration. Preserve smooth toy-like rounded shape. Place pair together front three-quarter slightly elevated view."
+    },
+    {
+      "key": "hightop",
+      "reference": "app/assets/character/shoes_hightop.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. A pair of coral red simple chibi high-top shoes with ivory white collar rims and white sole bands, rounded bulbous toes, short cylindrical shafts. No laces, zippers or added decoration."
+    },
+    {
+      "key": "rain_boots",
+      "reference": "app/assets/character/shoes_rain_boots.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. A pair of golden yellow short chibi rain boots, yellow rolled top rims, rounded toes, warm dark brown sole bands. No handles, laces, motifs or extra decorations."
+    },
+    {
+      "key": "hair_ponytail",
+      "reference": "app/assets/character/hair_ponytail.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Light caramel brown game hair wig with smooth dome, rounded scalloped bangs and one high side ponytail on image right tied with small salmon pink band. Preserve smooth chunky sculpted locks; no individual wispy strands, no green scrunchie. Empty transparent face opening."
+    },
+    {
+      "key": "hair_braids",
+      "reference": "app/assets/character/hair_braids.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Warm medium chestnut brown wig, smooth rounded dome and scalloped bangs, two low chunky short braids one either side formed from rounded overlapping lobes. No bows, colored ties or loose strands. Transparent empty face opening."
+    },
+    {
+      "key": "hair_flick",
+      "reference": "app/assets/character/hair_flick.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Warm dark chestnut brown short wig with smooth dome and a broad asymmetrical side-swept fringe, matching exact reference silhouette. No individual wispy strands, no spikes or extra locks. Transparent empty face opening."
+    },
+    {
+      "key": "hair_spiky",
+      "reference": "app/assets/character/hair_spiky.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Deep espresso brown short wig, rounded dome, jagged triangular fringe and large sculpted outward side spikes with small top spikes exactly like reference. Smooth chunky 3D masses, no fine strands. Transparent empty face opening."
+    },
+    {
+      "key": "cap_sports",
+      "reference": "app/assets/character/prop_cap_sports.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Navy blue round sports cap with cream ivory visor and top button. Front emblem is exactly three small cream rounded overlapping pebble shapes arranged triangularly. No leaf emblem, seams or extra branding. Keep near frontal reference view."
+    },
+    {
+      "key": "towel_gym",
+      "reference": "app/assets/character/prop_towel_gym.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. One ivory gym towel draped in inverted U as around invisible neck, two straight hanging ends with solid mint teal lower sections covering lower 45 percent. Complete hidden connecting top. No person, no rolled towel, ribbons, embroidery or extra stripes."
+    },
+    {
+      "key": "earbuds",
+      "reference": "app/assets/character/prop_earbuds.png",
+      "prompt": "Use case: precise-object-edit. Create one square game shop product thumbnail using the reference character layer as authoritative design. Soft simple matte 3D toy rendering matching the reference, rounded chibi proportions, near frontal view. Enlarge the item to fill 80% of square and center it. Reconstruct only parts hidden by the character where necessary. Genuinely transparent PNG background. No person, face, skin, mannequin, hanger, scenery, floor, text (except existing design), watermark, invented ornament or extra objects. Pair of simple white wireless earbuds with round bulb heads, short rounded straight stems, small lavender purple outer discs. Display close together, mirrored, large and readable. No charging case, floral patterns, gold or sparkles."
+    }
+  ]
+}
