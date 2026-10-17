@@ -99,13 +99,19 @@ describe('오운 코어 루프 (e2e)', () => {
   });
 
   it('상점 구매 → 차감 + 중복/잔액부족 거절', async () => {
-    for (const category of ['clothing', 'hair', 'prop', 'furniture']) {
+    for (const category of ['clothing', 'prop', 'furniture']) {
       const shop = await request(app.getHttpServer())
         .get(`/shop/items?category=${category}`)
         .set(auth())
         .expect(200);
       expect(shop.body.items).toHaveLength(3);
     }
+    // 헤어는 성별 전용 — 기본(f) 캐릭터에게는 여자 헤어만 보인다.
+    const hair = await request(app.getHttpServer())
+      .get('/shop/items?category=hair')
+      .set(auth())
+      .expect(200);
+    expect(hair.body.items.map((i: any) => i.key).sort()).toEqual(['hair_braids', 'hair_ponytail']);
 
     await request(app.getHttpServer())
       .post('/quests/daily_30min/claim')
@@ -174,6 +180,29 @@ describe('오운 코어 루프 (e2e)', () => {
       .set(auth())
       .send({ itemKey: 'windbreaker' })
       .expect(404); // 정의에서 빠진 기존 목업은 구매 불가
+  });
+
+  it('다른 성별 전용 헤어는 보이지 않고 살 수도 없다', async () => {
+    const male = await request(app.getHttpServer())
+      .post('/auth/dev')
+      .send({ nickname: `m_${Date.now().toString().slice(-9)}`, gender: 'm' })
+      .expect(201);
+    const maleAuth = { Authorization: `Bearer ${male.body.accessToken}` };
+    const hair = await request(app.getHttpServer())
+      .get('/shop/items?category=hair')
+      .set(maleAuth)
+      .expect(200);
+    expect(hair.body.items.map((i: any) => i.key)).not.toContain('hair_ponytail');
+    await request(app.getHttpServer())
+      .post('/shop/orders')
+      .set(maleAuth)
+      .send({ itemKey: 'hair_ponytail' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post('/shop/orders')
+      .set(maleAuth)
+      .send({ itemKey: 'hair_bob' })
+      .expect(404); // 단정 단발은 상점에서 뺐다
   });
 
   it('첫 운동으로 "첫 걸음" 업적을 획득한다', async () => {

@@ -317,6 +317,7 @@ model Item {
   colorHex       String? // 앱 목업 카드 색 (에셋 전까지 표현용)
   sortOrder      Int          @default(0)
   isActive       Boolean      @default(true) // 상점 노출 여부. 기존 구매 이력은 보존.
+  gender         Gender? // 이 성별 캐릭터만 보고 살 수 있다(헤어 등). null이면 공용.
 
   inventory  Inventory[]
   equipped   Equipped[]

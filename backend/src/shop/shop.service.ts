@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,11 +18,16 @@ export class ShopService {
     private readonly achievements: AchievementsService,
   ) {}
 
-  /** GET /shop/items?category= — 유저 보유 여부 포함. */
+  /** GET /shop/items?category= — 유저 보유 여부 포함. 성별 전용 아이템은 내 캐릭터 성별 것만. */
   async items(userId: string, category?: ItemCategory) {
+    const gender = await this.genderOf(userId);
     const [items, owned, equipped] = await Promise.all([
       this.prisma.item.findMany({
-        where: { isActive: true, ...(category ? { category } : {}) },
+        where: {
+          isActive: true,
+          ...(category ? { category } : {}),
+          OR: [{ gender: null }, { gender }],
+        },
         orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
       }),
       this.prisma.inventory.findMany({ where: { userId }, select: { itemKey: true } }),
@@ -48,6 +54,9 @@ export class ShopService {
   async order(userId: string, itemKey: string) {
     const item = await this.prisma.item.findUnique({ where: { key: itemKey } });
     if (!item || !item.isActive) throw new NotFoundException('없는 아이템이에요');
+    if (item.gender && item.gender !== (await this.genderOf(userId))) {
+      throw new ForbiddenException('내 캐릭터가 살 수 없는 아이템이에요');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const already = await tx.inventory.findUnique({
@@ -80,6 +89,14 @@ export class ShopService {
 
       return { itemKey, price: item.price, balance: balanceAfter };
     });
+  }
+
+  private async genderOf(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { gender: true },
+    });
+    return user.gender;
   }
 
   /** GET /inventory. */

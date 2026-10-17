@@ -11,10 +11,9 @@ export const items = [
   { key: 'hood_daily', category: 'clothing', name: '데일리 후드', price: 120, colorHex: '#D9B38C', sortOrder: 0 },
   { key: 'tee_runner', category: 'clothing', name: '러너 티셔츠', price: 90, colorHex: '#B8C4A9', sortOrder: 1 },
   { key: 'cardigan_knit', category: 'clothing', name: '니트 가디건', price: 210, colorHex: '#E0A9A0', sortOrder: 2 },
-  // 헤어
-  { key: 'hair_bob', category: 'hair', name: '단정 단발', price: 100, colorHex: '#C8A27A', sortOrder: 0 },
-  { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63', sortOrder: 1 },
-  { key: 'hair_braids', category: 'hair', name: '양갈래 브레이드', price: 160, colorHex: '#A87958', rarity: 'rare', sortOrder: 2 },
+  // 헤어 — 캐릭터 성별 전용(gender). 단정 단발은 여자 기본 머리와 겹쳐 뺐다(시드가 비활성화).
+  { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63', gender: 'f', sortOrder: 1 },
+  { key: 'hair_braids', category: 'hair', name: '양갈래', price: 160, colorHex: '#A87958', rarity: 'rare', gender: 'f', sortOrder: 2 },
   // 소품
   { key: 'cap_sports', category: 'prop', name: '스포츠 캡', price: 80, colorHex: '#A9BBD0', sortOrder: 0 },
   { key: 'towel_gym', category: 'prop', name: '운동 타월', price: 60, colorHex: '#D6C08A', sortOrder: 1 },
@@ -58,7 +57,8 @@ export async function seedDefinitions(prisma: PrismaClient) {
   // 정의에서 빠진 목업 아이템은 구매 이력을 삭제하지 않고 상점에서만 숨긴다.
   await prisma.item.updateMany({ data: { isActive: false } });
   for (const it of items) {
-    const { key, ...rest } = it;
+    // gender가 없는 아이템은 공용(null)으로 되돌린다.
+    const { key, ...rest } = { gender: null, ...it };
     await prisma.item.upsert({
       where: { key },
       create: { key, ...(rest as any), isActive: true },
