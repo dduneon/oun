@@ -6,7 +6,7 @@ art/character/oun_villager.blend 를 연 Blender에서 실행한다.
 모든 레이어를 같은 정사영 카메라·같은 캔버스로 렌더해서 Flutter가 그대로 겹쳐 그린다.
 가려져야 하는 부분(예: 머리 뒤로 넘어간 포니테일, 몸 뒤쪽 후드)은 BODY를 홀드아웃으로
 렌더해 미리 투명하게 뚫어 둔다. 레이어 순서는 Flutter(CharacterAvatar)가 정한다:
-  몸 → 상의 → 타월 → 머리 → 이어폰 → 모자
+  몸 → 신발 → 하의 → 상의 → 타월 → 머리 → 이어폰 → 모자
 여자는 같은 몸에 얼굴 텍스처만 다른 body_f* 를 쓴다.
 """
 
@@ -23,11 +23,23 @@ W, H = 800, 1000
 
 # 파일 이름 → (보일 컬렉션, 홀드아웃 컬렉션)
 LAYERS = {
-    "body": (["BODY", "CLOTH_SHORTS", "SHOES"], []),
+    # 몸(얼굴 포함)만. 반바지·신발은 갈아입을 수 있게 따로 렌더한다(build_outfits.py).
+    "body": (["BODY"], []),
+    "bottom_basic": (["CLOTH_SHORTS"], ["BODY"]),
+    "shoes_basic": (["SHOES"], ["BODY"]),
+    # 상점 하의·신발: 파일 이름 = bottom_/shoes_ + 아이템 키.
+    "bottom_jogger_pants": (["BOTTOM_JOGGER"], ["BODY"]),
+    "bottom_running_shorts": (["BOTTOM_RUNSHORTS"], ["BODY"]),
+    "bottom_leggings": (["BOTTOM_LEGGINGS"], ["BODY"]),
+    "shoes_sneakers_run": (["SHOES_RUNNING"], ["BODY"]),
+    "shoes_hightop": (["SHOES_HIGHTOP"], ["BODY"]),
+    "shoes_rain_boots": (["SHOES_RAINBOOTS"], ["BODY"]),
     "top_basic": (["CLOTH_TEE"], ["BODY"]),
     "top_hood_daily": (["CLOTH_HOODIE"], ["BODY"]),
     "top_tee_runner": (["CLOTH_RUNNER"], ["BODY"]),
     "top_cardigan_knit": (["CLOTH_CARDIGAN"], ["BODY"]),
+    "top_tank_sleeveless": (["TOP_TANK"], ["BODY"]),
+    "top_windbreaker": (["TOP_WINDBREAKER"], ["BODY"]),
     # 헤어 메시는 build_hair.py 가 만든다. 성별 기본 머리: 남자 short, 여자 down.
     "hair_short": (["HAIR_AC_SHORT"], ["BODY", "CLOTH_TEE"]),
     "hair_down": (["HAIR_AC_DOWN"], ["BODY", "CLOTH_TEE"]),
