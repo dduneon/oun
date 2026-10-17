@@ -193,7 +193,7 @@ final shopItemsProvider =
   return api.shopItems(category: category);
 });
 
-/// 슬롯별 장착 아이템. Unity 홈 캐릭터와 상점의 장착 표시가 함께 구독한다.
+/// 슬롯별 장착 아이템. 홈 캐릭터와 상점의 장착 표시가 함께 구독한다.
 final equippedItemsProvider = FutureProvider<Map<String, String>>((ref) async {
   final api = await _authed(ref);
   return api.equippedItems();

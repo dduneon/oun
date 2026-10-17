@@ -558,9 +558,6 @@ class CrewMemberData {
 
   bool get isLeader => role == 'leader';
 
-  /// Unity 크루 씬 캐릭터 토큰.
-  String get charToken => gender == 'm' ? 'm' : 'f';
-
   factory CrewMemberData.fromJson(Map<String, dynamic> j) => CrewMemberData(
     nickname: j['nickname'] as String,
     displayName: j['displayName'] as String,

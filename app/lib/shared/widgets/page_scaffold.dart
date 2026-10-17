@@ -52,7 +52,6 @@ class PageScaffold extends StatelessWidget {
       ],
     );
 
-    // 불투명 배경으로 전역 Unity 뷰를 가린다(홈만 투명).
     return ColoredBox(
       color: OunColors.background,
       child: SafeArea(

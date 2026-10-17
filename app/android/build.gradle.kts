@@ -2,10 +2,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // Unity export가 함께 내보내는 AAR들(unityLibrary/libs)을 찾게 한다.
-        flatDir {
-            dirs(file("${project(":unityLibrary").projectDir}/libs"))
-        }
     }
 }
 

@@ -79,9 +79,6 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
   }
 
   Future<void> _openCrew(CrewCardData crew) async {
-    // 크루 홈은 진입 시 Unity를 크루 씬으로 바꾼다. 여기서 홈으로 되돌리지는
-    // 않는다 — 불투명한 소셜 탭 위에서 rect를 바꾸면 플랫폼 뷰가 한 프레임
-    // 삐져나오기 때문. 홈 복귀는 홈 탭이 보일 때 MainScaffold가 처리한다.
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => CrewHomeScreen(crewId: crew.id, name: crew.name),

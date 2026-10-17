@@ -7,7 +7,6 @@ import 'shared/api/providers.dart';
 import 'shared/global_keys.dart';
 import 'shared/push/push_messaging.dart';
 import 'theme/app_theme.dart';
-import 'unity/unity_stage.dart';
 
 class OunApp extends ConsumerStatefulWidget {
   const OunApp({super.key});
@@ -61,28 +60,17 @@ class _OunAppState extends ConsumerState<OunApp> {
       theme: AppTheme.light(),
       scaffoldMessengerKey: rootMessengerKey,
       routerConfig: router,
-      // 단일 Unity 뷰를 모든 라우트 뒤에 깔아둔다. 투명한 화면(홈·크루 광장)
-      // 에서만 비쳐 보이고, 불투명 화면에서는 가려진다. 재마운트하지 않으므로
-      // Unity는 앱 생명주기 동안 한 번만 로드된다.
-      //
       // 로그인 전에는 라우터 위를 로그인/스플래시가 덮는다(인증 게이트).
       builder: (context, child) {
-        // 로그인 직후 홈은 투명하고 그 뒤에서 Unity가 로드된다. 캐릭터가 설
-        // 때까지(home_ready) 로딩 화면을 유지해, Unity 스플래시와 빈 무대가
-        // 사용자에게 보이지 않게 한다.
-        final waitingForUnity = auth.status == AuthStatus.loggedIn &&
-            !ref.watch(unityBootedProvider);
         return Stack(
           children: [
-            const Positioned.fill(child: UnityHost()),
             Positioned.fill(child: child ?? const SizedBox.shrink()),
             if (auth.status == AuthStatus.loggedOut)
               const Positioned.fill(child: LoginScreen())
             else
               Positioned.fill(
                 child: _Splash(
-                  visible:
-                      auth.status == AuthStatus.restoring || waitingForUnity,
+                  visible: auth.status == AuthStatus.restoring,
                 ),
               ),
           ],
@@ -92,8 +80,8 @@ class _OunAppState extends ConsumerState<OunApp> {
   }
 }
 
-/// 세션 복원 + Unity 캐릭터 로딩 동안의 스플래시.
-/// 걷힐 때만 부드럽게 사라진다(나타날 때는 즉시 — 뒤의 빈 무대를 보이면 안 된다).
+/// 세션 복원 동안의 스플래시.
+/// 걷힐 때만 부드럽게 사라진다(나타날 때는 즉시).
 class _Splash extends StatelessWidget {
   const _Splash({required this.visible});
   final bool visible;

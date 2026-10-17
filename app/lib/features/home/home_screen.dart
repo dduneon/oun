@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_embed_unity/flutter_embed_unity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,15 +10,15 @@ import '../../shared/format.dart';
 import '../../shared/widgets/floating_tab_bar.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
+import '../character/character_avatar.dart';
 import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
-/// 상단은 인사·코인으로 최소화해 3D 캐릭터에 무대를 내주고,
+/// 상단은 인사·코인으로 최소화해 캐릭터에 무대를 내주고,
 /// 하단 프로스티드 카드 하나에 오늘의 스탯 + CTA를 모은다.
 ///
-/// Unity 뷰 자체는 앱 전역 [UnityHost]가 화면 뒤에 렌더한다. 홈 화면은
-/// 투명하게 두어 그 캐릭터가 비쳐 보이고, 그 위에 UI만 얹는다.
+/// 캐릭터는 미리 렌더한 레이어 PNG를 겹친 [LivingCharacter]다(엔진 없음).
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -32,17 +31,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// 살아있어서, 이 플래그가 없으면 리빌드마다 캐릭터가 다시 반응한다.
   bool _cheerHandled = false;
 
-  void _pokeCharacter() => sendToUnity('OunBridge', 'React', 'workout');
+  void _pokeCharacter() => ref.read(characterReactionProvider.notifier).play();
 
   /// 미확인 응원이 있으면 캐릭터가 한 번 반응하고 확인 처리한다.
-  ///
-  /// Unity의 `React(string)`는 메시지 내용을 보지 않고 손 흔들기/점프를
-  /// 재생하므로, 씬 재익스포트 없이 'cheer'만 보내면 된다.
   Future<void> _playCheerReaction(ReceivedCheers cheers) async {
     if (_cheerHandled || cheers.unseen == 0) return;
     _cheerHandled = true;
 
-    sendToUnity('OunBridge', 'React', 'cheer');
+    ref.read(characterReactionProvider.notifier).play();
 
     final unseen = cheers.items.where((c) => !c.seen).toList();
     if (unseen.isNotEmpty && mounted) {
@@ -73,7 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     // 미확인 응원이 있으면 첫 프레임 뒤에 캐릭터가 반응한다.
-    // (빌드 중에 Unity 메시지·토스트를 보내지 않도록 post-frame으로 미룬다)
+    // (빌드 중에 프로바이더·토스트를 건드리지 않도록 post-frame으로 미룬다)
     final cheers = ref.watch(receivedCheersProvider).value;
     if (cheers != null && cheers.unseen > 0 && !_cheerHandled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -81,10 +77,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       });
     }
 
+    final look = CharacterLook(
+      gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
+      equipment: ref.watch(equippedItemsProvider).value ?? const {},
+    );
+    final safe = MediaQuery.viewPaddingOf(context);
+
     return Stack(
       children: [
-        // 캐릭터는 앱 전역 UnityHost가 이 투명 화면 뒤에 렌더한다.
-        // 하단 그라데이션 스크림: 캐릭터 하반신이 배경 바닥으로 부드럽게
+        const Positioned.fill(child: _HomeBackdrop()),
+        // 캐릭터 무대: 인사줄 아래부터 오늘 카드 윗부분까지.
+        Positioned(
+          left: 24,
+          right: 24,
+          top: safe.top + 64,
+          bottom: safe.bottom + FloatingTabBar.reservedSpace + 150,
+          child: Align(
+            alignment: const Alignment(0, 0.6),
+            child: ConstrainedBox(
+              // 화면을 꽉 채우면 부담스럽다 — 카드 위에 아담하게 서 있도록.
+              constraints: const BoxConstraints(maxWidth: 250, maxHeight: 312),
+              child: LivingCharacter(look: look, reactToProvider: true),
+            ),
+          ),
+        ),
+        // 하단 그라데이션 스크림: 캐릭터 발밑이 배경 바닥으로 부드럽게
         // 녹아들도록 해, 카드에 다리가 딱 잘리는 느낌을 없앤다.
         Positioned(
           left: 0,
@@ -430,4 +447,44 @@ class _StatDivider extends StatelessWidget {
         height: 30,
         color: OunColors.cardBorder,
       );
+}
+
+
+/// 홈 무대 배경: 위는 따뜻한 하늘, 아래는 캐릭터가 서 있는 동그란 잔디 언덕.
+class _HomeBackdrop extends StatelessWidget {
+  const _HomeBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFF4E8), OunColors.background],
+        ),
+      ),
+      child: Align(
+        alignment: const Alignment(0, 0.42),
+        child: FractionallySizedBox(
+          widthFactor: 1.5,
+          child: AspectRatio(
+            aspectRatio: 3.2,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.35),
+                  radius: 0.75,
+                  colors: [
+                    const Color(0xFFDDEBC4),
+                    const Color(0xFFDDEBC4).withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

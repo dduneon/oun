@@ -6,11 +6,9 @@ import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
+import '../character/character_avatar.dart';
 
-/// 친구 홈: 친구의 아바타(정적 표현) + 운동량 요약 + 최근 활동 + 응원. (서버)
-///
-/// 실시간 3D 아바타는 홈 탭의 단일 Unity 인스턴스 제약으로 띄울 수 없어,
-/// 여기서는 정적 표현(추후 서버 렌더 스냅샷으로 교체)을 쓴다.
+/// 친구 홈: 친구의 캐릭터 + 운동량 요약 + 최근 활동 + 응원. (서버)
 class FriendHomeScreen extends ConsumerWidget {
   const FriendHomeScreen({
     super.key,
@@ -90,10 +88,10 @@ class FriendHomeScreen extends ConsumerWidget {
     );
   }
 
-  /// 아바타 무대(정적). 실제로는 캐릭터 렌더 스냅샷이 들어갈 자리.
+  /// 친구 캐릭터 무대. (장착 정보는 아직 서버가 주지 않아 기본 차림)
   Widget _avatarStage(FriendHome home) {
     return Container(
-      height: 230,
+      height: 260,
       decoration: BoxDecoration(
         color: OunColors.card,
         borderRadius: BorderRadius.circular(22),
@@ -102,19 +100,11 @@ class FriendHomeScreen extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-                color: avatarColor(nickname), shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(initialOf(displayName),
-                style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white)),
+          SizedBox(
+            height: 170,
+            child: LivingCharacter(look: CharacterLook(gender: home.gender)),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           Text('@$nickname',
               style: const TextStyle(
                   fontSize: 16,

@@ -19,9 +19,7 @@ val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
 android {
     namespace = "com.dduneon.oun"
     compileSdk = flutter.compileSdkVersion
-    // Unity 6은 r27c(27.2.12479018) 이상, Flutter 플러그인들은 28.2를 요구한다.
-    // NDK는 상위 호환이라 높은 쪽으로 맞춘다. unityLibrary 모듈은 자체 build.gradle에
-    // r27c를 그대로 쓰므로 두 버전이 모두 설치돼 있어야 한다.
+    // Flutter 플러그인들이 NDK 28.2를 요구한다.
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -33,25 +31,11 @@ android {
         applicationId = "com.dduneon.oun"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // flutter_secure_storage의 EncryptedSharedPreferences가 API 23+,
-        // unityLibrary가 Unity의 AndroidMinSdkVersion(26)을 요구한다. 라이브러리
-        // 모듈의 minSdk가 앱보다 높으면 AGP가 빌드를 거부하므로 26으로 맞춘다.
-        minSdk = maxOf(flutter.minSdkVersion, 26)
+        // flutter_secure_storage의 EncryptedSharedPreferences가 API 23+를 요구한다.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    // Unity가 export 시 이미 압축해둔 리소스를 gradle이 다시 압축하지 않게 한다(로딩 지연 방지).
-    androidResources {
-        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~"
-        noCompress += listOf(".unity3d", ".ress", ".resource", ".obb", ".bundle", ".unityexp")
-        noCompress +=
-            (project.findProperty("unityStreamingAssets") as? String)
-                ?.split(",")
-                ?.map { it.trim() }
-                ?.filter { it.isNotEmpty() }
-                ?: emptyList()
     }
 
     signingConfigs {
@@ -85,9 +69,4 @@ kotlin {
 
 flutter {
     source = "../.."
-}
-
-dependencies {
-    // Unity export 산출물(android/unityLibrary). settings.gradle.kts에서 include한다.
-    implementation(project(":unityLibrary"))
 }
