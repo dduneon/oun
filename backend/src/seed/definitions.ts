@@ -14,6 +14,8 @@ export const items = [
   // 헤어 — 캐릭터 성별 전용(gender). 단정 단발은 여자 기본 머리와 겹쳐 뺐다(시드가 비활성화).
   { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63', gender: 'f', sortOrder: 1 },
   { key: 'hair_braids', category: 'hair', name: '양갈래', price: 160, colorHex: '#A87958', rarity: 'rare', gender: 'f', sortOrder: 2 },
+  { key: 'hair_flick', category: 'hair', name: '넘긴 앞머리', price: 130, colorHex: '#7A4E33', gender: 'm', sortOrder: 3 },
+  { key: 'hair_spiky', category: 'hair', name: '삐죽 머리', price: 160, colorHex: '#3A2A22', rarity: 'rare', gender: 'm', sortOrder: 4 },
   // 소품
   { key: 'cap_sports', category: 'prop', name: '스포츠 캡', price: 80, colorHex: '#A9BBD0', sortOrder: 0 },
   { key: 'towel_gym', category: 'prop', name: '운동 타월', price: 60, colorHex: '#D6C08A', sortOrder: 1 },

@@ -182,7 +182,7 @@ describe('오운 코어 루프 (e2e)', () => {
       .expect(404); // 정의에서 빠진 기존 목업은 구매 불가
   });
 
-  it('다른 성별 전용 헤어는 보이지 않고 살 수도 없다', async () => {
+  it('성별 전용 헤어는 자기 성별 것만 보이고 살 수 있다', async () => {
     const male = await request(app.getHttpServer())
       .post('/auth/dev')
       .send({ nickname: `m_${Date.now().toString().slice(-9)}`, gender: 'm' })
@@ -192,12 +192,30 @@ describe('오운 코어 루프 (e2e)', () => {
       .get('/shop/items?category=hair')
       .set(maleAuth)
       .expect(200);
-    expect(hair.body.items.map((i: any) => i.key)).not.toContain('hair_ponytail');
+    expect(hair.body.items.map((i: any) => i.key).sort()).toEqual(['hair_flick', 'hair_spiky']);
     await request(app.getHttpServer())
       .post('/shop/orders')
       .set(maleAuth)
       .send({ itemKey: 'hair_ponytail' })
       .expect(403);
+    await request(app.getHttpServer())
+      .post('/shop/orders')
+      .set(auth())
+      .send({ itemKey: 'hair_spiky' })
+      .expect(403); // 여자 캐릭터는 남자 헤어를 못 산다
+    for (let i = 0; i < 3; i++) {
+      await request(app.getHttpServer())
+        .post('/workouts')
+        .set(maleAuth)
+        .send({ sport: 'running', durationSec: 2700, distanceM: 7000 })
+        .expect(201); // +60씩 → 180
+    }
+    const buy = await request(app.getHttpServer())
+      .post('/shop/orders')
+      .set(maleAuth)
+      .send({ itemKey: 'hair_flick' })
+      .expect(201);
+    expect(buy.body.balance).toBe(50);
     await request(app.getHttpServer())
       .post('/shop/orders')
       .set(maleAuth)
