@@ -193,7 +193,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
             ),
           ),
           data: (all) {
-            final items = _mine ? all.where((it) => it.owned).toList() : all;
+            // 상점에는 아직 없는 것만, 내 아이템에는 보유한 것만.
+            final items = all.where((it) => it.owned == _mine).toList();
             if (items.isEmpty) return _empty();
             return GridView.count(
               crossAxisCount: 2,
@@ -221,7 +222,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
             const Icon(Icons.inventory_2_outlined,
                 size: 30, color: OunColors.textFaint),
             const SizedBox(height: 8),
-            Text(_mine ? '아직 보유한 $name 아이템이 없어요' : '아이템이 없어요',
+            Text(_mine ? '아직 보유한 $name 아이템이 없어요' : '$name 아이템을 모두 모았어요',
                 style: const TextStyle(fontSize: 13, color: OunColors.textMuted)),
             if (_mine) ...[
               const SizedBox(height: 10),
