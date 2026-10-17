@@ -11,11 +11,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class CharacterLook {
   const CharacterLook({required this.gender, this.equipment = const {}});
 
-  /// 'm' | 'f'. 지금은 머리카락 레이어를 그리지 않아 겉모습에 영향이 없다.
+  /// 'm' | 'f'. 얼굴(여자는 body_f*)과 기본 머리(남자 short, 여자 down)를 정한다.
   final String gender;
 
-  /// 슬롯(clothing·hair·prop) → 장착 아이템 키. hair 슬롯은 그리지 않는다.
+  /// 슬롯(clothing·hair·prop) → 장착 아이템 키.
   final Map<String, String> equipment;
+
+  bool get _female => gender == 'f';
 
   static const _tops = {'hood_daily', 'tee_runner', 'cardigan_knit'};
   static const _props = {'cap_sports', 'towel_gym', 'earbuds'};
@@ -25,15 +27,33 @@ class CharacterLook {
     return _tops.contains(key) ? 'top_$key' : 'top_basic';
   }
 
+  /// 상점 헤어는 아직 레이어가 없어 성별 기본 머리로 그린다.
+  /// 모자를 쓰면 모자 밖으로 삐져나오지 않게 눌린 변형(_cap)을 쓴다.
+  String get _hair {
+    final hair = _female ? 'hair_down' : 'hair_short';
+    return _prop == 'prop_cap_sports' ? '${hair}_cap' : hair;
+  }
+
+  /// 표정별 몸(얼굴 포함) 레이어.
+  String body(CharacterFace face) {
+    final base = _female ? 'body_f' : 'body';
+    return switch (face) {
+      CharacterFace.normal => base,
+      CharacterFace.blink => '${base}_blink',
+      CharacterFace.happy => '${base}_happy',
+    };
+  }
+
   String? get _prop {
     final key = equipment['prop'];
     return _props.contains(key) ? 'prop_$key' : null;
   }
 
-  /// 아래에서 위로 그릴 레이어(몸 제외). 머리카락 레이어는 그리지 않는다.
+  /// 아래에서 위로 그릴 레이어(몸 제외).
   List<String> get overlayLayers => [
     _top,
     if (_prop == 'prop_towel_gym') _prop!,
+    _hair,
     if (_prop == 'prop_earbuds' || _prop == 'prop_cap_sports') _prop!,
   ];
 
@@ -44,10 +64,11 @@ class CharacterLook {
       other is CharacterLook &&
       other.gender == gender &&
       other._top == _top &&
+      other._hair == _hair &&
       other._prop == _prop;
 
   @override
-  int get hashCode => Object.hash(gender, _top, _prop);
+  int get hashCode => Object.hash(gender, _top, _hair, _prop);
 }
 
 /// 얼굴 표정. 몸 레이어에 얼굴이 함께 그려져 있어 몸 PNG를 바꿔 끼운다.
@@ -71,18 +92,13 @@ class CharacterFigure extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final body = switch (face) {
-      CharacterFace.normal => 'body',
-      CharacterFace.blink => 'body_blink',
-      CharacterFace.happy => 'body_happy',
-    };
     return AspectRatio(
       aspectRatio: kCharacterAspect,
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (shadow) const _GroundShadow(),
-          _layer(body),
+          _layer(look.body(face)),
           for (final l in look.overlayLayers) _layer(l),
         ],
       ),
@@ -188,8 +204,11 @@ class _LivingCharacterState extends ConsumerState<LivingCharacter>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // 표정 PNG를 미리 올려 두어 처음 깜빡일 때 비지 않게 한다.
-    for (final f in ['body_blink', 'body_happy']) {
-      precacheImage(AssetImage(CharacterLook.asset(f)), context);
+    for (final f in [CharacterFace.blink, CharacterFace.happy]) {
+      precacheImage(
+        AssetImage(CharacterLook.asset(widget.look.body(f))),
+        context,
+      );
     }
   }
 
