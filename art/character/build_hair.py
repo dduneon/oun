@@ -26,6 +26,18 @@ def srgb(hex_):
 C = Vector((0, 0.0086, 0.66))
 RX, RY, RZ = 0.278, 0.236, 0.244
 
+
+def spike(adeg, pdeg, length, r, bend=(0, 0, 0), sink=0.9):
+    """머리 표면 방향(방위각 adeg, 정수리에서 pdeg)에서 뻗는 뾰족한 다발(tube 점 4개).
+    bend는 끝으로 갈수록 휘는 방향·세기(월드 벡터)."""
+    a, p = math.radians(adeg), math.radians(pdeg)
+    d = Vector((math.sin(p) * math.sin(a), -math.sin(p) * math.cos(a), math.cos(p)))
+    base = C + Vector((d.x * RX, d.y * RY, d.z * RZ)) * sink
+    b = Vector(bend)
+    pts = [base, base + d * length * 0.45 + b * 0.15, base + d * length * 0.8 + b * 0.55,
+           base + d * length + b]
+    return [(*q, rr) for q, rr in zip(pts, (r, r * 0.8, r * 0.45, r * 0.06))]
+
 STYLES = {
     "HAIR_AC_SHORT": dict(
         # 방위각(도, 0=정면) → 헤어라인 높이(z)
@@ -80,6 +92,36 @@ STYLES = {
             (0.23, 0.10, 0.64, 0.062), (0.27, 0.03, 0.54, 0.060), (0.26, -0.03, 0.44, 0.056),
             (0.23, -0.07, 0.35, 0.048)])],
     ),
+    # 상점(남자): 휘어진 삐죽 머리(hair_spiky). 뾰족한 앞머리 + 옆·뒤에서 위로 휘어 뻗는 삐죽한 다발.
+    "HAIR_AC_SPIKY": dict(
+        hairline=[(0, 0.815), (46, 0.800), (66, 0.715), (78, 0.655), (85, 0.665),
+                  (92, 0.700), (108, 0.680), (140, 0.540), (165, 0.480), (180, 0.470)],
+        fringe_count=4.0,
+        fringe_depth=0.055,
+        fringe_shape="spiky",
+        color=srgb("#3A2A22"),
+        # 옆·뒤 다발은 모자 챙 아래에서 나오므로 모자 변형에도 남긴다. 정수리 다발은 모자 변형에서 뺀다.
+        parts=[dict(kind="tube", mirror=m, cap=c, points=spike(*args)) for m, c, args in [
+            (True, True, (80, 70, 0.13, 0.042, (0.0, 0.03, 0.06), 1.0)),
+            (True, True, (110, 72, 0.13, 0.042, (0.0, 0.05, 0.05), 1.0)),
+            (True, True, (140, 70, 0.12, 0.040, (0.0, 0.05, 0.04), 1.0)),
+            (True, False, (60, 45, 0.12, 0.045, (0.0, 0.04, 0.03), 1.0)),
+            (False, False, (160, 30, 0.12, 0.045, (0.0, 0.05, -0.01), 1.0)),
+        ]],
+    ),
+    # 상점(남자): 넘긴 앞머리(hair_flick). 왼쪽 가르마에서 오른쪽 아래로 비스듬히 넘긴 앞머리.
+    "HAIR_AC_FLICK": dict(
+        hairline=[(0, 0.835), (46, 0.810), (66, 0.715), (78, 0.655), (85, 0.665),
+                  (92, 0.700), (108, 0.680), (140, 0.540), (165, 0.480), (180, 0.470)],
+        skew=[(-180, 0.0), (-70, 0.0), (-40, 0.02), (-20, 0.0), (10, -0.04), (35, -0.06),
+              (55, -0.03), (75, 0.0), (180, 0.0)],
+        lift=dict(a=-35, wa=30, p=28, wp=16, amount=0.06),  # 이마가 드러난 가르마 쪽 볼륨
+        fringe_count=2.5,
+        fringe_depth=0.015,
+        vol=1.05,
+        side_vol=0.02,
+        color=srgb("#7A4E33"),
+    ),
 }
 
 GRID = 96
@@ -108,10 +150,16 @@ def lerp_tab(t, tab):
 def hairline(style, adeg):
     a = abs(adeg)
     z = lerp_tab(a, style["hairline"])
+    if "skew" in style:  # 좌우 비대칭(가르마·넘긴 앞머리): 부호 있는 방위각 → 높이 보정
+        z += lerp_tab(adeg, style["skew"])
     if a < 56:
         w = 1 - max(0.0, (a - 40) / 16)
         x = ((adeg + 52) / 104 * style["fringe_count"]) % 1.0
-        z -= style["fringe_depth"] * math.sqrt(max(0.0, 1 - (2 * x - 1) ** 2)) * w
+        if style.get("fringe_shape") == "spiky":  # 뾰족한 삼각 앞머리
+            bump = (1 - abs(2 * x - 1)) ** 1.5
+        else:
+            bump = math.sqrt(max(0.0, 1 - (2 * x - 1) ** 2))
+        z -= style["fringe_depth"] * bump * w
     return z
 
 
@@ -121,6 +169,7 @@ def build(name, style, bvh, capped=False):
     flare, curl = style.get("flare", 0.012), style.get("curl", 0.03)
 
     side_vol = style.get("side_vol", 0.0)
+    lift = style.get("lift")
 
     def on_scalp(a, p):
         d = Vector((math.sin(p) * math.sin(a) * RX,
@@ -132,6 +181,11 @@ def build(name, style, bvh, capped=False):
         if side_vol:
             # 옆머리(방위각 ±90° 부근, 정수리보다 아래)를 더 부풀린다.
             base += side_vol * math.sin(a) ** 2 * ss((0.8 - math.cos(p)) / 0.6)
+        if lift:
+            # 가르마 쪽 이마 위 머리 뿌리를 살짝 띄운다(방위각·정수리 각도 둘 다 가우시안).
+            da = (math.degrees(a) - lift["a"] + 180) % 360 - 180
+            base += lift["amount"] * math.exp(-(da / lift["wa"]) ** 2
+                                              - ((math.degrees(p) - lift["p"]) / lift["wp"]) ** 2)
         if capped:
             base *= 1 - (1 - CAP_SQUASH) * ss((pt.z - CAP_Z0) / (CAP_Z1 - CAP_Z0))
         return pt, d, base
@@ -202,6 +256,8 @@ def build(name, style, bvh, capped=False):
     sub.levels, sub.render_levels = 1, 2
 
     for i, part in enumerate(style.get("parts", [])):
+        if capped and not part.get("cap", True):  # 모자 밖으로 뚫고 나오는 다발은 모자 변형에서 뺀다
+            continue
         if part["kind"] == "tie":
             col.objects.link(tie(f"{obj_name}Part{i}", part))
             continue
