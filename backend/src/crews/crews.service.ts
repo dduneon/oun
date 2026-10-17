@@ -144,7 +144,10 @@ export class CrewsService {
     const crew = await client.crew.findUnique({
       where: { id: crewId },
       include: {
-        members: { include: { user: true }, orderBy: { joinedAt: 'asc' } },
+        members: {
+          include: { user: { include: { equipped: true } } },
+          orderBy: { joinedAt: 'asc' },
+        },
         _count: { select: { posts: { where: { kind: 'post' } } } },
       },
     });
@@ -156,6 +159,8 @@ export class CrewsService {
       nickname: m.user.nickname,
       displayName: m.user.displayName,
       gender: m.user.gender,
+      // 크루 모임 화면 캐릭터가 입은 옷·헤어(슬롯 → 아이템 키).
+      equipment: Object.fromEntries(m.user.equipped.map((e) => [e.slot, e.itemKey])),
       role: m.role,
       isMe: m.userId === userId,
     }));

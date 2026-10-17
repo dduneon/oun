@@ -78,6 +78,7 @@ describe('오운 소셜·크루 (e2e)', () => {
       .expect(200);
     expect(res.body.nickname).toBe('jimin');
     expect(res.body.weekDone).toHaveLength(7);
+    expect(typeof res.body.equipment).toBe('object'); // 슬롯 → 아이템 키
     expect(res.body.recent.length).toBeGreaterThan(0);
   });
 
@@ -89,6 +90,7 @@ describe('오운 소셜·크루 (e2e)', () => {
       .expect(201);
     const crewId = crew.body.id;
     expect(crew.body.members).toHaveLength(1);
+    expect(crew.body.members[0].equipment).toEqual({}); // 새 유저는 장착 없음
     expect(crew.body.level.level).toBe(1);
     expect(crew.body.isLeader).toBe(true);
 

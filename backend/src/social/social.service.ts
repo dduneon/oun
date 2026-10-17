@@ -236,7 +236,7 @@ export class SocialService {
   async friendHome(nickname: string, viewerId: string) {
     const user = await this.prisma.user.findUnique({
       where: { nickname },
-      include: { streak: true, characterStat: true },
+      include: { streak: true, characterStat: true, equipped: true },
     });
     if (!user) throw new NotFoundException('해당 닉네임의 유저가 없어요');
 
@@ -266,6 +266,7 @@ export class SocialService {
       nickname: user.nickname,
       displayName: user.displayName,
       gender: user.gender,
+      equipment: Object.fromEntries(user.equipped.map((e) => [e.slot, e.itemKey])),
       level: statLevel(user.characterStat?.endurance ?? 0),
       streakCurrent: user.streak?.current ?? 0,
       weekDone,
