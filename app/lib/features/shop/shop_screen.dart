@@ -18,6 +18,9 @@ class ShopScreen extends ConsumerStatefulWidget {
 
 class _ShopScreenState extends ConsumerState<ShopScreen> {
   int _category = 0;
+
+  /// true면 '내 아이템' — 구매해서 보유한 것만 모아 본다.
+  bool _mine = false;
   // (표시명, 서버 카테고리)
   static const _categories = [
     ('의상', 'clothing'),
@@ -159,7 +162,18 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        _segment(),
+        _segment(
+          labels: const ['상점', '내 아이템'],
+          selected: _mine ? 1 : 0,
+          onTap: (i) => setState(() => _mine = i == 1),
+        ),
+        const SizedBox(height: 8),
+        _segment(
+          labels: [for (final c in _categories) c.$1],
+          selected: _category,
+          onTap: (i) => setState(() => _category = i),
+          compact: true,
+        ),
         const SizedBox(height: 14),
         itemsAsync.when(
           loading: () => const Padding(
@@ -178,46 +192,89 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                   style: TextStyle(fontSize: 12, color: OunColors.textFaint)),
             ),
           ),
-          data: (items) => GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.82,
-            children: [for (final it in items) _itemCard(it)],
-          ),
+          data: (all) {
+            final items = _mine ? all.where((it) => it.owned).toList() : all;
+            if (items.isEmpty) return _empty();
+            return GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.82,
+              children: [for (final it in items) _itemCard(it)],
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _segment() {
+  Widget _empty() {
+    final name = _categories[_category].$1;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 36),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.inventory_2_outlined,
+                size: 30, color: OunColors.textFaint),
+            const SizedBox(height: 8),
+            Text(_mine ? '아직 보유한 $name 아이템이 없어요' : '아이템이 없어요',
+                style: const TextStyle(fontSize: 13, color: OunColors.textMuted)),
+            if (_mine) ...[
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => setState(() => _mine = false),
+                child: const Text('상점 둘러보기',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: OunColors.tabAccent)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// [compact]는 카테고리 줄(조금 작게), 아니면 상점/내 아이템 전환.
+  Widget _segment({
+    required List<String> labels,
+    required int selected,
+    required ValueChanged<int> onTap,
+    bool compact = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
           color: OunColors.card, borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
-          for (var i = 0; i < _categories.length; i++)
+          for (var i = 0; i < labels.length; i++)
             Expanded(
               child: GestureDetector(
-                onTap: () => setState(() => _category = i),
+                onTap: () => onTap(i),
                 behavior: HitTestBehavior.opaque,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
                   decoration: BoxDecoration(
-                    color: _category == i ? OunColors.surface : null,
+                    color: selected == i
+                        ? (compact ? OunColors.surface : OunColors.tabAccent)
+                        : null,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
-                    _categories[i].$1,
+                    labels[i],
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _category == i
-                          ? OunColors.textPrimary
+                      fontSize: compact ? 12.5 : 13.5,
+                      fontWeight: compact ? FontWeight.w600 : FontWeight.w700,
+                      color: selected == i
+                          ? (compact
+                              ? OunColors.textPrimary
+                              : OunColors.onTabAccent)
                           : OunColors.textMuted,
                     ),
                   ),
