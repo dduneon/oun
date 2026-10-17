@@ -102,7 +102,12 @@ class FriendHomeScreen extends ConsumerWidget {
         children: [
           SizedBox(
             height: 170,
-            child: LivingCharacter(look: CharacterLook(gender: home.gender)),
+            child: LivingCharacter(
+              look: CharacterLook(
+                gender: home.gender,
+                equipment: home.equipment,
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           Text('@$nickname',

@@ -971,7 +971,10 @@ class CrewStage extends StatelessWidget {
                 width: w,
                 height: h * (order[i].abs().isOdd ? 0.94 : 1.0),
                 child: LivingCharacter(
-                  look: CharacterLook(gender: shown[i].gender),
+                  look: CharacterLook(
+                    gender: shown[i].gender,
+                    equipment: shown[i].equipment,
+                  ),
                   seed: i + 1,
                 ),
               ),

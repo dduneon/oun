@@ -440,11 +440,17 @@ class FriendRequestItem {
 }
 
 /// GET /users/:nickname/home
+/// 서버 equipment(슬롯 → 아이템 키). 예전 서버라 없으면 빈 맵.
+Map<String, String> equipmentFromJson(Object? raw) => raw is Map
+    ? {for (final e in raw.entries) e.key as String: e.value as String}
+    : const {};
+
 class FriendHome {
   const FriendHome({
     required this.nickname,
     required this.displayName,
     required this.gender,
+    this.equipment = const {},
     required this.level,
     required this.streakCurrent,
     required this.weekDone,
@@ -458,6 +464,9 @@ class FriendHome {
   final String nickname;
   final String displayName;
   final String gender;
+
+  /// 캐릭터가 입은 옷·헤어(슬롯 → 아이템 키).
+  final Map<String, String> equipment;
   final int level;
   final int streakCurrent;
   final List<bool> weekDone; // 월~일
@@ -473,6 +482,7 @@ class FriendHome {
     nickname: j['nickname'] as String,
     displayName: j['displayName'] as String,
     gender: j['gender'] as String,
+    equipment: equipmentFromJson(j['equipment']),
     level: j['level'] as int,
     streakCurrent: j['streakCurrent'] as int,
     weekDone: (j['weekDone'] as List).cast<bool>(),
@@ -546,6 +556,7 @@ class CrewMemberData {
     required this.nickname,
     required this.displayName,
     required this.gender,
+    this.equipment = const {},
     required this.role,
     required this.isMe,
   });
@@ -553,6 +564,9 @@ class CrewMemberData {
   final String nickname;
   final String displayName;
   final String gender;
+
+  /// 캐릭터가 입은 옷·헤어(슬롯 → 아이템 키).
+  final Map<String, String> equipment;
   final String role; // leader | member
   final bool isMe;
 
@@ -562,6 +576,7 @@ class CrewMemberData {
     nickname: j['nickname'] as String,
     displayName: j['displayName'] as String,
     gender: j['gender'] as String,
+    equipment: equipmentFromJson(j['equipment']),
     role: j['role'] as String,
     isMe: j['isMe'] as bool,
   );
