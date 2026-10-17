@@ -186,7 +186,7 @@ final achievementsProvider =
   return api.achievements();
 });
 
-/// 상점 아이템. family 인자: 카테고리(clothing/hair/prop/furniture).
+/// 상점 아이템. family 인자: 카테고리(clothing/bottom/shoes/hair/prop).
 final shopItemsProvider =
     FutureProvider.family<List<ShopItem>, String>((ref, category) async {
   final api = await _authed(ref);

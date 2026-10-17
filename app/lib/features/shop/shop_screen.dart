@@ -29,14 +29,15 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
   /// 미리보기 아래 구매 버튼이 가리키는, 마지막으로 입어본 아이템.
   ShopItem? _trying;
 
-  /// 캐릭터가 입는 카테고리 = 장착 슬롯. 가구는 입어볼 수 없다.
-  static const _wearable = {'clothing', 'hair', 'prop'};
+  /// 캐릭터가 입는 카테고리 = 장착 슬롯.
+  static const _wearable = {'clothing', 'bottom', 'shoes', 'hair', 'prop'};
   // (표시명, 서버 카테고리)
   static const _categories = [
-    ('의상', 'clothing'),
+    ('상의', 'clothing'),
+    ('하의', 'bottom'),
+    ('신발', 'shoes'),
     ('헤어', 'hair'),
     ('소품', 'prop'),
-    ('가구', 'furniture'),
   ];
 
   Future<void> _onTapItem(ShopItem it) async {
@@ -82,7 +83,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       });
       return;
     }
-    // 가구는 입어볼 수 없으니 바로 구매 확인.
+    // 입을 수 없는 아이템은 바로 구매 확인.
     await _buy(it);
   }
 
@@ -137,8 +138,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
 
     try {
       await api.orderItem(it.key);
-      // 캐릭터가 입는 아이템(의상·헤어·소품)은 구매 즉시 장착해
-      // 홈으로 돌아갔을 때 바로 3D 캐릭터에 보이게 한다.
+      // 캐릭터가 입는 아이템은 구매 즉시 장착해
+      // 홈으로 돌아갔을 때 바로 캐릭터에 보이게 한다.
       var equipped = false;
       if (_wearable.contains(it.category)) {
         try {

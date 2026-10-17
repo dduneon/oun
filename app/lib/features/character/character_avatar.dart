@@ -14,17 +14,35 @@ class CharacterLook {
   /// 'm' | 'f'. 얼굴(여자는 body_f*)과 기본 머리(남자 short, 여자 down)를 정한다.
   final String gender;
 
-  /// 슬롯(clothing·hair·prop) → 장착 아이템 키.
+  /// 슬롯(clothing·bottom·shoes·hair·prop) → 장착 아이템 키. clothing = 상의.
   final Map<String, String> equipment;
 
   bool get _female => gender == 'f';
 
-  static const _tops = {'hood_daily', 'tee_runner', 'cardigan_knit'};
+  static const _tops = {
+    'hood_daily',
+    'tee_runner',
+    'cardigan_knit',
+    'tank_sleeveless',
+    'windbreaker',
+  };
+  static const _bottoms = {'jogger_pants', 'running_shorts', 'leggings'};
+  static const _shoes = {'sneakers_run', 'hightop', 'rain_boots'};
   static const _props = {'cap_sports', 'towel_gym', 'earbuds'};
 
   String get _top {
     final key = equipment['clothing'];
     return _tops.contains(key) ? 'top_$key' : 'top_basic';
+  }
+
+  String get _bottom {
+    final key = equipment['bottom'];
+    return _bottoms.contains(key) ? 'bottom_$key' : 'bottom_basic';
+  }
+
+  String get _shoe {
+    final key = equipment['shoes'];
+    return _shoes.contains(key) ? 'shoes_$key' : 'shoes_basic';
   }
 
   static const _hairs = {'hair_ponytail', 'hair_braids', 'hair_flick', 'hair_spiky'};
@@ -56,6 +74,8 @@ class CharacterLook {
 
   /// 아래에서 위로 그릴 레이어(몸 제외).
   List<String> get overlayLayers => [
+    _shoe,
+    _bottom,
     _top,
     if (_prop == 'prop_towel_gym') _prop!,
     _hair,
@@ -69,11 +89,13 @@ class CharacterLook {
       other is CharacterLook &&
       other.gender == gender &&
       other._top == _top &&
+      other._bottom == _bottom &&
+      other._shoe == _shoe &&
       other._hair == _hair &&
       other._prop == _prop;
 
   @override
-  int get hashCode => Object.hash(gender, _top, _hair, _prop);
+  int get hashCode => Object.hash(gender, _top, _bottom, _shoe, _hair, _prop);
 }
 
 /// 얼굴 표정. 몸 레이어에 얼굴이 함께 그려져 있어 몸 PNG를 바꿔 끼운다.
