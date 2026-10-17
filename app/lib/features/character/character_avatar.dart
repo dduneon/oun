@@ -27,10 +27,15 @@ class CharacterLook {
     return _tops.contains(key) ? 'top_$key' : 'top_basic';
   }
 
-  /// 상점 헤어는 아직 레이어가 없어 성별 기본 머리로 그린다.
+  static const _hairs = {'hair_ponytail', 'hair_braids'};
+
+  /// 상점 헤어(레이어 이름 = 아이템 키), 없으면 성별 기본 머리.
   /// 모자를 쓰면 모자 밖으로 삐져나오지 않게 눌린 변형(_cap)을 쓴다.
   String get _hair {
-    final hair = _female ? 'hair_down' : 'hair_short';
+    final key = equipment['hair'];
+    final hair = _hairs.contains(key)
+        ? key!
+        : (_female ? 'hair_down' : 'hair_short');
     return _prop == 'prop_cap_sports' ? '${hair}_cap' : hair;
   }
 
