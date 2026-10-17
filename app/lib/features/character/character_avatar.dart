@@ -27,7 +27,7 @@ class CharacterLook {
     return _tops.contains(key) ? 'top_$key' : 'top_basic';
   }
 
-  static const _hairs = {'hair_ponytail', 'hair_braids'};
+  static const _hairs = {'hair_ponytail', 'hair_braids', 'hair_flick', 'hair_spiky'};
 
   /// 상점 헤어(레이어 이름 = 아이템 키), 없으면 성별 기본 머리.
   /// 모자를 쓰면 모자 밖으로 삐져나오지 않게 눌린 변형(_cap)을 쓴다.
