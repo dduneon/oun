@@ -4,61 +4,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-오운(Oun) is a gamified fitness app: a cute 3D character (Animal Crossing–style) that lives on the home screen and reacts to the user's workouts. Emotional/encouragement-first (no rankings), non-monetized (workout-earned currency only), Korean-first launch, iOS + Android.
+오운(Oun) is a gamified fitness app: a cute Animal Crossing–style character that lives on the home screen and reacts to the user's workouts. Emotional/encouragement-first (no rankings), non-monetized (workout-earned currency only), Korean-first launch, iOS + Android.
 
-The product/planning source of truth is `service_development_plan_oun.md` (spec) and `development_plan_oun.md` (execution plan, decisions, data models). Read these before making product decisions — many things (no stats on shop items, "no punish for rest days", currency computed server-side only) are deliberate constraints, not omissions.
+The product/planning source of truth is `service_development_plan_oun.md` (spec) and `development_plan_oun.md` (execution plan, decisions, data models). Read these before making product decisions — many things (no stats on shop items, "no punish for rest days", currency computed server-side only) are deliberate constraints, not omissions. Note those docs predate the switch from an embedded Unity 3D character to pre-rendered 2D layers.
 
 ## Monorepo layout
 
 ```
 oun/
-├── app/       Flutter app (the shell + all 2D UI)
-├── unity/     Unity 6.5 project (3D character scene, exported into the app via UaaL)
+├── app/       Flutter app (all UI, including the character)
 ├── backend/   NestJS + Prisma API (implemented — see "Backend")
-└── BUILD.md   UaaL build runbook — READ THIS before building
+├── art/       Character layer source: art/character/oun_villager.blend + render_layers.py
+├── unity/     Legacy Unity project — no longer used by the app
+└── BUILD.md   Build/deploy runbook (FCM files, signing, TestFlight, character assets)
 ```
 
-The Flutter app embeds Unity as a library (`flutter_embed_unity`). Flutter renders ~70% of the app (navigation, feeds, shop, settings); Unity renders only the 3D character scenes (home character + crew gathering). There is exactly **one** Unity engine/view (UaaL singleton), hosted app-level and reused by switching scenes — see "Flutter ↔ Unity". **Server/state is always the source of truth; Unity only displays.**
+The character used to be a Unity 3D scene embedded via UaaL. It is now **2D layer PNGs rendered offline from Blender** and composited in Flutter — there is no 3D engine in the app. `unity/` is left in the repo but nothing builds or references it. **Server/state is always the source of truth; the character only displays.**
 
-## Building & running — non-obvious, read `BUILD.md`
+## Building & running
 
-`flutter run` / `flutter build` **do not work** for this app — they don't build the embedded `UnityFramework`. You must build the workspace with `xcodebuild` directly. The project is deliberately configured with Swift Package Manager **off** and CocoaPods **static linkage** (`use_frameworks! :linkage => :static`) — do not "fix" these back.
-
-Typical iOS simulator loop (from `app/ios/`):
+Plain Flutter — `flutter run` / `flutter build` work on both iOS and Android (from `app/`):
 ```bash
-xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Debug \
-  -sdk iphonesimulator -destination 'id=<BOOTED_SIM_ID>' \
-  -derivedDataPath build/ios_sim build
-APP=build/ios_sim/Build/Products/Debug-iphonesimulator/Runner.app
-xcrun simctl install <SIM_ID> "$APP" && xcrun simctl launch <SIM_ID> com.dduneon.oun
+flutter run --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
+flutter build ios --simulator --debug --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
+flutter analyze
+flutter test
 ```
-- Get a simulator id: `xcrun simctl list devices available | grep Booted`.
-- After `simctl install`, if the app shows a stale tab, `simctl terminate` then `launch` again (state can restore).
+- Always pass `--dart-define=OUN_API_BASE_URL=...`; without it the app talks to `http://localhost:3000`, session restore fails, and the user gets logged out.
+- Simulator install loop: `xcrun simctl install <SIM_ID> build/ios/iphonesimulator/Runner.app && xcrun simctl launch <SIM_ID> com.dduneon.oun` (`xcrun simctl list devices available | grep Booted` for the id). If it shows a stale tab, `simctl terminate` then `launch` again.
+- iOS uses CocoaPods with Swift Package Manager **off** and `use_frameworks! :linkage => :static`. These were originally for UnityFramework; Firebase now comes in via CocoaPods, so don't flip them without re-verifying the iOS build and push.
 - `pod install` needs a UTF-8 locale: `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install`.
+- Release signing on Android reads `app/android/key.properties` (gitignored) and silently falls back to the debug key when absent. Firebase config files are gitignored too — see `BUILD.md`.
 
-Fast checks that DO work normally (run in `app/`): `flutter analyze`, `flutter test`.
-
-**Android is different: `flutter run` / `flutter build` DO work** — `unityLibrary` is a gradle subproject that builds along with the app, so no `xcodebuild` detour. It needs its own Unity export to `app/android/unityLibrary` (a different folder from iOS; switching platforms means re-exporting), and gradle stops with a Korean "export하세요" message until that exists. Release signing reads `app/android/key.properties` (gitignored) and silently falls back to the debug key when absent. See `BUILD.md` §F.
-
-### Changing the Unity scene/character
-Any change under `unity/` (camera, materials, scripts, character) requires re-exporting from the Unity editor: `Flutter Embed → Export project to Flutter app → iOS`, target `app/ios/unityLibrary` (overwrite), then rebuild with `xcodebuild`. This is a manual editor step Claude cannot do — hand it to the user. For iOS simulator, Unity must be exported with Target SDK = Simulator SDK and Simulator architecture = ARM64. The exported `app/ios/unityLibrary/` (~1GB) is gitignored and regenerated by export.
+### Changing the character art
+Layers come from `art/character/oun_villager.blend` (one collection per layer), rendered with the same orthographic camera onto an 800×1000 canvas by `art/character/render_layers.py` into `app/assets/character/`:
+```bash
+blender art/character/oun_villager.blend --background --python art/character/render_layers.py
+```
+- Occluded parts are cut out at render time by rendering BODY as a holdout, so layers just stack in Flutter.
+- If you change the body shape, re-render **all** layers or they stop lining up.
+- **Hair is currently not drawn.** `CharacterLook` has no hair layer and `app/assets/character/` has no `hair_*.png`; `render_layers.py` still renders hair collections, but those outputs aren't shipped. Shop hair items can still be bought/equipped but don't show on the character.
 
 ## Flutter architecture (`app/lib`)
 
-- **Routing:** `go_router` `StatefulShellRoute.indexedStack` in `router.dart` — 5 bottom tabs (홈/기록/상점/소셜/마이). IndexedStack keeps every tab alive across switches. The Unity view is **not** in a tab — it's an app-level host (see below), so it survives navigation regardless; Unity only loads once and reloading is costly.
-- **State:** Riverpod (`ProviderScope` in `main.dart`). Screen data comes from the backend via `FutureProvider`s in `shared/api/providers.dart`; an auth gate (`authProvider`) shows login/splash over the router until a session is restored.
-- **Structure:** feature-first — `features/{auth,home,record,shop,crew,my}/` (the 소셜 tab lives in `features/crew/`), shared pieces in `shared/widgets/`, API layer in `shared/api/`, design tokens in `theme/app_theme.dart` (`OunColors` + `AppTheme`).
-- **Design system:** warm palette in `OunColors`. Background `#FDF6F0` (must match Unity camera background so the full-bleed character blends), soft cards `#F3E9DF`, list surfaces `#FFFDFB`, terracotta tab accent `#C47A45`.
+- **Routing:** `go_router` `StatefulShellRoute.indexedStack` in `router.dart` — 5 bottom tabs (홈/기록/상점/소셜/마이). IndexedStack keeps every tab alive across switches.
+- **State:** Riverpod (`ProviderScope` in `main.dart`). Screen data comes from the backend via `FutureProvider`s in `shared/api/providers.dart`; an auth gate (`authProvider`) shows login/splash over the router until a session is restored (`app.dart`).
+- **Structure:** feature-first — `features/{auth,home,record,shop,crew,my,character}/` (the 소셜 tab lives in `features/crew/`), shared pieces in `shared/widgets/`, API layer in `shared/api/`, design tokens in `theme/app_theme.dart` (`OunColors` + `AppTheme`).
+- **Design system:** warm palette in `OunColors`. Background `#FDF6F0`, soft cards `#F3E9DF`, list surfaces `#FFFDFB`, terracotta tab accent `#C47A45`.
 - **Bottom nav:** custom `FloatingTabBar` (floating frosted capsule, selected tab expands with a label) — not Material `NavigationBar`. `MainScaffold` uses `extendBody: true`; screens reserve `FloatingTabBar.reservedSpace` (+ safe area) at the bottom so content clears the floating bar. `PageScaffold` handles this for the non-home tabs.
-- **Home** is character-first: the screen itself is **transparent** with floating UI; the 3D character shows through from the app-level `UnityHost` behind it (home no longer mounts its own `EmbedUnity`). Non-home tabs use `PageScaffold`'s opaque background to hide the Unity view.
+- **Home** is character-first: minimal header (greeting/coins), the character on a stage, and one frosted card with today's stats + CTA.
 
-## Flutter ↔ Unity messaging
+## Character (`features/character/character_avatar.dart`)
 
-- **Single app-level host:** the one `EmbedUnity` lives in `UnityHost` (`app/lib/unity/unity_stage.dart`), placed behind the router in `app.dart` so it's mounted once for the app's lifetime. Only **one** Unity instance is supported (UaaL/plugin limitation) — never add a second `EmbedUnity`. To show 3D on another screen, switch scenes on the single view, don't spawn a new one.
-- **Scene switching:** `unitySceneProvider` (Riverpod) holds the current scene (`home`/`crew`). `UnityHost` sends `LoadScene('home:<token>' | 'crew:<tokens>')` where tokens are character kinds (`m`/`f`); both home and crew spawn avatars dynamically from tokens (home = the current user's avatar via `authProvider`, crew = each member's). `OunBridge.LoadScene` toggles `HomeRig`/`CrewRig`, spawns via `CrewStage`, and reframes the camera. Entering a crew (`crew_home.dart`) sets the provider to `crew` + a boxed viewport rect; **returning to `home` happens when the Home tab is selected** (`MainScaffold`), not on crew exit — because changing the Unity rect over an opaque tab makes the native platform view leak a frame. Screens that want Unity visible must be **transparent**; opaque screens hide it.
-- **Transition cover:** `UnityHost` keeps an opaque cover over the Unity view while a scene change is in flight (raised on send, lowered on the `crew_ready`/`home_ready` message from `OunBridge`) so camera/zoom/rect changes never flash. `crew_home` additionally gates its stage-viewport measurement on route transitions being fully settled.
-- Flutter → Unity: `sendToUnity('<GameObjectName>', '<Method>', '<msg>')`. `OunBridge` (`unity/Assets/Scripts/OunBridge.cs`) is the entry point — `React(string)` (workout reaction) and `LoadScene(string)`.
-- Unity → Flutter: `SendToFlutter.Send(...)` in C#, received centrally by `UnityHost`'s `onMessageFromUnity`; app-wide toasts use `rootMessengerKey` (`shared/global_keys.dart`).
+- `CharacterLook(gender, equipment)` decides which layer PNGs to stack from the server's equipped items (slot → item key): `body*` (face expression variants baked into the body layer) → top → towel → earbuds/cap. Unknown keys fall back to `top_basic` / no prop. `gender` (`m`/`f`, chosen at signup) currently doesn't change the look since hair isn't drawn.
+- `CharacterFigure` draws one static character (layers + ground shadow); `LivingCharacter` adds breathing, occasional blinks (swaps to `body_blink`), and a hop + `body_happy` on tap.
+- Reactions: `characterReactionProvider.notifier.play()` triggers a hop on the home character (`LivingCharacter(reactToProvider: true)`). Home uses it for workout pokes and unseen cheers.
+- Used on home (`home_screen.dart`), crew gathering (`crew_home.dart`, one per member by `gender`), and friend home (`friend_home_screen.dart`).
 
 ## Backend (`backend/`, NestJS + Prisma)
 
@@ -90,5 +91,5 @@ npx jest --config test/jest-e2e.json <name>   # a single e2e suite (e.g. "auth",
 
 ## Conventions
 
-- UI copy and comments are Korean. Commit messages: conventional-commit prefix, Korean body, one logical unit per commit (`feat(app):`, `chore(unity):`, `fix:` …).
-- After editing Unity content, remember it won't appear until re-export + `xcodebuild` rebuild — verify with a simulator screenshot, not `flutter run`.
+- UI copy and comments are Korean. Commit messages: conventional-commit prefix, Korean body, one logical unit per commit (`feat(app):`, `chore(art):`, `fix:` …).
+- After changing character art, re-render the layers and check them composited (or in the app) — the PNGs, not the blend, are what ships.

@@ -1,10 +1,10 @@
-# 오운(Oun) 빌드 가이드 — Flutter + Unity (UaaL)
+# 오운(Oun) 빌드 가이드 — Flutter
 
-Flutter 앱(`app/`)에 Unity 3D 씬(`unity/`)을 임베드(Unity as a Library)해서 빌드하는 절차.
-**일반 `flutter run`으로는 빌드되지 않습니다** — 아래 절차를 따라야 합니다. (이유는 맨 아래 "왜 이렇게 하나" 참고)
+앱(`app/`)은 순수 Flutter 앱이다. 예전에는 Unity 3D 씬을 임베드(UaaL)해서 `xcodebuild`로만
+빌드됐지만, 캐릭터를 미리 렌더한 2D 레이어 PNG로 바꾸면서 Unity 의존성을 걷어냈다.
+**이제 `flutter run` / `flutter build`가 iOS·Android 모두 그대로 동작한다.**
 
-- **검증 환경:** macOS(Apple Silicon), Unity 6.5(6000.5.4f1), Flutter 3.44, Xcode 26.5, CocoaPods 1.16
-- **패키지:** `flutter_embed_unity` 2.0.0 (+ `_6000_0_android`, `_2022_3_ios`)
+- **검증 환경:** macOS(Apple Silicon), Flutter 3.44, Xcode 26.5, CocoaPods 1.16
 
 ---
 
@@ -12,102 +12,79 @@ Flutter 앱(`app/`)에 Unity 3D 씬(`unity/`)을 임베드(Unity as a Library)�
 ```
 oun/
 ├── app/        # Flutter 앱
-│   └── ios/unityLibrary/   # Unity export 산출물 (gitignore, 재생성 필요)
-├── unity/      # Unity 프로젝트 (export 소스)
-├── backend/    # 서버 (예정)
+├── backend/    # NestJS + Prisma API
+├── art/        # 캐릭터 레이어 원본(blend)과 렌더 스크립트 — D 참고
+├── unity/      # 예전 Unity 프로젝트. 앱은 더 이상 쓰지 않는다
 └── *.md
 ```
-> `app/ios/unityLibrary/`(약 1.1GB)는 저장소에 없음. 클론 후 아래 Unity export를 다시 실행해야 함.
+> 예전 export 산출물 `app/ios/unityLibrary/`·`app/android/unityLibrary/`(gitignore, 약 1GB)가
+> 로컬에 남아 있다면 지워도 된다. 빌드에서 참조하지 않는다.
 
 ---
 
-## A. Unity 프로젝트 export
-
-Unity 에디터에서 `unity/`를 연 뒤:
-
-1. **플랫폼 전환:** `File → Build Profiles → iOS → Switch Platform`
-2. **스크립팅 백엔드:** `Player Settings → Other Settings → Scripting Backend = IL2CPP`
-3. **타겟 아키텍처 (중요):** `Player Settings → Other Settings → Configuration`
-   - **실기기:** `Target SDK = Device SDK`
-   - **시뮬레이터(Apple Silicon):** `Target SDK = Simulator SDK`, `Simulator architecture = ARM64`
-   - ⚠️ 시뮬레이터/실기기 전환 시 매번 이 값을 바꾸고 재export해야 함
-4. **씬 빌드 목록:** 홈 캐릭터 씬을 저장하고 `Build Profiles`의 Scene List에 추가(인덱스 0)
-5. **EmbedUnity 패키지 임포트** (최초 1회): `Package Manager → + → Install from Git URL`
-   ```
-   https://github.com/learntoflutter/flutter_embed_unity.git?path=example_unity_6000_0_project/Assets/FlutterEmbed
-   ```
-6. **export:** `Flutter Embed → Export project to Flutter app → iOS`
-   - 대상 폴더: `app/ios/unityLibrary`
-
----
-
-## B. Flutter / CocoaPods 설정 (최초 1회)
+## A. 최초 설정
 
 ```bash
 cd app
+flutter pub get
 
-# 1) Swift Package Manager 끄기 (SPM은 UnityFramework 링크 실패)
-flutter config --no-enable-swift-package-manager
-flutter clean && flutter pub get   # ios/Podfile 생성됨
-```
-
-`app/ios/Podfile`을 아래처럼 수정:
-```ruby
-platform :ios, '13.0'              # 주석 해제 (Unity 6 = iOS 13+)
-# target 'Runner' do
-use_frameworks! :linkage => :static  # 정적 링크 (스텁 프레임워크 심볼 해결)
-```
-
-```bash
-# 2) pod install — 반드시 UTF-8 로케일로 (아니면 인코딩 에러)
+# CocoaPods는 UTF-8 로케일로 (아니면 인코딩 에러)
 cd ios
 LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install
 ```
 
----
-
-## C. Xcode 링크 (최초 1회 / 재export로 풀리면 재확인)
-
-`app/ios/Runner.xcworkspace`를 Xcode로 열고:
-
-1. **Unity 프로젝트 추가:** `File → Add Files to "Runner"` → `app/ios/unityLibrary/Unity-iPhone.xcodeproj`
-   (Runner·Pods와 형제 레벨로 워크스페이스에 추가됨)
-2. **UnityFramework 임베드:** Runner 타겟 → General → *Frameworks, Libraries, and Embedded Content* → `+` →
-   `Workspace → Unity-iPhone → UnityFramework.framework` → **Embed & Sign**
-3. **빌드 순서:** Runner 타겟 → Build Phases → `Thin Binary` 단계를 `Embed Frameworks` **아래로** 이동
-   (안 하면 `Cycle inside Runner` 에러)
+- Swift Package Manager는 꺼져 있고(`flutter config --no-enable-swift-package-manager`)
+  CocoaPods `use_frameworks! :linkage => :static`을 쓴다. 원래 UnityFramework 링크 때문에 넣은
+  설정이지만, Firebase 네이티브 SDK가 CocoaPods로 들어오는 구성이라 그대로 둔다.
+  바꾸려면 iOS 빌드·푸시를 다시 검증한 뒤에 바꾼다.
+- 푸시(FCM) 설정 파일은 저장소에 없다 — C 참고.
 
 ---
 
-## D. 빌드 & 실행 (시뮬레이터)
+## B. 빌드 & 실행
 
-⚠️ `flutter run` / `flutter build`는 UnityFramework를 빌드하지 않음 → **`xcodebuild` 직접 사용**.
+### iOS 시뮬레이터
 
 ```bash
-cd app/ios
-
-# 시뮬레이터 ID 확인
-xcrun simctl list devices available | grep -i booted   # 또는 원하는 기기 ID
-
-# 워크스페이스 직접 빌드 (UnityFramework 포함, 최초 수 분 소요)
-xcodebuild -workspace Runner.xcworkspace -scheme Runner \
-  -configuration Debug -sdk iphonesimulator \
-  -destination 'id=<SIMULATOR_ID>' \
-  -derivedDataPath build/ios_sim build
-
-# 설치 & 실행
-APP=build/ios_sim/Build/Products/Debug-iphonesimulator/Runner.app
-xcrun simctl install <SIMULATOR_ID> "$APP"
-xcrun simctl launch <SIMULATOR_ID> com.dduneon.oun
-open -a Simulator
+cd app
+flutter run --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
 ```
 
-> **실기기 빌드:** Unity를 `Device SDK`로 재export(A-3) 후, `-sdk iphoneos -destination 'id=<DEVICE_ID>'`로 빌드.
-> 실기기는 아키텍처 문제가 없어 시뮬레이터보다 오히려 단순함.
+`flutter run` 대신 빌드만 해서 설치할 때:
+```bash
+flutter build ios --simulator --debug --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
+xcrun simctl install <SIMULATOR_ID> build/ios/iphonesimulator/Runner.app
+xcrun simctl launch <SIMULATOR_ID> com.dduneon.oun
+```
+- 시뮬레이터 ID: `xcrun simctl list devices available | grep Booted`
+- `--dart-define=OUN_API_BASE_URL`을 빼면 `http://localhost:3000`을 본다.
+  로컬 백엔드를 띄운 게 아니면 세션 복원이 실패해 로그아웃된다.
+- 다시 설치한 뒤 예전 탭이 보이면 `simctl terminate` 후 다시 `launch`한다(상태가 복원될 수 있다).
+
+### Android
+
+```bash
+cd app
+flutter run --dart-define=OUN_API_BASE_URL=http://10.0.2.2:3000
+```
+> 에뮬레이터에서 호스트의 백엔드는 `localhost`가 아니라 **`10.0.2.2`** 다. 실기기는 PC의 LAN IP.
+> 배포 서버는 `https://oun-api.dduneon.com`을 넘긴다. **평문 http 서버는 막힌다** —
+> Android 9+가 기본 차단하고 debug 매니페스트에 `usesCleartextTraffic`이 없다(`10.0.2.2`는 예외).
+
+- `minSdk`는 23이다(`flutter_secure_storage`의 EncryptedSharedPreferences 요구).
+- NDK는 28.2(Flutter 플러그인 요구).
+
+### 빠른 확인
+
+```bash
+cd app
+flutter analyze
+flutter test
+```
 
 ---
 
-## E. 푸시(FCM) 설정 — 설정 파일은 커밋되지 않는다
+## C. 푸시(FCM) 설정 — 설정 파일은 커밋되지 않는다
 
 공개 저장소라 Firebase 설정 파일 2개는 **gitignore**되어 있다. 클론 후 직접 배치해야 한다.
 
@@ -133,60 +110,28 @@ Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모
 
 ---
 
-## F. Android — export · 빌드 · 배포
+## D. 캐릭터 레이어 에셋
 
-iOS와 달리 **`flutter build`가 그대로 동작한다.** `unityLibrary`가 gradle 서브프로젝트로 들어가
-같이 빌드되므로 `xcodebuild` 같은 우회가 필요 없다.
+홈·크루·친구 홈의 캐릭터는 3D 엔진 없이 **같은 카메라·같은 캔버스(800×1000)로 미리 렌더한
+레이어 PNG**를 겹쳐 그린다(`app/lib/features/character/character_avatar.dart`).
 
-### F-1. Unity export (에디터 수동 작업)
+- 원본: `art/character/oun_villager.blend` (컬렉션 하나 = 레이어 하나)
+- 렌더 스크립트: `art/character/render_layers.py` → `app/assets/character/*.png`
+  ```bash
+  blender art/character/oun_villager.blend --background --python art/character/render_layers.py
+  ```
+- 겹치는 순서: 몸(`body*.png`, 표정 3종) → 상의 → 타월 → 이어폰·모자.
+  가려져야 하는 부분은 렌더할 때 BODY를 홀드아웃으로 미리 뚫어 둔다.
+- **머리카락 레이어는 현재 앱에서 그리지 않는다.** `render_layers.py`는 아직 `hair_*` 레이어도
+  렌더하지만 그 PNG는 `app/assets/character/`에 두지 않는다.
+- 레이어 하나만 다시 렌더해도 되지만, **몸 모양을 바꿨다면 전 레이어를 다시 렌더**해야 맞물린다.
+- PNG만 바뀌면 앱 코드는 그대로다. 새 아이템을 추가할 때만 `CharacterLook`의 키 목록을 늘린다.
 
-1. `File → Build Profiles → Android → Switch Platform`
-2. `Build Profiles`의 Android 패널에서 **`Export Project` 체크**
-   — APK를 굽지 않고 gradle 프로젝트를 내보내게 하는 옵션. 안 켜면 export가 거부된다.
-   이 값은 `unity/UserSettings/`(gitignore)에 저장되는 **머신 로컬 설정**이라 클론할 때마다 다시 켜야 한다.
-3. `Player Settings → Other Settings`에서 3개:
-   - Scripting Backend = **IL2CPP**
-   - Application Entry Point = **Activity** (GameActivity는 해제 — 임베드 방식과 호환되지 않는다)
-   - Target Architectures = **ARMv7 + ARM64 둘 다** (하나만 켜면 export 체커가 막는다)
-4. `Flutter Embed → Export project to Flutter app → Android` → 대상 폴더 **`app/android/unityLibrary`**
-5. export 후 Unity 콘솔에 뜨는 `unityStreamingAssets=` 값을 확인.
-   기본은 빈 값이라 그대로 두면 되고, StreamingAssets를 쓰기 시작하면
-   `app/android/gradle.properties`의 같은 키를 그 값으로 바꾼다.
+---
 
-> `app/android/unityLibrary/`는 gitignore. export 전에는 gradle이
-> "android/unityLibrary가 없습니다"라며 멈춘다 — 정상이다.
-> **iOS와 export 폴더가 다르니** 플랫폼을 오갈 때마다 Switch Platform + 재export가 필요하다.
+## E. Android 배포
 
-gradle 쪽 배선(서브프로젝트 include, `implementation(project(":unityLibrary"))`, NDK r27c,
-flatDir, noCompress)은 이미 저장소에 들어가 있다. 추가로 손댈 것 없다.
-
-> **minSdk는 Unity가 정한다.** 앱 gradle은 `minSdk = 26`인데, 이건 Unity의
-> `AndroidMinSdkVersion`에 맞춘 값이다(라이브러리 모듈이 앱보다 높으면 AGP가 거부한다).
-> Android 6·7 기기까지 받으려면 Unity 쪽 값을 먼저 낮추고 gradle을 따라 낮춰야 한다.
-
-### F-2. 디버그 빌드 / 실기기 확인
-
-**iOS와 달리 에뮬레이터·실기기를 나눠 빌드하지 않는다.** 시뮬레이터 SDK가 따로 있는 iOS와 달리
-안드로이드 에뮬레이터는 실기기와 같은 ABI(Apple Silicon 기준 `arm64-v8a`)를 쓰기 때문에
-export 하나로 양쪽 다 돈다. 기기를 바꿔 낄 때 재export가 필요 없다 —
-**재export가 필요한 건 iOS ↔ Android 플랫폼 전환뿐.**
-
-```bash
-cd app
-flutter run --dart-define=OUN_API_BASE_URL=http://10.0.2.2:3000
-```
-> 에뮬레이터에서 호스트의 백엔드는 `localhost`가 아니라 **`10.0.2.2`** 다. 실기기는 PC의 LAN IP.
-> 에뮬레이터는 **arm64 이미지 + API 26 이상**이어야 한다. x86_64 이미지를 쓴다면
-> Unity에서 Target Architectures에 `x86-64`를 추가로 켜고 재export해야 한다.
-
-배포된 서버를 보게 하려면 그 주소를 넘긴다:
-```bash
-flutter run --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
-```
-> https라 그냥 붙지만, **평문 http 서버로 붙일 때는 막힌다** — Android 9+가 기본 차단하고
-> 이 프로젝트의 debug 매니페스트에 `usesCleartextTraffic`이 없다(`10.0.2.2`는 예외로 허용).
-
-### F-3. 릴리스 서명 (최초 1회)
+### E-1. 릴리스 서명 (최초 1회)
 
 업로드 키를 만들고 `app/android/key.properties`(gitignore)에 경로·비밀번호를 적는다.
 양식은 `app/android/key.properties.example` 참고.
@@ -199,7 +144,7 @@ keytool -genkey -v -keystore ~/oun-upload.jks -storetype JKS \
 `key.properties`가 **없으면 릴리스도 debug 키로 서명된다** — 로컬 확인은 되지만 Play에는 못 올린다.
 키를 잃어버리면 같은 앱으로 업데이트가 불가능하니 별도 백업할 것.
 
-### F-4. Play 스토어 업로드
+### E-2. Play 스토어 업로드
 
 ```bash
 cd app
@@ -211,106 +156,66 @@ flutter build appbundle --release --dart-define=OUN_API_BASE_URL=https://oun-api
   `+` 뒤 숫자를 올리거나, `--build-number=<n>`으로 지정한다.
 - APK로 실기기에 바로 꽂아볼 때: `flutter build apk --release` 후
   `adb install -r app/build/app/outputs/flutter-apk/app-release.apk`
-- `google-services.json`이 `app/android/app/`에 없으면 **빌드가 실패한다**(E 참고).
-
-### F-5. 버전 충돌이 나면
-
-현재 저장소는 Gradle 9.1 + AGP 9.0.1인데, Unity 6.5가 검증한 조합은 **Gradle 8.13 + AGP 8.10**이다.
-`unityLibrary`가 이 조합에서 안 붙으면 다음을 내려서 맞춘다:
-
-| 파일 | 값 |
-| :--- | :--- |
-| `app/android/gradle/wrapper/gradle-wrapper.properties` | `gradle-8.13-all.zip` |
-| `app/android/settings.gradle.kts` | `com.android.application` 버전 `8.10.0` |
+- `google-services.json`이 `app/android/app/`에 없으면 **빌드가 실패한다**(C 참고).
 
 ---
 
-## G. iOS 배포 — xcarchive → TestFlight
+## F. iOS 배포 — TestFlight
 
-`flutter build ipa`도 **동작하지 않는다**(D와 같은 이유 — UnityFramework를 안 만든다).
-아카이브도 `xcodebuild`로 직접 만든다.
+### F-1. 준비
 
-### G-1. 준비
-
-1. **Unity를 Device SDK로 재export**(A-3). 시뮬레이터 export 상태면 링크가 깨진다.
-   확인: `grep -m1 "SDKROOT = " app/ios/unityLibrary/Unity-iPhone.xcodeproj/project.pbxproj`
-   → `iphoneos`여야 한다(`iphonesimulator`면 재export).
-2. **버전 올리기:** `app/pubspec.yaml`의 `version: <이름>+<빌드번호>`.
+1. **버전 올리기:** `app/pubspec.yaml`의 `version: <이름>+<빌드번호>`.
    TestFlight는 **같은 빌드번호를 두 번 받지 않는다** — 올릴 때마다 `+` 뒤를 올린다.
-3. **Generated.xcconfig 갱신 (놓치기 쉬움).** 버전·`--dart-define`은 이 파일을 통해서만
-   xcodebuild에 전달된다. flutter 툴이 만들어 주므로 아카이브 전에 반드시 한 번:
-   ```bash
-   cd app
-   flutter build ios --release --config-only \
-     --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com
-   grep -E "FLUTTER_BUILD_(NAME|NUMBER)" ios/Flutter/Generated.xcconfig   # 새 버전인지 확인
-   ```
-   이걸 빼먹으면 **예전 버전 번호와 예전 API 주소(기본값 localhost)로 빌드된다.**
-4. 필요하면 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install`(B 참고).
+2. 필요하면 `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install`(A 참고).
 
-### G-2. 아카이브
+### F-2. ipa 만들기
 
+```bash
+cd app
+flutter build ipa --release \
+  --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com \
+  --export-options-plist=ios/ExportOptions.plist
+```
+산출물: `app/build/ios/ipa/*.ipa`. 서명은 자동(팀 `A4YL85FB4L`).
+`ios/ExportOptions.plist`는 gitignore라 없으면 Xcode에서 한 번 export해서 만든다.
+
+`flutter build ipa`가 서명·프로비저닝에서 막히면 `xcodebuild`로 직접 아카이브한다.
+이때는 **먼저 `flutter build ios --release --config-only --dart-define=...`로
+`ios/Flutter/Generated.xcconfig`를 갱신해야 한다** — 버전·`--dart-define`은 이 파일로만
+xcodebuild에 전달된다. 빼먹으면 예전 버전 번호와 예전 API 주소(기본값 localhost)로 빌드된다.
 ```bash
 cd app/ios
 xcodebuild -workspace Runner.xcworkspace -scheme Runner \
-  -configuration Release -sdk iphoneos \
-  -destination 'generic/platform=iOS' \
-  -archivePath build/Runner.xcarchive \
-  -derivedDataPath build/ios_release \
-  -allowProvisioningUpdates \
-  archive
+  -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+  -archivePath build/Runner.xcarchive -allowProvisioningUpdates archive
+xcodebuild -exportArchive -archivePath build/Runner.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -exportPath build/ipa -allowProvisioningUpdates
 ```
-- 서명은 자동(팀 `A4YL85FB4L`). `-allowProvisioningUpdates`가 있어야 프로비저닝 프로파일을
-  필요할 때 새로 받아온다.
-- 최초 아카이브는 IL2CPP 때문에 수십 분 걸릴 수 있다.
 
-### G-3. ipa export & 업로드
-
-```bash
-xcodebuild -exportArchive \
-  -archivePath build/Runner.xcarchive \
-  -exportOptionsPlist ExportOptions.plist \
-  -exportPath build/ipa \
-  -allowProvisioningUpdates
-```
-산출물: `app/ios/build/ipa/*.ipa`(이름은 `Runner.ipa`). 업로드는 셋 중 하나 —
+### F-3. 업로드
 
 | 방법 | 명령/도구 |
 | :--- | :--- |
 | Transporter 앱 | ipa를 끌어다 놓기(가장 단순) |
-| App Store Connect API 키 | `xcrun altool --upload-app -f build/ipa/*.ipa -t ios --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>` |
-| 앱 암호 | `xcrun altool --upload-app -f build/ipa/*.ipa -t ios -u <Apple ID> -p <app-specific password>` |
+| App Store Connect API 키 | `xcrun altool --upload-app -f <ipa> -t ios --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>` |
+| 앱 암호 | `xcrun altool --upload-app -f <ipa> -t ios -u <Apple ID> -p <app-specific password>` |
 
 > 업로드 전에 검증만 해보려면 `--validate-app`으로 같은 명령을 한 번 돌린다.
 > 처리(Processing)에 10~30분. 수출 규정(암호화) 문항은 `Info.plist`의
 > `ITSAppUsesNonExemptEncryption = false`로 이미 답해 둬서 매번 묻지 않는다.
 
-### G-4. 자주 걸리는 것
+### F-4. 자주 걸리는 것
 
 | 증상 | 원인 | 해결 |
 | :--- | :--- | :--- |
-| 링크 시 `arm64 심볼 없음` | Unity가 Simulator SDK로 export됨 | Device SDK로 재export(G-1-1) |
-| 올린 빌드가 옛 버전/옛 API 주소 | `Generated.xcconfig`가 안 갱신됨 | G-1-3 실행 후 재아카이브 |
+| 올린 빌드가 옛 버전/옛 API 주소 | `--dart-define` 누락, 또는 xcodebuild 경로에서 `Generated.xcconfig` 미갱신 | F-2의 `--config-only` 실행 후 재빌드 |
 | `ITMS-90189` 중복 빌드번호 | 같은 빌드번호 재업로드 | `pubspec.yaml`의 `+n` 올리기 |
-| TestFlight에서 푸시 안 옴 | `aps-environment`가 development | Release는 `RunnerRelease.entitlements`(E 참고) |
+| TestFlight에서 푸시 안 옴 | `aps-environment`가 development | Release는 `RunnerRelease.entitlements`(C 참고) |
 | 프로파일에 Push capability 없음 | 자동 서명 갱신 안 됨 | `-allowProvisioningUpdates` 유지, ADC에서 App ID 확인 |
-
----
-
-## 왜 이렇게 하나 (Unity 6.5 + Flutter 3.44 조합에서 겪은 벽)
-
-| 증상 | 원인 | 해결 |
-| :--- | :--- | :--- |
-| `Undefined symbol: UnityFramework` (SPM) | Flutter 3.44 기본 SPM이 UnityFramework 링크 못 함 | SPM 끄고 CocoaPods |
-| 링크 시 `symbol(s) not found for arch` | 스텁 프레임워크가 동적 링크와 안 맞음 | `use_frameworks! :linkage => :static` |
-| `not found for architecture arm64/x86_64` | Unity 시뮬레이터 export 아키텍처 불일치 | Simulator architecture = ARM64 재export |
-| 빌드가 5초만에 끝나고 링크 실패 | `flutter build`가 UnityFramework 타겟을 안 만듦 | `xcodebuild`로 워크스페이스 직접 빌드 |
 | `pod install` 인코딩 에러 | Ruby ASCII-8BIT 로케일 | `LANG/LC_ALL=en_US.UTF-8` |
 
 ---
 
-## 상태 (2026-07-18)
-- ✅ iOS 시뮬레이터: 홈 화면에 Unity 3D 캐릭터 임베드 동작 확인
-- 🔶 Android UaaL: gradle 배선·릴리스 서명은 완료(F), Unity export + 실제 빌드는 미검증
-- ⬜ Flutter ↔ Unity 메시지 통신
-- ⬜ 배경 투명화(스카이박스 제거)
+## 상태 (2026-10-17)
+- ✅ iOS 시뮬레이터: `flutter build ios --simulator`로 빌드, 2D 레이어 캐릭터 동작 확인
+- 🔶 Unity를 걷어낸 뒤 Android 빌드, iOS 아카이브·TestFlight 업로드는 아직 다시 확인하지 않았다
