@@ -34,6 +34,11 @@ LAYERS = {
     # 모자를 쓸 때: 챙 위쪽 머리를 눌러 모자 밖으로 삐져나오지 않게 한 변형.
     "hair_short_cap": (["HAIR_AC_SHORT_CAP"], ["BODY", "CLOTH_TEE", "PROP_CAP"]),
     "hair_down_cap": (["HAIR_AC_DOWN_CAP"], ["BODY", "CLOTH_TEE", "PROP_CAP"]),
+    # 상점 헤어: 파일 이름 = 아이템 키.
+    "hair_ponytail": (["HAIR_AC_PONYTAIL"], ["BODY", "CLOTH_TEE"]),
+    "hair_braids": (["HAIR_AC_BRAIDS"], ["BODY", "CLOTH_TEE"]),
+    "hair_ponytail_cap": (["HAIR_AC_PONYTAIL_CAP"], ["BODY", "CLOTH_TEE", "PROP_CAP"]),
+    "hair_braids_cap": (["HAIR_AC_BRAIDS_CAP"], ["BODY", "CLOTH_TEE", "PROP_CAP"]),
     "prop_towel_gym": (["PROP_TOWEL"], ["BODY"]),
     "prop_earbuds": (["PROP_EARBUDS"], ["BODY"]),
     "prop_cap_sports": (["PROP_CAP"], ["BODY"]),
