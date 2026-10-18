@@ -11,6 +11,7 @@ import { Gender } from '@prisma/client';
 import axios from 'axios';
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service';
+import { AppleTokenVerifier } from './apple-token.verifier';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly apple: AppleTokenVerifier,
   ) {}
 
   /** access/refresh 토큰 발급. */
@@ -38,10 +40,12 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private authResult(user: { id: string; nickname: string; gender: Gender }) {
+  /** isNew: 소셜 로그인으로 방금 만든 계정 — 앱이 캐릭터·닉네임 고르기를 보여 준다. */
+  private authResult(user: { id: string; nickname: string; gender: Gender }, isNew = false) {
     return {
       ...this.issueTokens(user),
       user: { id: user.id, nickname: user.nickname, gender: user.gender },
+      isNew,
     };
   }
 
@@ -95,16 +99,33 @@ export class AuthService {
       throw new UnauthorizedException('카카오 인증에 실패했어요');
     }
 
-    let user = await this.users.findByKakaoId(kakaoId);
-    if (!user) {
-      const unique = await this.users.ensureUniqueNickname(nickname ?? `oun_${kakaoId.slice(-6)}`);
-      user = await this.users.provision({
-        nickname: unique,
-        displayName: nickname ?? unique,
-        kakaoId,
-      });
-    }
-    return this.authResult(user);
+    const existing = await this.users.findByKakaoId(kakaoId);
+    if (existing) return this.authResult(existing);
+    const unique = await this.users.ensureUniqueNickname(nickname || `oun_${kakaoId.slice(-6)}`);
+    const user = await this.users.provision({
+      nickname: unique,
+      displayName: nickname?.trim().slice(0, 20) || unique,
+      kakaoId,
+    });
+    return this.authResult(user, true);
+  }
+
+  /**
+   * 애플 identity token 검증 → 유저 find/create → 토큰 발급.
+   * 애플은 이름을 첫 로그인 때만 앱에 주므로, 앱이 받은 이름(displayName)을 같이 보낸다.
+   */
+  async appleLogin(identityToken: string, displayName?: string) {
+    const { sub } = await this.apple.verify(identityToken);
+    const existing = await this.users.findByAppleId(sub);
+    if (existing) return this.authResult(existing);
+    const name = displayName?.trim().slice(0, 20);
+    const unique = await this.users.ensureUniqueNickname(name || `oun_${sub.replace(/\W/g, '').slice(-6)}`);
+    const user = await this.users.provision({
+      nickname: unique,
+      displayName: name || unique,
+      appleId: sub,
+    });
+    return this.authResult(user, true);
   }
 
   /**

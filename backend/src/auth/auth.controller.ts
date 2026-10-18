@@ -1,6 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
+  AppleLoginDto,
   DevLoginDto,
   KakaoLoginDto,
   LoginDto,
@@ -25,6 +26,11 @@ export class AuthController {
   @Post('kakao')
   kakao(@Body() dto: KakaoLoginDto) {
     return this.auth.kakaoLogin(dto.accessToken);
+  }
+
+  @Post('apple')
+  apple(@Body() dto: AppleLoginDto) {
+    return this.auth.appleLogin(dto.identityToken, dto.displayName);
   }
 
   @Post('dev')

@@ -20,6 +20,7 @@ export class UsersService {
     displayName?: string;
     gender?: Gender;
     kakaoId?: string;
+    appleId?: string;
     username?: string;
     passwordHash?: string;
   }) {
@@ -30,6 +31,7 @@ export class UsersService {
           displayName: input.displayName ?? input.nickname,
           gender: input.gender ?? Gender.f,
           kakaoId: input.kakaoId,
+          appleId: input.appleId,
           username: input.username,
           passwordHash: input.passwordHash,
           characterStat: { create: {} },
@@ -40,6 +42,10 @@ export class UsersService {
       });
       return user;
     });
+  }
+
+  async findByAppleId(appleId: string) {
+    return this.prisma.user.findUnique({ where: { appleId } });
   }
 
   async findByKakaoId(kakaoId: string) {
@@ -56,7 +62,9 @@ export class UsersService {
 
   /** 닉네임 중복 시 뒤에 숫자를 붙여 유니크한 닉네임을 만든다. */
   async ensureUniqueNickname(base: string): Promise<string> {
-    const clean = base.trim().slice(0, 20) || 'oun';
+    // @닉네임 규칙(한글·영문·숫자·밑줄)에 맞게 다듬는다 — 카카오·애플 이름엔 공백·기호가 섞인다.
+    // 뒤에 _n을 붙일 자리를 남긴다.
+    const clean = base.replace(/[^a-zA-Z0-9_가-힣]/g, '').slice(0, 16) || 'oun';
     let candidate = clean;
     let n = 1;
     while (await this.prisma.user.findUnique({ where: { nickname: candidate } })) {

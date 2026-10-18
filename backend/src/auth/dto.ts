@@ -14,6 +14,18 @@ export class KakaoLoginDto {
   accessToken!: string;
 }
 
+export class AppleLoginDto {
+  // 앱이 Sign in with Apple로 받은 identity token(JWT). 서버가 애플 공개키로 검증한다.
+  @IsString()
+  identityToken!: string;
+
+  // 애플은 이름을 첫 로그인 때만 준다 — 앱이 받은 이름을 같이 보낸다.
+  @IsOptional()
+  @IsString()
+  @Length(0, 40)
+  displayName?: string;
+}
+
 export class RegisterDto {
   // 로그인 아이디: 영문/숫자/밑줄 4~20자.
   @IsString()
