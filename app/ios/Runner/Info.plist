@@ -18,8 +18,9 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- 시스템 안내(예: "'오운'이(가) 'kakao.com'을(를) 사용하여 로그인하려고 합니다")에 쓰이는 이름. -->
 	<key>CFBundleName</key>
-	<string>oun_app</string>
+	<string>오운</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
