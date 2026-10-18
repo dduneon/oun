@@ -13,6 +13,7 @@ import 'crew_feed.dart';
 import 'crew_home.dart';
 import 'friend_home_screen.dart';
 import 'friend_search_screen.dart';
+import '../../shared/widgets/action_sheet.dart';
 
 /// 소셜 탭: 상단 세그먼트로 친구 / 크루 통합. 랭킹 없이 응원 중심. (서버)
 class CrewScreen extends ConsumerStatefulWidget {
@@ -160,11 +161,16 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
           ),
           error: (_, _) => const _ErrorHint('크루를 불러오지 못했어요'),
           data: (crews) {
-            if (crews.isEmpty) return _crewEmpty();
+            if (crews.isEmpty) {
+              return Column(
+                children: [const _PendingJoinRequests(), _crewEmpty()],
+              );
+            }
             return Column(
               children: [
                 for (final c in crews)
                   CrewCard(crew: c, onTap: () => _openCrew(c)),
+                const _PendingJoinRequests(),
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -278,6 +284,64 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
           ],
         ),
       );
+}
+
+/// 내가 가입 신청하고 방장 승인을 기다리는 크루. 있을 때만 보이고, 눌러서 신청을 거둘 수 있다.
+class _PendingJoinRequests extends ConsumerWidget {
+  const _PendingJoinRequests();
+
+  Future<void> _cancel(
+      BuildContext context, WidgetRef ref, CrewCardData crew) async {
+    await showOunActionSheet(
+      context,
+      actions: [
+        OunAction(
+          label: '${crew.name} 가입 신청 취소',
+          icon: Icons.close_rounded,
+          destructive: true,
+          onSelected: () async {
+            try {
+              await ref.read(apiClientProvider).cancelCrewJoinRequest(crew.id);
+              invalidateAll(ref, [myCrewJoinRequestsProvider, crewDiscoverProvider]);
+              if (context.mounted) {
+                OunToast.show(context, '가입 신청을 취소했어요');
+              }
+            } catch (e) {
+              ref.invalidate(myCrewJoinRequestsProvider);
+              if (context.mounted) {
+                OunToast.show(context, apiErrorMessage(e, '취소하지 못했어요'));
+              }
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(myCrewJoinRequestsProvider).value ?? const [];
+    if (pending.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 6, 0, 8),
+          child: Text('가입 신청한 크루',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: OunColors.textMuted)),
+        ),
+        for (final c in pending)
+          CrewCard(
+            crew: c,
+            pending: true,
+            onTap: () => _cancel(context, ref, c),
+          ),
+      ],
+    );
+  }
 }
 
 /// 받은 크루 초대 배너. 있을 때만 노출되고, 수락/거절할 수 있다.

@@ -561,6 +561,20 @@ class ApiClient {
     await _dio.post<Map<String, dynamic>>('/crews/$crewId/join-request');
   }
 
+  /// 내가 가입 신청하고 승인을 기다리는 크루.
+  Future<List<CrewCardData>> myCrewJoinRequests() async {
+    final res =
+        await _dio.get<Map<String, dynamic>>('/crews/join-requests/mine');
+    return (res.data!['items'] as List)
+        .map((e) => CrewCardData.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 아직 처리되지 않은 내 가입 신청 취소.
+  Future<void> cancelCrewJoinRequest(String crewId) async {
+    await _dio.delete<Map<String, dynamic>>('/crews/$crewId/join-request');
+  }
+
   /// 방장: 대기중 가입 신청 목록.
   Future<List<CrewJoinRequestItem>> crewJoinRequests(String crewId) async {
     final res = await _dio.get<Map<String, dynamic>>(

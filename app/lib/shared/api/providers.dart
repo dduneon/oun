@@ -383,6 +383,13 @@ final unreadNotificationsProvider = FutureProvider<int>((ref) async {
   return api.unreadNotificationCount();
 });
 
+/// 내가 가입 신청하고 방장 승인을 기다리는 크루.
+final myCrewJoinRequestsProvider =
+    FutureProvider<List<CrewCardData>>((ref) async {
+  final api = await _authed(ref);
+  return api.myCrewJoinRequests();
+});
+
 final crewsProvider = FutureProvider<List<CrewCardData>>((ref) async {
   final api = await _authed(ref);
   return api.myCrews();
@@ -484,6 +491,7 @@ final socialProviders = <RefreshTarget>[
   crewsProvider,
   crewInvitationsProvider,
   crewJoinRequestsProvider,
+  myCrewJoinRequestsProvider,
 ];
 
 /// 하단 탭 순서. 갱신 묶음을 탭 번호로 고르므로 한곳에 이름을 둔다.
@@ -549,6 +557,7 @@ List<RefreshTarget> providersForNotification(String? type) => switch (type) {
       'crew_join_request' => [crewJoinRequestsProvider],
       'crew_join_result' => [
           crewsProvider,
+          myCrewJoinRequestsProvider,
           crewInvitationsProvider,
           crewJoinRequestsProvider,
         ],

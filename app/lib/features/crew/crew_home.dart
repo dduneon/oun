@@ -13,9 +13,17 @@ import 'crew_level.dart';
 
 /// 크루 목록의 카드 한 장(소셜 탭 크루 세그먼트에 표시). (서버 CrewCardData)
 class CrewCard extends StatelessWidget {
-  const CrewCard({super.key, required this.crew, required this.onTap});
+  const CrewCard({
+    super.key,
+    required this.crew,
+    required this.onTap,
+    this.pending = false,
+  });
   final CrewCardData crew;
   final VoidCallback onTap;
+
+  /// 가입 신청하고 방장 승인을 기다리는 크루(아직 들어갈 수 없다).
+  final bool pending;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +71,23 @@ class CrewCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Icon(crew.isPublic ? Icons.public : Icons.lock_outline,
                               size: 13, color: OunColors.textFaint),
+                          if (pending) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: OunColors.tabAccent
+                                    .withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Text('신청 대기중',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: OunColors.tabAccent)),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -83,10 +108,12 @@ class CrewCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: Icon(Icons.chevron_right,
-                      size: 18, color: OunColors.textFaint),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Icon(
+                      pending ? Icons.more_horiz_rounded : Icons.chevron_right,
+                      size: 18,
+                      color: OunColors.textFaint),
                 ),
               ],
             ),

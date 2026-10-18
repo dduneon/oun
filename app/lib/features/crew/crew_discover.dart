@@ -28,6 +28,7 @@ class _CrewDiscoverScreenState extends ConsumerState<CrewDiscoverScreen> {
     try {
       await ref.read(apiClientProvider).requestJoinCrew(crew.id);
       ref.invalidate(crewDiscoverProvider(_query));
+      ref.invalidate(myCrewJoinRequestsProvider);
       if (mounted) {
         OunToast.show(context, '${crew.name} 크루에 가입 신청했어요',
             kind: OunToastKind.success);
