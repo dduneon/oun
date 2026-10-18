@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../auth/social_sign_in.dart';
 import '../push/push_messaging.dart';
 import 'api_client.dart';
 import 'models.dart';
@@ -23,10 +24,18 @@ final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 enum AuthStatus { restoring, loggedOut, loggedIn }
 
 class AuthState {
-  const AuthState(this.status, {this.profile, this.error});
+  const AuthState(
+    this.status, {
+    this.profile,
+    this.error,
+    this.needsOnboarding = false,
+  });
   final AuthStatus status;
   final Profile? profile;
   final String? error;
+
+  /// 소셜 로그인으로 방금 가입 — 캐릭터·닉네임 고르기를 먼저 보여 준다.
+  final bool needsOnboarding;
 }
 
 /// 세션 관리: refresh 토큰을 로컬에 저장해 두고 앱 시작 시 자동 복원한다.
@@ -79,13 +88,62 @@ class AuthController extends Notifier<AuthState> {
     return _run(() => ref.read(apiClientProvider).login(username, password));
   }
 
+  /// 카카오로 시작하기. 취소하면 아무 일도 없다(false).
+  Future<bool> signInWithKakao() async {
+    try {
+      final token = await kakaoAccessToken();
+      if (token == null) return false;
+      return _runSocial(() => ref.read(apiClientProvider).kakaoLogin(token));
+    } catch (e) {
+      state = AuthState(AuthStatus.loggedOut,
+          error: _errorMessage(e, '카카오 로그인에 실패했어요'));
+      return false;
+    }
+  }
+
+  /// Apple로 계속하기. 취소하면 아무 일도 없다(false).
+  Future<bool> signInWithApple() async {
+    try {
+      final c = await appleCredential();
+      if (c == null) return false;
+      return _runSocial(() => ref
+          .read(apiClientProvider)
+          .appleLogin(c.identityToken, name: c.name));
+    } catch (e) {
+      state = AuthState(AuthStatus.loggedOut,
+          error: _errorMessage(e, 'Apple 로그인에 실패했어요'));
+      return false;
+    }
+  }
+
+  Future<bool> _runSocial(Future<(Profile, bool)> Function() call) {
+    var isNew = false;
+    return _run(() async {
+      final (profile, created) = await call();
+      isNew = created;
+      return profile;
+    }, onboarding: () => isNew);
+  }
+
+  /// 첫 가입 화면에서 캐릭터·닉네임을 정하고 나면 홈으로.
+  void completeOnboarding(Profile profile) {
+    state = AuthState(AuthStatus.loggedIn, profile: profile);
+  }
+
   /// 인증 공통 처리. 성공 시 발급된 refresh 토큰을 저장해 다음 실행에 복원.
-  Future<bool> _run(Future<Profile> Function() authCall) async {
+  Future<bool> _run(
+    Future<Profile> Function() authCall, {
+    bool Function()? onboarding,
+  }) async {
     try {
       final profile = await authCall();
       final rt = ref.read(apiClientProvider).refreshToken;
       if (rt != null) await _secureStorage.write(key: _prefsKey, value: rt);
-      state = AuthState(AuthStatus.loggedIn, profile: profile);
+      state = AuthState(
+        AuthStatus.loggedIn,
+        profile: profile,
+        needsOnboarding: onboarding?.call() ?? false,
+      );
       return true;
     } catch (e) {
       state = AuthState(

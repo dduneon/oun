@@ -36,6 +36,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // 카카오 네이티브 앱 키(공개 키). lib/shared/auth/social_sign_in.dart와 같은 값.
+        manifestPlaceholders["kakaoNativeAppKey"] = "KAKAO_NATIVE_APP_KEY"
     }
 
     signingConfigs {

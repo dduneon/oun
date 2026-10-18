@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api/providers.dart';
+import '../../shared/auth/social_sign_in.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
@@ -9,8 +10,8 @@ import '../../theme/app_theme.dart';
 /// 오가며, 성공하면 authProvider 상태가 loggedIn이 되어 app.dart가 이 오버레이를
 /// 걷어낸다.
 ///
-/// 실 인증은 카카오 로그인(백엔드 POST /auth/kakao 준비됨). 그전까지 dev 인증으로
-/// 닉네임 기반 회원가입/로그인을 제공한다.
+/// 아이디·비밀번호 가입/로그인과 소셜 로그인(카카오, iOS는 Apple)을 함께 제공한다.
+/// 소셜로 처음 들어온 사람은 [OnboardingScreen]에서 캐릭터·닉네임을 고른다.
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
@@ -50,20 +51,7 @@ class _Landing extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              // 카카오 로그인 자리(백엔드 POST /auth/kakao 준비됨, 앱 SDK 연동 예정)
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: OunColors.textPrimary,
-                  side: const BorderSide(color: OunColors.cardBorder),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () => OunToast.show(context, '카카오 로그인은 곧 열려요'),
-                icon: const Icon(Icons.chat_bubble, size: 17),
-                label: const Text('카카오로 시작하기',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              ),
+              const _SocialButtons(),
               const SizedBox(height: 18),
               // 이미 계정이 있는 경우 → 로그인
               Center(
@@ -88,6 +76,232 @@ class _Landing extends StatelessWidget {
                 ),
               ),
               const Spacer(flex: 2),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 카카오로 시작하기 + (iOS) Apple로 계속하기.
+/// 브랜드 가이드: 카카오는 노란 바탕 #FEE500·검은 글씨, Apple은 검은 바탕·흰 글씨.
+class _SocialButtons extends ConsumerStatefulWidget {
+  const _SocialButtons();
+
+  @override
+  ConsumerState<_SocialButtons> createState() => _SocialButtonsState();
+}
+
+class _SocialButtonsState extends ConsumerState<_SocialButtons> {
+  String? _busy; // 'kakao' | 'apple'
+
+  Future<void> _go(String which) async {
+    if (_busy != null) return;
+    if (which == 'kakao' && !kakaoReady) {
+      OunToast.show(context, '카카오 로그인은 곧 열려요');
+      return;
+    }
+    setState(() => _busy = which);
+    final auth = ref.read(authProvider.notifier);
+    final ok = await (which == 'kakao'
+        ? auth.signInWithKakao()
+        : auth.signInWithApple());
+    if (!mounted) return;
+    setState(() => _busy = null);
+    // 성공하면 오버레이가 걷히고, 취소는 조용히 넘어간다.
+    final error = ref.read(authProvider).error;
+    if (!ok && error != null) OunToast.show(context, error);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SocialButton(
+          label: '카카오로 시작하기',
+          icon: Icons.chat_bubble,
+          background: const Color(0xFFFEE500),
+          foreground: const Color(0xD9000000),
+          busy: _busy == 'kakao',
+          onPressed: () => _go('kakao'),
+        ),
+        if (appleSignInSupported) ...[
+          const SizedBox(height: 10),
+          _SocialButton(
+            label: 'Apple로 계속하기',
+            icon: Icons.apple,
+            background: Colors.black,
+            foreground: Colors.white,
+            busy: _busy == 'apple',
+            onPressed: () => _go('apple'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SocialButton extends StatelessWidget {
+  const _SocialButton({
+    required this.label,
+    required this.icon,
+    required this.background,
+    required this.foreground,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      onPressed: busy ? null : onPressed,
+      child: busy
+          ? SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2.2, color: foreground),
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18),
+                const SizedBox(width: 8),
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ],
+            ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 소셜 첫 가입: 함께할 캐릭터 + 닉네임
+// ─────────────────────────────────────────────────────────────
+
+/// 소셜 로그인으로 방금 가입한 사람에게 한 번 보여 준다(app.dart 인증 게이트).
+/// 닉네임은 카카오·애플 이름으로 미리 채워 두고, 캐릭터는 여기서 고른다.
+class OnboardingScreen extends ConsumerStatefulWidget {
+  const OnboardingScreen({super.key});
+
+  @override
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+  late final _nickname = TextEditingController(
+    text: ref.read(authProvider).profile?.nickname ?? '',
+  );
+  String _gender = 'f';
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _nickname.dispose();
+    super.dispose();
+  }
+
+  bool get _valid =>
+      RegExp(r'^[a-zA-Z0-9_가-힣]{1,20}$').hasMatch(_nickname.text.trim());
+
+  Future<void> _submit() async {
+    if (!_valid || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final profile = await ref.read(apiClientProvider).updateMe(
+            nickname: _nickname.text.trim(),
+            gender: _gender,
+          );
+      ref.invalidate(profileProvider);
+      ref.read(authProvider.notifier).completeOnboarding(profile);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      OunToast.show(context, apiErrorMessage(e, '저장하지 못했어요. 다시 시도해 주세요'));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: OunColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(28, 36, 28, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('반가워요!',
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: OunColors.textPrimary,
+                      letterSpacing: -0.5)),
+              const SizedBox(height: 6),
+              const Text('함께할 캐릭터와 친구들이 찾을 닉네임을 정해 주세요',
+                  style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
+              const SizedBox(height: 26),
+              const _SectionLabel('함께할 캐릭터'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CharacterCard(
+                      selected: _gender == 'f',
+                      label: '여자 아이',
+                      icon: Icons.face_3,
+                      onTap: () => setState(() => _gender = 'f'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CharacterCard(
+                      selected: _gender == 'm',
+                      label: '남자 아이',
+                      icon: Icons.face_6,
+                      onTap: () => setState(() => _gender = 'm'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              const _SectionLabel('닉네임'),
+              const SizedBox(height: 8),
+              _AuthField(
+                controller: _nickname,
+                hint: '한글·영문·숫자·밑줄 20자 이내',
+                textInputAction: TextInputAction.done,
+                onChanged: () => setState(() {}),
+                onSubmitted: _submit,
+              ),
+              const SizedBox(height: 6),
+              const Padding(
+                padding: EdgeInsets.only(left: 4),
+                child: Text('친구들이 @닉네임으로 나를 찾아요. 나중에 설정에서 바꿀 수 있어요.',
+                    style: TextStyle(fontSize: 11.5, color: OunColors.textFaint)),
+              ),
+              const SizedBox(height: 26),
+              _PrimaryButton(
+                label: '시작하기',
+                busy: _busy,
+                onPressed: _valid && !_busy ? _submit : null,
+              ),
             ],
           ),
         ),

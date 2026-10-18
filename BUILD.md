@@ -110,6 +110,28 @@ Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모
 
 ---
 
+## C-2. 소셜 로그인 설정 (카카오 · Apple)
+
+서버: 카카오는 `POST /auth/kakao`(카카오 API로 access token 검증), 애플은 `POST /auth/apple`
+(애플 공개키로 identity token 검증, `APPLE_BUNDLE_ID` = 번들 ID). 처음 들어온 사람은
+응답의 `isNew`로 앱이 캐릭터·닉네임 고르기 화면을 띄운다.
+
+**카카오** — 네이티브 앱 키(공개 키)를 세 곳에 같은 값으로 넣는다. 비어 있으면 버튼은 안내만 띄운다.
+1. `app/lib/shared/auth/social_sign_in.dart`의 `kakaoNativeAppKey`
+2. `app/ios/Runner/Info.plist` URL 스킴 `kakaoKAKAO_NATIVE_APP_KEY` → `kakao<키>`
+3. `app/android/app/build.gradle.kts`의 `manifestPlaceholders["kakaoNativeAppKey"]`
+
+카카오 개발자 콘솔: 플랫폼에 iOS 번들 ID `com.dduneon.oun`, Android 패키지 `com.dduneon.oun` +
+키 해시(디버그·릴리스 각각) 등록, 카카오 로그인 활성화, 동의항목 닉네임(`profile_nickname`).
+```bash
+keytool -exportcert -alias androiddebugkey -keystore ~/.android/debug.keystore | openssl sha1 -binary | openssl base64
+```
+
+**Apple** — iOS만. `Runner.entitlements`/`RunnerRelease.entitlements`에
+`com.apple.developer.applesignin`이 들어 있다. Apple Developer에서 App ID
+`com.dduneon.oun`에 Sign in with Apple을 켜고(자동 서명이면 Xcode가 프로필을 다시 받는다)
+TestFlight로 확인한다. 시뮬레이터는 Apple ID로 로그인돼 있어야 시도할 수 있다.
+
 ## D. 캐릭터 레이어 에셋
 
 홈·크루·친구 홈의 캐릭터는 3D 엔진 없이 **같은 카메라·같은 캔버스(800×1000)로 미리 렌더한

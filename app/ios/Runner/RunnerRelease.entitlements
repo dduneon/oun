@@ -6,5 +6,10 @@
 	     development로 올리면 푸시 토큰이 샌드박스라 서버가 보낸 알림이 안 온다. -->
 	<key>aps-environment</key>
 	<string>production</string>
+	<!-- Apple로 계속하기 -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

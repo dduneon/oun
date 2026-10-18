@@ -80,5 +80,24 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- 카카오 로그인: 카카오톡 앱으로 로그인하려면 이 스킴을 조회할 수 있어야 한다. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>kakaokompassauth</string>
+		<string>kakaolink</string>
+	</array>
+	<!-- 카카오톡 로그인 후 앱으로 돌아오는 스킴(kakao<네이티브 앱 키>).
+	     키를 받으면 KAKAO_NATIVE_APP_KEY 자리를 키로 바꾼다(BUILD.md "소셜 로그인"). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kakaoKAKAO_NATIVE_APP_KEY</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

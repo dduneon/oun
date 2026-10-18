@@ -67,6 +67,8 @@ class _OunAppState extends ConsumerState<OunApp> {
             Positioned.fill(child: child ?? const SizedBox.shrink()),
             if (auth.status == AuthStatus.loggedOut)
               const Positioned.fill(child: LoginScreen())
+            else if (auth.needsOnboarding)
+              const Positioned.fill(child: OnboardingScreen())
             else
               Positioned.fill(
                 child: _Splash(

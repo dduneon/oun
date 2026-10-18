@@ -96,6 +96,24 @@ class ApiClient {
     return me();
   }
 
+  /// 카카오 로그인: 카카오 SDK가 준 access token을 서버가 검증한다.
+  /// isNew면 방금 만든 계정 — 캐릭터·닉네임 고르기를 보여 준다.
+  Future<(Profile, bool)> kakaoLogin(String accessToken) =>
+      _social('/auth/kakao', {'accessToken': accessToken});
+
+  /// 애플 로그인: identity token(+ 첫 로그인 때만 오는 이름).
+  Future<(Profile, bool)> appleLogin(String identityToken, {String? name}) =>
+      _social('/auth/apple', {
+        'identityToken': identityToken,
+        'displayName': ?name,
+      });
+
+  Future<(Profile, bool)> _social(String path, Map<String, Object> data) async {
+    final res = await _dio.post<Map<String, dynamic>>(path, data: data);
+    _setTokens(res.data!);
+    return (await me(), res.data!['isNew'] == true);
+  }
+
   /// 저장해 둔 refresh 토큰으로 세션 복원(앱 재실행 시).
   Future<Profile> restore(String refreshToken) async {
     _refreshToken = refreshToken;
@@ -126,10 +144,18 @@ class ApiClient {
   }
 
   /// 이름·닉네임 수정. 바뀐 프로필을 돌려준다.
-  Future<Profile> updateMe({String? nickname, String? displayName}) async {
+  Future<Profile> updateMe({
+    String? nickname,
+    String? displayName,
+    String? gender,
+  }) async {
     final res = await _dio.patch<Map<String, dynamic>>(
       '/me',
-      data: {'nickname': ?nickname, 'displayName': ?displayName},
+      data: {
+        'nickname': ?nickname,
+        'displayName': ?displayName,
+        'gender': ?gender,
+      },
     );
     return Profile.fromJson(res.data!);
   }
