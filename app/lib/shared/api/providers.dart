@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../push/push_messaging.dart';
 import 'api_client.dart';
 import 'models.dart';
 
@@ -102,6 +103,8 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // 푸시 해제는 인증이 필요하니 세션을 지우기 전에 한다.
+    await ref.read(pushMessagingProvider).stop();
     await _secureStorage.delete(key: _prefsKey);
     ref.read(apiClientProvider).clearSession();
     state = const AuthState(AuthStatus.loggedOut);

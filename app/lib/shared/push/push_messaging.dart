@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -21,6 +22,7 @@ class PushMessaging {
   final Ref _ref;
   String? _token;
   bool _started = false;
+  final _subs = <StreamSubscription<Object?>>[];
 
   bool get enabled => _token != null;
 
@@ -46,13 +48,14 @@ class PushMessaging {
       if (token != null) await _register(token);
 
       // 토큰은 재설치·복원 등으로 갱신된다. 갱신될 때마다 다시 등록.
-      messaging.onTokenRefresh.listen(_register);
-
-      // 포그라운드 수신: OS 배너가 안 뜨므로 앱 안에서 직접 알린다.
-      FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-
-      // 푸시 배너를 탭해 앱으로 들어온 경우 → 알림함을 연다.
-      FirebaseMessaging.onMessageOpenedApp.listen(_openInbox);
+      // 리스너는 stop()에서 끊는다 — 안 그러면 재로그인마다 쌓여 토스트가 겹친다.
+      _subs.addAll([
+        messaging.onTokenRefresh.listen(_register),
+        // 포그라운드 수신: OS 배너가 안 뜨므로 앱 안에서 직접 알린다.
+        FirebaseMessaging.onMessage.listen(_onForegroundMessage),
+        // 푸시 배너를 탭해 앱으로 들어온 경우 → 알림함을 연다.
+        FirebaseMessaging.onMessageOpenedApp.listen(_openInbox),
+      ]);
 
       // 앱이 완전히 종료된 상태에서 푸시로 켜진 경우.
       // 첫 프레임 뒤로 미뤄야 라우터/네비게이터가 준비돼 있다.
@@ -67,16 +70,31 @@ class PushMessaging {
   }
 
   /// 로그아웃 시 이 기기로 더 이상 푸시가 오지 않게 해제.
+  /// **세션(토큰)을 지우기 전에** 불러야 서버 해제 요청이 인증을 통과한다
+  /// ([AuthController.logout]이 먼저 부른다).
   Future<void> stop() async {
     final token = _token;
     _token = null;
     _started = false;
+    for (final sub in _subs) {
+      await sub.cancel();
+    }
+    _subs.clear();
     if (token == null) return;
     try {
-      await _ref.read(apiClientProvider).unregisterDevice(token);
+      // 서버가 느려도 로그아웃이 붙잡히지 않게 짧게 기다린다.
+      await _ref
+          .read(apiClientProvider)
+          .unregisterDevice(token)
+          .timeout(const Duration(seconds: 3));
     } catch (_) {
-      // 해제 실패는 무시 — 서버가 폐기 토큰을 전송 실패 시 정리한다.
+      // 서버 해제 실패는 아래 토큰 폐기로 막는다.
     }
+    try {
+      // 기기 토큰 자체를 폐기한다. 서버에 옛 토큰이 남아 있어도 더는 도달하지 않고,
+      // 다음 로그인 때 새 토큰을 받아 그 계정으로 등록한다.
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
   }
 
   void _refresh(List<RefreshTarget> providers) =>
