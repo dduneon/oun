@@ -146,6 +146,26 @@ final walletProvider = FutureProvider<int>((ref) async {
   return api.wallet();
 });
 
+/// 홈 캐릭터의 기분(표정·말풍선).
+final characterMoodProvider = FutureProvider<CharacterMoodState>((ref) async {
+  final api = await _authed(ref);
+  return api.characterMood();
+});
+
+/// 휴식일·기록 보호권 상태.
+final careProvider = FutureProvider<CareStatus>((ref) async {
+  final api = await _authed(ref);
+  return api.care();
+});
+
+/// 휴식일 선언·보호권 사용으로 바뀌는 데이터.
+final careProviders = <RefreshTarget>[
+  careProvider,
+  characterMoodProvider,
+  profileProvider,
+  walletProvider,
+];
+
 /// 오늘(로컬 자정 이후) 운동 분 합계 — 홈 카드.
 final todayMinutesProvider = FutureProvider<int>((ref) async {
   final api = await _authed(ref);
@@ -298,6 +318,8 @@ final crewRewardsProvider =
 void invalidateAfterWorkout(WidgetRef ref) {
   ref.invalidate(walletProvider);
   ref.invalidate(profileProvider);
+  ref.invalidate(characterMoodProvider);
+  ref.invalidate(careProvider);
   ref.invalidate(todayMinutesProvider);
   ref.invalidate(recentWorkoutsProvider);
   ref.invalidate(calendarProvider);
@@ -363,6 +385,8 @@ abstract final class OunTab {
 List<RefreshTarget> providersForTab(int index) => switch (index) {
       0 => [
           profileProvider,
+          characterMoodProvider,
+          careProvider,
           equippedItemsProvider,
           walletProvider,
           todayMinutesProvider,
@@ -386,6 +410,7 @@ List<RefreshTarget> providersForTab(int index) => switch (index) {
       3 => socialProviders,
       4 => [
           profileProvider,
+          careProvider,
           walletProvider,
           achievementsProvider,
           unreadNotificationsProvider,
@@ -405,6 +430,7 @@ List<RefreshTarget> providersForNotification(String? type) => switch (type) {
           questsProvider,
         ],
       'cheer' => [receivedCheersProvider],
+      'streak_protected' => careProviders,
       'crew_invite' => [crewInvitationsProvider],
       'crew_join_request' => [crewJoinRequestsProvider],
       'crew_join_result' => [

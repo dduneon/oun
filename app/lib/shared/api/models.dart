@@ -817,10 +817,89 @@ class WorkoutResult {
     required this.verified,
     required this.reward,
     required this.balance,
+    this.protectorEarned = false,
   });
   final bool verified;
   final int reward;
   final int balance;
+
+  /// 이 기록으로 연속 7일을 채워 기록 보호권을 받았는지.
+  final bool protectorEarned;
+}
+
+/// GET /character/mood — 서버가 마지막 운동·휴식일로 산출한 캐릭터 기분.
+class CharacterMoodState {
+  const CharacterMoodState({required this.mood, required this.restingToday});
+
+  /// energetic | happy | neutral | hungry | sleepy
+  final String mood;
+
+  /// 오늘을 휴식일로 선언했는지.
+  final bool restingToday;
+
+  factory CharacterMoodState.fromJson(Map<String, dynamic> j) =>
+      CharacterMoodState(
+        mood: j['mood'] as String,
+        restingToday: j['restingToday'] as bool? ?? false,
+      );
+}
+
+/// GET /care — 휴식일·기록 보호권 상태.
+class CareStatus {
+  const CareStatus({
+    required this.streakCurrent,
+    required this.streakLongest,
+    required this.restToday,
+    required this.canDeclareRest,
+    required this.restBlockedReason,
+    required this.restUsedThisWeek,
+    required this.restWeeklyLimit,
+    required this.restReward,
+    required this.protectors,
+    required this.protectorMax,
+    required this.protectorEvery,
+    required this.nextProtectorInDays,
+    required this.recentProtectedDates,
+  });
+
+  final int streakCurrent;
+  final int streakLongest;
+  final bool restToday;
+  final bool canDeclareRest;
+  final String? restBlockedReason;
+  final int restUsedThisWeek;
+  final int restWeeklyLimit;
+  final int restReward;
+  final int protectors;
+  final int protectorMax;
+  final int protectorEvery;
+
+  /// 다음 보호권까지 남은 연속 일수. 이미 최대로 갖고 있으면 null.
+  final int? nextProtectorInDays;
+
+  /// 보호권이 메워 준 최근 날짜(YYYY-MM-DD, 최신순).
+  final List<String> recentProtectedDates;
+
+  factory CareStatus.fromJson(Map<String, dynamic> j) {
+    final streak = j['streak'] as Map<String, dynamic>;
+    final rest = j['restDay'] as Map<String, dynamic>;
+    final guard = j['protectors'] as Map<String, dynamic>;
+    return CareStatus(
+      streakCurrent: streak['current'] as int,
+      streakLongest: streak['longest'] as int,
+      restToday: rest['today'] as bool,
+      canDeclareRest: rest['canDeclare'] as bool,
+      restBlockedReason: rest['blockedReason'] as String?,
+      restUsedThisWeek: rest['usedThisWeek'] as int,
+      restWeeklyLimit: rest['weeklyLimit'] as int,
+      restReward: rest['reward'] as int,
+      protectors: guard['count'] as int,
+      protectorMax: guard['max'] as int,
+      protectorEvery: guard['every'] as int,
+      nextProtectorInDays: guard['nextInDays'] as int?,
+      recentProtectedDates: (guard['recentProtectedDates'] as List).cast<String>(),
+    );
+  }
 }
 
 /// POST /quests/:key/claim 응답.

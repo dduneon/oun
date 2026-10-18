@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,8 @@ import '../../shared/widgets/floating_tab_bar.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 import '../character/character_avatar.dart';
+import '../character/character_mood.dart';
+import '../my/care_screen.dart';
 import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
 
@@ -30,6 +33,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// 이번 세션에서 응원 반응을 이미 재생했는지. 홈은 IndexedStack으로 계속
   /// 살아있어서, 이 플래그가 없으면 리빌드마다 캐릭터가 다시 반응한다.
   bool _cheerHandled = false;
+
+  /// 기분 말풍선: 기분을 처음 받거나 바뀌었을 때, 캐릭터를 탭할 때 잠깐 뜬다.
+  int _bubbleTurn = MoodLook.randomTurn();
+  bool _bubbleVisible = false;
+  Timer? _bubbleTimer;
+
+  void _showBubble({bool next = false}) {
+    _bubbleTimer?.cancel();
+    setState(() {
+      if (next && _bubbleVisible) _bubbleTurn++;
+      _bubbleVisible = true;
+    });
+    _bubbleTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _bubbleVisible = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _bubbleTimer?.cancel();
+    super.dispose();
+  }
 
   void _pokeCharacter() => ref.read(characterReactionProvider.notifier).play();
 
@@ -77,6 +102,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       });
     }
 
+    // 기분이 처음 들어오거나 바뀌면 말풍선으로 한마디 한다.
+    ref.listen(characterMoodProvider, (prev, next) {
+      final m = next.value;
+      if (m == null) return;
+      final before = prev?.value;
+      if (before?.mood == m.mood && before?.restingToday == m.restingToday) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showBubble();
+      });
+    });
+    final mood = MoodLook.of(ref.watch(characterMoodProvider).value);
+
     final look = CharacterLook(
       gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
       equipment: ref.watch(equippedItemsProvider).value ?? const {},
@@ -97,7 +136,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: ConstrainedBox(
               // 화면을 꽉 채우면 부담스럽다 — 카드 위에 아담하게 서 있도록.
               constraints: const BoxConstraints(maxWidth: 250, maxHeight: 312),
-              child: LivingCharacter(look: look, reactToProvider: true),
+              child: LayoutBuilder(
+                builder: (context, c) => Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    LivingCharacter(
+                      look: look,
+                      restFace: mood.face,
+                      reactToProvider: true,
+                      onTap: mood.lines.isEmpty
+                          ? null
+                          : () => _showBubble(next: true),
+                    ),
+                    // 말꼬리 끝이 정수리(캔버스 위 9%) 바로 위에 오도록.
+                    if (mood.lines.isNotEmpty)
+                      Positioned(
+                        left: -40,
+                        right: -40,
+                        bottom: c.maxHeight * 0.91,
+                        child: Center(
+                          child: MoodBubble(
+                            text: mood.line(_bubbleTurn),
+                            visible: _bubbleVisible,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -329,6 +395,7 @@ class _TodayCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider).value;
     final todayMin = ref.watch(todayMinutesProvider).value;
+    final care = ref.watch(careProvider).value;
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -408,6 +475,47 @@ class _TodayCard extends ConsumerWidget {
                     ),
                   ),
                 ],
+              ),
+              // 휴식일: 오늘 쉬는 중이면 안내, 아직 선언할 수 있으면 조용한 링크.
+              if (care != null && (care.restToday || care.canDeclareRest))
+                _RestDayRow(care: care),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 오늘 카드 아래 휴식일 줄.
+class _RestDayRow extends ConsumerWidget {
+  const _RestDayRow({required this.care});
+  final CareStatus care;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final resting = care.restToday;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: resting ? null : () => confirmRestDay(context, ref, care),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.bedtime_outlined,
+                  size: 15, color: OunColors.textMuted),
+              const SizedBox(width: 5),
+              Text(
+                resting
+                    ? '오늘은 쉬는 날 · 연속 기록은 그대로 이어져요'
+                    : '오늘은 쉬어 갈래요 · +${care.restReward} 코인',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: OunColors.textMuted),
               ),
             ],
           ),

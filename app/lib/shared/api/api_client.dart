@@ -130,6 +130,24 @@ class ApiClient {
     return res.data!['balance'] as int;
   }
 
+  // ── 캐릭터 기분 · Care System ─────────────────────────
+
+  Future<CharacterMoodState> characterMood() async {
+    final res = await _dio.get<Map<String, dynamic>>('/character/mood');
+    return CharacterMoodState.fromJson(res.data!);
+  }
+
+  Future<CareStatus> care() async {
+    final res = await _dio.get<Map<String, dynamic>>('/care');
+    return CareStatus.fromJson(res.data!);
+  }
+
+  /// 오늘을 휴식일로 선언. 받은 코인을 돌려준다.
+  Future<int> declareRestDay() async {
+    final res = await _dio.post<Map<String, dynamic>>('/care/rest-day');
+    return res.data!['reward'] as int;
+  }
+
   // ── 운동 ──────────────────────────────────────────────
 
   /// 운동 사진을 MinIO에 올린다. 서버에서 presigned URL을 받아 직접 PUT하고,
@@ -186,6 +204,8 @@ class ApiClient {
       verified: d['verified'] as bool? ?? false,
       reward: d['reward'] as int? ?? 0,
       balance: d['balance'] as int? ?? 0,
+      protectorEarned:
+          (d['streak'] as Map<String, dynamic>?)?['protectorEarned'] == true,
     );
   }
 

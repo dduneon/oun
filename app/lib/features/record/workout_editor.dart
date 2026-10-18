@@ -301,7 +301,10 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       OunToast.showWith(
         messenger,
         result.verified
-            ? (_editing ? '운동 기록을 수정했어요' : '운동 기록 완료 · +${result.reward} 코인')
+            ? (_editing
+                ? '운동 기록을 수정했어요'
+                : '운동 기록 완료 · +${result.reward} 코인'
+                    '${result.protectorEarned ? ' · 기록 보호권 +1' : ''}')
             : '기록은 저장했지만 인증되지 않았어요',
       );
     } catch (e) {

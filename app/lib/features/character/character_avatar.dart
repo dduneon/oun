@@ -64,6 +64,8 @@ class CharacterLook {
       CharacterFace.normal => base,
       CharacterFace.blink => '${base}_blink',
       CharacterFace.happy => '${base}_happy',
+      CharacterFace.sleepy => '${base}_sleepy',
+      CharacterFace.hungry => '${base}_hungry',
     };
   }
 
@@ -99,7 +101,8 @@ class CharacterLook {
 }
 
 /// 얼굴 표정. 몸 레이어에 얼굴이 함께 그려져 있어 몸 PNG를 바꿔 끼운다.
-enum CharacterFace { normal, blink, happy }
+/// sleepy·hungry는 서버 mood(오래 쉼)를 보여 주는 평상시 얼굴이다.
+enum CharacterFace { normal, blink, happy, sleepy, hungry }
 
 /// 캔버스 비율(렌더 800×1000).
 const double kCharacterAspect = 0.8;
@@ -187,11 +190,20 @@ class LivingCharacter extends ConsumerStatefulWidget {
   const LivingCharacter({
     super.key,
     required this.look,
+    this.restFace = CharacterFace.normal,
     this.reactToProvider = false,
     this.seed = 0,
+    this.onTap,
   });
 
   final CharacterLook look;
+
+  /// 가만히 있을 때의 얼굴(기분). 졸린 얼굴은 이미 눈을 감고 있어 깜빡이지 않고
+  /// 숨도 느리게 쉰다. 폴짝 뛸 때는 기분과 상관없이 활짝 웃는다.
+  final CharacterFace restFace;
+
+  /// 탭했을 때 폴짝 반응에 더해 부르는 콜백(홈 말풍선 등).
+  final VoidCallback? onTap;
 
   /// 홈 캐릭터만 true — 전역 반응 신호를 듣는다.
   final bool reactToProvider;
@@ -215,10 +227,8 @@ class _LivingCharacterState extends ConsumerState<LivingCharacter>
   void initState() {
     super.initState();
     _rng = math.Random(widget.seed);
-    _breath = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 2600 + widget.seed % 5 * 180),
-    )..repeat();
+    _breath = AnimationController(vsync: this, duration: _breathPeriod)
+      ..repeat();
     _breath.value = (widget.seed * 0.37) % 1.0;
     _hop = AnimationController(
       vsync: this,
@@ -231,11 +241,35 @@ class _LivingCharacterState extends ConsumerState<LivingCharacter>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // 표정 PNG를 미리 올려 두어 처음 깜빡일 때 비지 않게 한다.
-    for (final f in [CharacterFace.blink, CharacterFace.happy]) {
+    for (final f in {CharacterFace.blink, CharacterFace.happy, widget.restFace}) {
       precacheImage(
         AssetImage(CharacterLook.asset(widget.look.body(f))),
         context,
       );
+    }
+  }
+
+  /// 졸릴 땐 두 배 느리게(조금 더 깊게) 숨 쉰다.
+  Duration get _breathPeriod {
+    final ms = 2600 + widget.seed % 5 * 180;
+    return Duration(
+      milliseconds: widget.restFace == CharacterFace.sleepy ? ms * 2 : ms,
+    );
+  }
+
+  @override
+  void didUpdateWidget(LivingCharacter old) {
+    super.didUpdateWidget(old);
+    if (old.restFace != widget.restFace) {
+      precacheImage(
+        AssetImage(CharacterLook.asset(widget.look.body(widget.restFace))),
+        context,
+      );
+      if (_breath.duration != _breathPeriod) {
+        _breath
+          ..duration = _breathPeriod
+          ..repeat();
+      }
     }
   }
 
@@ -276,10 +310,14 @@ class _LivingCharacterState extends ConsumerState<LivingCharacter>
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _react,
+      onTap: () {
+        _react();
+        widget.onTap?.call();
+      },
       child: AnimatedBuilder(
         animation: Listenable.merge([_breath, _hop]),
         builder: (context, _) {
+          final sleepy = widget.restFace == CharacterFace.sleepy;
           final t = _breath.value * 2 * math.pi;
           final h = _hop.value;
           // 폴짝: 움츠렸다가(0~0.18) 뛰어올랐다(0.18~0.62) 착지 후 출렁(0.62~1).
@@ -297,11 +335,11 @@ class _LivingCharacterState extends ConsumerState<LivingCharacter>
               stretch = -math.sin(p * math.pi * 2) * 0.05 * (1 - p);
             }
           }
-          final breathe = math.sin(t) * 0.012;
+          final breathe = math.sin(t) * (sleepy ? 0.018 : 0.012);
           final sway = math.sin(t * 0.5) * 0.012;
           final face = (h > 0 && h < 1)
               ? CharacterFace.happy
-              : (_blinking ? CharacterFace.blink : CharacterFace.normal);
+              : (_blinking && !sleepy ? CharacterFace.blink : widget.restFace);
 
           return LayoutBuilder(
             builder: (context, c) {
