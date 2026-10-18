@@ -7,7 +7,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 /// 카카오 네이티브 앱 키(카카오 개발자 콘솔 > 앱 키). 앱에 들어가는 공개 키다.
 /// 바꾸면 iOS Info.plist의 URL 스킴(kakao<키>)과 Android 매니페스트도 같이 바꾼다
 /// (BUILD.md "소셜 로그인"). 비어 있으면 카카오 버튼은 안내만 띄운다.
-const kakaoNativeAppKey = '';
+const kakaoNativeAppKey = '583b3fae75eb224fbb95757ce2f26b46';
 
 bool get kakaoReady => kakaoNativeAppKey.isNotEmpty;
 

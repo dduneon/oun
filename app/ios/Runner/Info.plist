@@ -87,7 +87,7 @@
 		<string>kakaolink</string>
 	</array>
 	<!-- 카카오톡 로그인 후 앱으로 돌아오는 스킴(kakao<네이티브 앱 키>).
-	     키를 받으면 KAKAO_NATIVE_APP_KEY 자리를 키로 바꾼다(BUILD.md "소셜 로그인"). -->
+	     키를 바꾸면 BUILD.md C-2의 세 곳을 같이 바꾼다. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -95,7 +95,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>kakaoKAKAO_NATIVE_APP_KEY</string>
+				<string>kakao583b3fae75eb224fbb95757ce2f26b46</string>
 			</array>
 		</dict>
 	</array>

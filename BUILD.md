@@ -116,9 +116,9 @@ Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 받는다. 두 앱 모
 (애플 공개키로 identity token 검증, `APPLE_BUNDLE_ID` = 번들 ID). 처음 들어온 사람은
 응답의 `isNew`로 앱이 캐릭터·닉네임 고르기 화면을 띄운다.
 
-**카카오** — 네이티브 앱 키(공개 키)를 세 곳에 같은 값으로 넣는다. 비어 있으면 버튼은 안내만 띄운다.
+**카카오** — 네이티브 앱 키(공개 키)가 세 곳에 같은 값으로 들어 있다. 바꿀 때 셋 다 바꾼다.
 1. `app/lib/shared/auth/social_sign_in.dart`의 `kakaoNativeAppKey`
-2. `app/ios/Runner/Info.plist` URL 스킴 `kakaoKAKAO_NATIVE_APP_KEY` → `kakao<키>`
+2. `app/ios/Runner/Info.plist` URL 스킴 `kakao<키>`
 3. `app/android/app/build.gradle.kts`의 `manifestPlaceholders["kakaoNativeAppKey"]`
 
 카카오 개발자 콘솔: 플랫폼에 iOS 번들 ID `com.dduneon.oun`, Android 패키지 `com.dduneon.oun` +
