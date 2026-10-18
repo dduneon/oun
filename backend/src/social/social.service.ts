@@ -120,6 +120,101 @@ export class SocialService {
     ]);
   }
 
+  /**
+   * 나와 상대의 관계: friend(친구) · requested(내가 요청함) · incoming(상대가 요청함,
+   * 수락할 요청 id 포함) · none. 친구 찾기 목록과 프로필 버튼이 이걸로 갈린다.
+   */
+  private async relations(userId: string, targetIds: string[]) {
+    const [friends, sent, received] = await Promise.all([
+      this.prisma.friendship.findMany({
+        where: { userId, friendId: { in: targetIds } },
+        select: { friendId: true },
+      }),
+      this.prisma.friendRequest.findMany({
+        where: { fromUserId: userId, toUserId: { in: targetIds }, status: 'pending' },
+        select: { toUserId: true },
+      }),
+      this.prisma.friendRequest.findMany({
+        where: { toUserId: userId, fromUserId: { in: targetIds }, status: 'pending' },
+        select: { id: true, fromUserId: true },
+      }),
+    ]);
+    const friendSet = new Set(friends.map((f) => f.friendId));
+    const sentSet = new Set(sent.map((r) => r.toUserId));
+    const incoming = new Map(received.map((r) => [r.fromUserId, r.id]));
+    return (id: string) => {
+      if (friendSet.has(id)) return { relation: 'friend' as const, requestId: null };
+      if (incoming.has(id)) return { relation: 'incoming' as const, requestId: incoming.get(id)! };
+      if (sentSet.has(id)) return { relation: 'requested' as const, requestId: null };
+      return { relation: 'none' as const, requestId: null };
+    };
+  }
+
+  /**
+   * GET /users/search?q= — 닉네임·이름으로 사람 찾기(나 제외, 최대 20명).
+   * 닉네임이 딱 맞는 사람 → 닉네임이 그걸로 시작하는 사람 → 나머지 순.
+   */
+  async searchUsers(userId: string, q: string) {
+    const query = q.trim().replace(/^@/, '');
+    if (!query) return { items: [] };
+    const rows = await this.prisma.user.findMany({
+      where: {
+        id: { not: userId },
+        OR: [{ nickname: { contains: query } }, { displayName: { contains: query } }],
+      },
+      include: { equipped: { include: { item: { select: { hasSpecialFx: true } } } } },
+      take: 40,
+    });
+    const lower = query.toLowerCase();
+    const rank = (u: { nickname: string }) => {
+      const n = u.nickname.toLowerCase();
+      return n === lower ? 0 : n.startsWith(lower) ? 1 : 2;
+    };
+    rows.sort((a, b) => rank(a) - rank(b) || a.nickname.localeCompare(b.nickname));
+    const top = rows.slice(0, 20);
+    const relationOf = await this.relations(userId, top.map((u) => u.id));
+    return {
+      items: top.map((u) => ({
+        nickname: u.nickname,
+        displayName: u.displayName,
+        gender: u.gender,
+        equipment: Object.fromEntries(u.equipped.map((e) => [e.slot, e.itemKey])),
+        specialFx: u.equipped.filter((e) => e.item.hasSpecialFx).map((e) => e.itemKey),
+        ...relationOf(u.id),
+      })),
+    };
+  }
+
+  /**
+   * GET /users/:nickname/profile — 친구가 아니어도 볼 수 있는 프로필 카드.
+   * 캐릭터·이름·레벨·연속 기록만 — 운동 기록은 친구 홈에서만 보인다.
+   */
+  async profile(userId: string, nickname: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { nickname },
+      include: {
+        streak: true,
+        characterStat: true,
+        equipped: { include: { item: { select: { hasSpecialFx: true } } } },
+      },
+    });
+    if (!user) throw new NotFoundException('해당 닉네임의 유저가 없어요');
+    const isMe = user.id === userId;
+    const rel = isMe
+      ? { relation: 'me' as const, requestId: null }
+      : (await this.relations(userId, [user.id]))(user.id);
+    return {
+      nickname: user.nickname,
+      displayName: user.displayName,
+      gender: user.gender,
+      equipment: Object.fromEntries(user.equipped.map((e) => [e.slot, e.itemKey])),
+      specialFx: user.equipped.filter((e) => e.item.hasSpecialFx).map((e) => e.itemKey),
+      level: statLevel(user.characterStat?.endurance ?? 0),
+      streakCurrent: user.streak?.current ?? 0,
+      ...rel,
+    };
+  }
+
   /** POST /friends/requests — @nickname에게 친구 요청. 상대가 이미 내게
    *  요청했다면 바로 친구가 된다. */
   async sendFriendRequest(userId: string, nickname: string) {

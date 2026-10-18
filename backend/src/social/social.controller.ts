@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString, Length } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
@@ -55,6 +55,16 @@ export class SocialController {
     @Param('id') id: string,
   ) {
     return this.social.respondFriendRequest(user.userId, id, false);
+  }
+
+  @Get('users/search')
+  searchUsers(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.social.searchUsers(user.userId, q ?? '');
+  }
+
+  @Get('users/:nickname/profile')
+  profile(@CurrentUser() user: AuthUser, @Param('nickname') nickname: string) {
+    return this.social.profile(user.userId, nickname);
   }
 
   @Get('users/:nickname/home')
