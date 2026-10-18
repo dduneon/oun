@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { AppleTokenVerifier } from './apple-token.verifier';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly users: UsersService,
     private readonly jwt: JwtService,
@@ -95,7 +98,12 @@ export class AuthService {
       });
       kakaoId = String(res.data.id);
       nickname = res.data?.kakao_account?.profile?.nickname;
-    } catch {
+    } catch (e) {
+      // 401이라 예외 필터는 남기지 않는다 — 콘솔 설정 문제를 찾을 수 있게 카카오 응답을 남긴다.
+      const err = e as { response?: { status?: number; data?: unknown }; message?: string };
+      this.logger.warn(
+        `카카오 토큰 검증 실패: ${err.response?.status ?? '-'} ${JSON.stringify(err.response?.data ?? err.message)}`,
+      );
       throw new UnauthorizedException('카카오 인증에 실패했어요');
     }
 

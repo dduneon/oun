@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -95,8 +96,14 @@ class AuthController extends Notifier<AuthState> {
       if (token == null) return false;
       return _runSocial(() => ref.read(apiClientProvider).kakaoLogin(token));
     } catch (e) {
+      // 카카오 SDK 오류(콘솔 설정·키 해시 등)는 원인이 메시지에만 있다.
+      debugPrint('[kakao] 로그인 실패: $e');
       state = AuthState(AuthStatus.loggedOut,
-          error: _errorMessage(e, '카카오 로그인에 실패했어요'));
+          error: _errorMessage(
+              e,
+              kDebugMode
+                  ? '카카오 로그인에 실패했어요\n$e'
+                  : '카카오 로그인에 실패했어요'));
       return false;
     }
   }
@@ -110,6 +117,7 @@ class AuthController extends Notifier<AuthState> {
           .read(apiClientProvider)
           .appleLogin(c.identityToken, name: c.name));
     } catch (e) {
+      debugPrint('[apple] 로그인 실패: $e');
       state = AuthState(AuthStatus.loggedOut,
           error: _errorMessage(e, 'Apple 로그인에 실패했어요'));
       return false;
