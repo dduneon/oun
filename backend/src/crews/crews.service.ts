@@ -146,7 +146,7 @@ export class CrewsService {
       where: { id: crewId },
       include: {
         members: {
-          include: { user: { include: { equipped: true } } },
+          include: { user: { include: { equipped: { include: { item: { select: { hasSpecialFx: true } } } } } } },
           orderBy: { joinedAt: 'asc' },
         },
         _count: { select: { posts: { where: { kind: 'post' } } } },
@@ -162,6 +162,8 @@ export class CrewsService {
       gender: m.user.gender,
       // 크루 모임 화면 캐릭터가 입은 옷·헤어(슬롯 → 아이템 키).
       equipment: Object.fromEntries(m.user.equipped.map((e) => [e.slot, e.itemKey])),
+      // 특수 효과가 있는 장착 아이템(희귀 아이템 반짝임 등).
+      specialFx: m.user.equipped.filter((e) => e.item.hasSpecialFx).map((e) => e.itemKey),
       role: m.role,
       isMe: m.userId === userId,
     }));

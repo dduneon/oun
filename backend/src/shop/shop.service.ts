@@ -114,6 +114,8 @@ export class ShopService {
         name: r.item.name,
         category: r.item.category,
         colorHex: r.item.colorHex,
+        rarity: r.item.rarity,
+        hasSpecialFx: r.item.hasSpecialFx,
         equipped: equippedSet.has(r.itemKey),
       })),
     };

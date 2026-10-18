@@ -6,26 +6,27 @@
 // (데모 유저는 개발용이라 prisma/seed.ts에만 남는다)
 import { PrismaClient } from '@prisma/client';
 
+// 희귀(rare) 아이템은 모두 특수 효과가 있다 — 앱이 장착 캐릭터 주위에 반짝임/음표를 띄운다.
 export const items = [
   // 상의 (clothing)
   { key: 'hood_daily', category: 'clothing', name: '데일리 후드', price: 120, colorHex: '#D9B38C', sortOrder: 0 },
   { key: 'tee_runner', category: 'clothing', name: '러너 티셔츠', price: 90, colorHex: '#B8C4A9', sortOrder: 1 },
   { key: 'cardigan_knit', category: 'clothing', name: '니트 가디건', price: 210, colorHex: '#E0A9A0', sortOrder: 2 },
   { key: 'tank_sleeveless', category: 'clothing', name: '민소매 탱크톱', price: 100, colorHex: '#8FC1E3', sortOrder: 3 },
-  { key: 'windbreaker', category: 'clothing', name: '바람막이 집업', price: 180, colorHex: '#3F7F8C', rarity: 'rare', sortOrder: 4 },
+  { key: 'windbreaker', category: 'clothing', name: '바람막이 집업', price: 180, colorHex: '#3F7F8C', rarity: 'rare', hasSpecialFx: true, sortOrder: 4 },
   // 하의
   { key: 'jogger_pants', category: 'bottom', name: '조거 팬츠', price: 110, colorHex: '#8E96A3', sortOrder: 0 },
   { key: 'running_shorts', category: 'bottom', name: '러닝 쇼츠', price: 80, colorHex: '#E8836B', sortOrder: 1 },
   { key: 'leggings', category: 'bottom', name: '레깅스', price: 120, colorHex: '#4A4550', sortOrder: 2 },
   // 신발
   { key: 'sneakers_run', category: 'shoes', name: '러닝화', price: 100, colorHex: '#7FC8B4', sortOrder: 0 },
-  { key: 'hightop', category: 'shoes', name: '하이탑 스니커즈', price: 150, colorHex: '#D9574A', rarity: 'rare', sortOrder: 1 },
+  { key: 'hightop', category: 'shoes', name: '하이탑 스니커즈', price: 150, colorHex: '#D9574A', rarity: 'rare', hasSpecialFx: true, sortOrder: 1 },
   { key: 'rain_boots', category: 'shoes', name: '레인부츠', price: 130, colorHex: '#F2C14E', sortOrder: 2 },
   // 헤어 — 캐릭터 성별 전용(gender). 단정 단발은 여자 기본 머리와 겹쳐 뺐다(시드가 비활성화).
   { key: 'hair_ponytail', category: 'hair', name: '포니테일', price: 130, colorHex: '#B98E63', gender: 'f', sortOrder: 1 },
-  { key: 'hair_braids', category: 'hair', name: '양갈래', price: 160, colorHex: '#A87958', rarity: 'rare', gender: 'f', sortOrder: 2 },
+  { key: 'hair_braids', category: 'hair', name: '양갈래', price: 160, colorHex: '#A87958', rarity: 'rare', hasSpecialFx: true, gender: 'f', sortOrder: 2 },
   { key: 'hair_flick', category: 'hair', name: '넘긴 앞머리', price: 130, colorHex: '#7A4E33', gender: 'm', sortOrder: 3 },
-  { key: 'hair_spiky', category: 'hair', name: '삐죽 머리', price: 160, colorHex: '#3A2A22', rarity: 'rare', gender: 'm', sortOrder: 4 },
+  { key: 'hair_spiky', category: 'hair', name: '삐죽 머리', price: 160, colorHex: '#3A2A22', rarity: 'rare', hasSpecialFx: true, gender: 'm', sortOrder: 4 },
   // 소품
   { key: 'cap_sports', category: 'prop', name: '스포츠 캡', price: 80, colorHex: '#A9BBD0', sortOrder: 0 },
   { key: 'towel_gym', category: 'prop', name: '운동 타월', price: 60, colorHex: '#D6C08A', sortOrder: 1 },
