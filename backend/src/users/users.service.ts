@@ -3,12 +3,14 @@ import { Gender, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { statLevel } from '../game/leveling';
+import { GameService } from '../game/game.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly game: GameService,
   ) {}
 
   /** 신규 유저 생성 + 부속 상태 행(스탯/mood/스트릭/보호권) 초기화. */
@@ -64,6 +66,8 @@ export class UsersService {
 
   /** GET /me — 마이/홈 상단에 필요한 프로필 집계. */
   async profile(userId: string) {
+    // 빠진 날을 보호권으로 메우거나 끊긴 스트릭을 내린 뒤 보여 준다.
+    await this.game.refreshStreak(userId);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { characterStat: true, streak: true, streakProtector: true },

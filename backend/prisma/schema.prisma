@@ -40,6 +40,7 @@ model User {
   streak            Streak?
   streakProtector   StreakProtector?
   restDays          RestDay[]
+  protectedDays     ProtectedDay[]
   userQuests        UserQuest[]
   inventory         Inventory[]
   equipped          Equipped[]
@@ -219,19 +220,35 @@ model Streak {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// 기록 보호권. 연속 7일마다 1개(최대 2개 보유), 빠진 날에 자동으로 쓰인다.
 model StreakProtector {
-  userId    String   @id
-  count     Int      @default(0)
-  updatedAt DateTime @updatedAt
+  userId        String    @id
+  count         Int       @default(0)
+  lastGrantedAt DateTime? // 마지막 지급 시각. 기록 삭제·재등록으로 같은 주에 또 받지 않게 한다.
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// 공식 휴식일. 그날(KST)만 선언할 수 있고, 연속 기록을 끊지 않고 이어 준다(+1은 아님).
 model RestDay {
-  id       String   @id @default(cuid())
-  userId   String
-  date     DateTime // 날짜 단위 (UTC 00:00)
-  rewarded Boolean  @default(false)
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime // KST 그 날의 시작(kstDateOnly)
+  rewarded  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+// 보호권이 메워 준 날. 스트릭을 기록에서 다시 계산할 때 휴식일처럼 이어 준다.
+model ProtectedDay {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime // KST 그 날의 시작(kstDateOnly)
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
