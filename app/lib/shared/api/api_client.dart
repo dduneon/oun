@@ -420,6 +420,25 @@ class ApiClient {
     );
   }
 
+  /// 닉네임·이름으로 사람 찾기(나 제외).
+  Future<List<PersonCard>> searchUsers(String query) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/users/search',
+      queryParameters: {'q': query},
+    );
+    return (res.data!['items'] as List)
+        .map((e) => PersonCard.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 친구가 아니어도 볼 수 있는 프로필 카드.
+  Future<PersonCard> userProfile(String nickname) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/users/${Uri.encodeComponent(nickname)}/profile',
+    );
+    return PersonCard.fromJson(res.data!);
+  }
+
   Future<FriendHome> friendHome(String nickname) async {
     final res = await _dio.get<Map<String, dynamic>>('/users/$nickname/home');
     return FriendHome.fromJson(res.data!);

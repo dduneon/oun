@@ -12,6 +12,7 @@ import 'crew_discover.dart';
 import 'crew_feed.dart';
 import 'crew_home.dart';
 import 'friend_home_screen.dart';
+import 'friend_search_screen.dart';
 
 /// 소셜 탭: 상단 세그먼트로 친구 / 크루 통합. 랭킹 없이 응원 중심. (서버)
 class CrewScreen extends ConsumerStatefulWidget {
@@ -47,35 +48,12 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
     );
   }
 
+  /// 친구 찾기: 닉네임으로 찾아 프로필에서 캐릭터를 보고 친구 추가.
   Future<void> _addFriend() async {
-    final nickname = await showNicknameInputSheet(
-      context,
-      title: '친구 요청 보내기',
-      hint: '@닉네임 입력',
-      action: '요청',
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(builder: (_) => const FriendSearchScreen()),
     );
-    if (nickname == null || nickname.isEmpty) return;
-    try {
-      final (status, name) =
-          await ref.read(apiClientProvider).sendFriendRequest(nickname);
-      if (status == 'accepted') {
-        ref.invalidate(friendsProvider);
-        ref.invalidate(friendRequestsProvider);
-      }
-      if (mounted) {
-        OunToast.show(
-          context,
-          status == 'accepted'
-              ? '$name님과 친구가 되었어요'
-              : '$name님에게 친구 요청을 보냈어요',
-          kind: OunToastKind.success,
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        OunToast.show(context, '친구 요청에 실패했어요. 닉네임을 확인해 주세요');
-      }
-    }
+    invalidateAll(ref, [friendsProvider, friendRequestsProvider]);
   }
 
   Future<void> _openCrew(CrewCardData crew) async {
@@ -129,7 +107,7 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
                     Icon(Icons.person_add_alt,
                         size: 17, color: OunColors.textMuted),
                     SizedBox(width: 8),
-                    Text('@닉네임으로 친구 요청',
+                    Text('@닉네임으로 친구 찾기',
                         style:
                             TextStyle(fontSize: 13, color: OunColors.textMuted)),
                   ],

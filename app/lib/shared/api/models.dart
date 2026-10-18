@@ -1047,3 +1047,47 @@ class NotificationSettings {
   Map<String, bool> toJson() =>
       {'friends': friends, 'cheers': cheers, 'crew': crew, 'care': care};
 }
+
+/// 친구 찾기 목록 한 줄이자 프로필 카드(GET /users/search, /users/:nickname/profile).
+/// 친구가 아니어도 보이는 정보만 — 운동 기록은 친구 홈에서만.
+class PersonCard {
+  const PersonCard({
+    required this.nickname,
+    required this.displayName,
+    required this.gender,
+    required this.relation,
+    this.requestId,
+    this.equipment = const {},
+    this.specialFx = const {},
+    this.level,
+    this.streakCurrent,
+  });
+
+  final String nickname;
+  final String displayName;
+  final String gender;
+
+  /// friend · requested(내가 요청함) · incoming(상대가 요청함) · none · me
+  final String relation;
+
+  /// incoming일 때 수락할 요청 id.
+  final String? requestId;
+  final Map<String, String> equipment;
+  final Set<String> specialFx;
+
+  /// 프로필에서만 온다.
+  final int? level;
+  final int? streakCurrent;
+
+  factory PersonCard.fromJson(Map<String, dynamic> j) => PersonCard(
+    nickname: j['nickname'] as String,
+    displayName: j['displayName'] as String,
+    gender: j['gender'] as String,
+    relation: j['relation'] as String,
+    requestId: j['requestId'] as String?,
+    equipment: equipmentFromJson(j['equipment']),
+    specialFx: specialFxFromJson(j['specialFx']),
+    level: j['level'] as int?,
+    streakCurrent: j['streakCurrent'] as int?,
+  );
+}

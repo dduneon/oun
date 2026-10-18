@@ -330,6 +330,20 @@ final friendRequestsProvider =
   return api.friendRequests();
 });
 
+/// 친구 찾기 검색 결과(입력이 바뀔 때마다 새 키). 화면을 떠나면 버린다.
+final userSearchProvider = FutureProvider.autoDispose
+    .family<List<PersonCard>, String>((ref, query) async {
+  final api = await _authed(ref);
+  return api.searchUsers(query);
+});
+
+/// 친구 찾기에서 연 프로필.
+final userProfileProvider = FutureProvider.autoDispose
+    .family<PersonCard, String>((ref, nickname) async {
+  final api = await _authed(ref);
+  return api.userProfile(nickname);
+});
+
 final friendHomeProvider =
     FutureProvider.family<FriendHome, String>((ref, nickname) async {
   final api = await _authed(ref);
