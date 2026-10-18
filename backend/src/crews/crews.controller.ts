@@ -116,6 +116,12 @@ export class CrewsController {
     return this.crews.myInvitations(user.userId);
   }
 
+  /** 내가 가입 신청하고 기다리는 크루. */
+  @Get('join-requests/mine')
+  myJoinRequests(@CurrentUser() user: AuthUser) {
+    return this.crews.myJoinRequests(user.userId);
+  }
+
   @Post('invitations/:invId/accept')
   acceptInvitation(
     @CurrentUser() user: AuthUser,
@@ -164,6 +170,11 @@ export class CrewsController {
   @Post(':id/join-request')
   requestJoin(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.crews.requestJoin(id, user.userId);
+  }
+
+  @Delete(':id/join-request')
+  cancelJoinRequest(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crews.cancelJoinRequest(id, user.userId);
   }
 
   @Get(':id/join-requests')

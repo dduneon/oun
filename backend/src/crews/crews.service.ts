@@ -235,6 +235,39 @@ export class CrewsService {
     };
   }
 
+  /** GET /crews/join-requests/mine — 내가 신청하고 방장 승인을 기다리는 크루(최근 신청 순). */
+  async myJoinRequests(userId: string) {
+    const reqs = await this.prisma.crewJoinRequest.findMany({
+      where: { userId, type: 'request', status: 'pending' },
+      include: {
+        crew: {
+          include: { _count: { select: { members: true, posts: { where: { kind: 'post' } } } } },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return {
+      items: reqs.map((r) => ({
+        id: r.crew.id,
+        name: r.crew.name,
+        description: r.crew.description,
+        isPublic: r.crew.isPublic,
+        memberCount: r.crew._count.members,
+        level: crewLevelOf(r.crew._count.posts),
+        requestedAt: r.updatedAt.toISOString(),
+      })),
+    };
+  }
+
+  /** DELETE /crews/:id/join-request — 아직 처리되지 않은 내 가입 신청을 거둔다. */
+  async cancelJoinRequest(crewId: string, userId: string) {
+    const { count } = await this.prisma.crewJoinRequest.deleteMany({
+      where: { crewId, userId, type: 'request', status: 'pending' },
+    });
+    if (count === 0) throw new NotFoundException('기다리는 가입 신청이 없어요');
+    return { cancelled: true };
+  }
+
   /** POST /crews/:id/join-request — 공개 크루에 가입 신청. */
   async requestJoin(crewId: string, userId: string) {
     const crew = await this.prisma.crew.findUnique({ where: { id: crewId } });
