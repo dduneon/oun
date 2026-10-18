@@ -11,7 +11,7 @@ import { GameService } from '../game/game.service';
 import { QuestsService } from '../quests/quests.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { workoutReward } from '../game/leveling';
-import { kstDayKey } from '../common/time';
+import { kstDayKey, kstMonthRange } from '../common/time';
 import { StorageService } from '../storage/storage.service';
 import { CreateWorkoutDto } from './dto';
 import { verifyWorkout } from './verify';
@@ -274,7 +274,7 @@ export class WorkoutsService {
 
   /** GET /workouts/calendar?month=YYYY-MM — 일별 강도(0~4). */
   async calendar(userId: string, month: string) {
-    const { start, end } = monthRange(month);
+    const { start, end } = kstMonthRange(month);
     const rows = await this.prisma.workoutLog.findMany({
       where: { userId, verifyStatus: 'verified', performedAt: { gte: start, lt: end } },
       select: { performedAt: true, durationSec: true },
@@ -292,7 +292,7 @@ export class WorkoutsService {
 
   /** GET /workouts/summary?month=YYYY-MM — 운동한 날/총 시간/최장 연속. */
   async summary(userId: string, month: string) {
-    const { start, end } = monthRange(month);
+    const { start, end } = kstMonthRange(month);
     const [rows, streak] = await Promise.all([
       this.prisma.workoutLog.findMany({
         where: { userId, verifyStatus: 'verified', performedAt: { gte: start, lt: end } },
@@ -309,13 +309,4 @@ export class WorkoutsService {
       longestStreak: streak?.longest ?? 0,
     };
   }
-}
-
-/** 'YYYY-MM' → 해당 월의 [start, end) (KST 자정 경계). */
-function monthRange(month: string): { start: Date; end: Date } {
-  const [y, m] = month.split('-').map(Number);
-  // KST 자정 = UTC 15:00 전날. Date.UTC로 만든 뒤 9시간 당김.
-  const start = new Date(Date.UTC(y, m - 1, 1) - 9 * 3600 * 1000);
-  const end = new Date(Date.UTC(y, m, 1) - 9 * 3600 * 1000);
-  return { start, end };
 }

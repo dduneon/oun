@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService, PushPayload } from './push.service';
+import { NOTIFICATION_CATEGORIES, NotificationCategory } from './notification-settings';
 
 export interface NotificationInput {
   type: string;
@@ -88,6 +89,27 @@ export class NotificationsService {
     });
     if (existing) return;
     await this.notify(userId, actorId, input);
+  }
+
+  /** GET /me/notification-settings — 분류별 푸시 수신 여부(기본 모두 켜짐). */
+  async settings(userId: string) {
+    const row = await this.prisma.notificationSetting.findUnique({ where: { userId } });
+    return Object.fromEntries(
+      NOTIFICATION_CATEGORIES.map((c) => [c, row?.[c] ?? true]),
+    ) as Record<NotificationCategory, boolean>;
+  }
+
+  /** PUT /me/notification-settings — 넘어온 분류만 바꾼다. */
+  async updateSettings(userId: string, patch: Partial<Record<NotificationCategory, boolean>>) {
+    const data = Object.fromEntries(
+      NOTIFICATION_CATEGORIES.filter((c) => typeof patch[c] === 'boolean').map((c) => [c, patch[c]]),
+    );
+    await this.prisma.notificationSetting.upsert({
+      where: { userId },
+      create: { userId, ...data },
+      update: data,
+    });
+    return this.settings(userId);
   }
 
   /** GET /notifications — 최근 50건 + 안 읽은 수. */

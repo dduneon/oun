@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Gender, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { statLevel } from '../game/leveling';
 import { GameService } from '../game/game.service';
+import { releaseCrewMembership } from '../crews/handoff';
 
 @Injectable()
 export class UsersService {
@@ -94,15 +95,38 @@ export class UsersService {
     };
   }
 
-  async update(userId: string, data: { nickname?: string; gender?: Gender }) {
+  async update(userId: string, data: { nickname?: string; displayName?: string; gender?: Gender }) {
+    const displayName = data.displayName?.trim();
+    if (data.displayName !== undefined && !displayName) {
+      throw new ConflictException('이름을 입력해 주세요');
+    }
     try {
-      await this.prisma.user.update({ where: { id: userId }, data });
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { ...data, ...(displayName ? { displayName } : {}) },
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new NotFoundException('이미 사용 중인 닉네임이에요');
+        throw new ConflictException('이미 사용 중인 닉네임이에요');
       }
       throw e;
     }
     return this.profile(userId);
+  }
+
+  /**
+   * DELETE /me — 계정과 모든 기록을 지운다(되돌릴 수 없음).
+   * 크루는 먼저 정리한다: 마지막 방장이면 방장을 넘기고, 혼자면 크루를 닫는다.
+   * 나머지(기록·원장·친구·알림·기기 토큰 …)는 FK cascade로 함께 지워진다.
+   */
+  async remove(userId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const crews = await tx.crewMember.findMany({ where: { userId }, select: { crewId: true } });
+      for (const { crewId } of crews) {
+        await releaseCrewMembership(tx, crewId, userId);
+      }
+      await tx.user.delete({ where: { id: userId } });
+    });
+    return { deleted: true };
   }
 }

@@ -5,9 +5,10 @@ import {
   Get,
   Param,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, Length } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Length } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { NotificationsService } from './notifications.service';
@@ -28,6 +29,13 @@ class RegisterDeviceDto {
   platform!: string;
 }
 
+class NotificationSettingsDto {
+  @IsOptional() @IsBoolean() friends?: boolean;
+  @IsOptional() @IsBoolean() cheers?: boolean;
+  @IsOptional() @IsBoolean() crew?: boolean;
+  @IsOptional() @IsBoolean() care?: boolean;
+}
+
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -46,6 +54,16 @@ export class NotificationsController {
   @Post('notifications/read')
   markRead(@CurrentUser() user: AuthUser, @Body() dto: MarkReadDto) {
     return this.notifications.markRead(user.userId, dto.id);
+  }
+
+  @Get('me/notification-settings')
+  settings(@CurrentUser() user: AuthUser) {
+    return this.notifications.settings(user.userId);
+  }
+
+  @Put('me/notification-settings')
+  updateSettings(@CurrentUser() user: AuthUser, @Body() dto: NotificationSettingsDto) {
+    return this.notifications.updateSettings(user.userId, dto);
   }
 
   @Post('devices')

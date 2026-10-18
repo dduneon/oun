@@ -13,6 +13,7 @@ import { workoutSummary } from '../social/social.service';
 import { StorageService } from '../storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { crewLevelOf, crewLevelRewards } from './crew-level';
+import { releaseCrewMembership } from './handoff';
 
 @Injectable()
 export class CrewsService {
@@ -442,12 +443,9 @@ export class CrewsService {
   /** DELETE /crews/:id/members/me — 크루 나가기. 마지막 멤버면 크루 삭제. */
   async leave(crewId: string, userId: string) {
     await this.membershipOf(crewId, userId);
+    // 마지막 방장이 나가면 가장 오래된 멤버가 방장을 이어받는다.
     return this.prisma.$transaction(async (tx) => {
-      await tx.crewMember.delete({ where: { crewId_userId: { crewId, userId } } });
-      const remain = await tx.crewMember.count({ where: { crewId } });
-      if (remain === 0) {
-        await tx.crew.delete({ where: { id: crewId } });
-      }
+      await releaseCrewMembership(tx, crewId, userId);
       return { left: true };
     });
   }

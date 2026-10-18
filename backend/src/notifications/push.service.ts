@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { categoryOf } from './notification-settings';
 
 export interface PushPayload {
   title: string;
@@ -65,6 +66,14 @@ export class PushService implements OnModuleInit {
     }
   }
 
+  /** 유저가 이 분류의 푸시를 껐는지(마이 > 알림 설정). 설정 행이 없으면 모두 켜짐. */
+  async allowed(userId: string, type: string | undefined): Promise<boolean> {
+    const category = categoryOf(type);
+    if (!category) return true;
+    const setting = await this.prisma.notificationSetting.findUnique({ where: { userId } });
+    return setting?.[category] ?? true;
+  }
+
   get enabled() {
     return this.messaging !== null;
   }
@@ -72,6 +81,7 @@ export class PushService implements OnModuleInit {
   /** 유저의 모든 기기로 전송. 실패해도 예외를 던지지 않는다(부가 기능). */
   async sendToUser(userId: string, payload: PushPayload): Promise<void> {
     if (!this.messaging) return;
+    if (!(await this.allowed(userId, payload.data?.type))) return;
 
     const devices = await this.prisma.deviceToken.findMany({
       where: { userId },

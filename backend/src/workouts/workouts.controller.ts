@@ -13,11 +13,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/current-user.decorator';
 import { WorkoutsService } from './workouts.service';
 import { CreateWorkoutDto } from './dto';
-
-function currentMonth(): string {
-  const kst = new Date(Date.now() + 9 * 3600 * 1000);
-  return kst.toISOString().slice(0, 7);
-}
+import { kstMonthKey } from '../common/time';
 
 @Controller('workouts')
 @UseGuards(JwtAuthGuard)
@@ -55,11 +51,11 @@ export class WorkoutsController {
 
   @Get('calendar')
   calendar(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
-    return this.workouts.calendar(user.userId, month ?? currentMonth());
+    return this.workouts.calendar(user.userId, month ?? kstMonthKey());
   }
 
   @Get('summary')
   summary(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
-    return this.workouts.summary(user.userId, month ?? currentMonth());
+    return this.workouts.summary(user.userId, month ?? kstMonthKey());
   }
 }

@@ -54,6 +54,7 @@ model User {
   cheersReceived    Cheer[]           @relation("CheerTo")
   notifications     Notification[]
   deviceTokens      DeviceToken[]
+  notificationSetting NotificationSetting?
   crewMemberships   CrewMember[]
   crewJoinRequests  CrewJoinRequest[]
   crewPosts         CrewPost[]
@@ -482,6 +483,18 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+}
+
+// 분류별 푸시 수신 여부. 행이 없으면 모두 켜짐. 인앱 알림함은 설정과 상관없이 남는다.
+model NotificationSetting {
+  userId    String   @id
+  friends   Boolean  @default(true) // friend_request · friend_accepted
+  cheers    Boolean  @default(true) // cheer
+  crew      Boolean  @default(true) // crew_*
+  care      Boolean  @default(true) // streak_protected
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // 푸시를 받을 기기 토큰. 같은 토큰이 다른 유저에게 재등록될 수 있어

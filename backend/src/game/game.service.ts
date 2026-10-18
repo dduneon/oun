@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { dayDiff, kstDateOnly } from '../common/time';
 import { sportToStat, statLevel } from './leveling';
 import { computeMood } from './mood';
@@ -10,13 +11,19 @@ const DAY_MS = 86_400_000;
 export const PROTECTOR_EVERY = 7;
 export const PROTECTOR_MAX = 2;
 
+const PROTECTED_TITLE = '기록 보호권이 연속 기록을 지켰어요';
+const protectedBody = (days: number) => `${days}일 쉬어 간 자리를 보호권이 메웠어요. 오늘도 같이 움직여 봐요!`;
+
 /**
  * 운동 1건이 검증됐을 때 캐릭터 스탯·스트릭·mood를 갱신하는 도메인 로직.
  * 항상 상위 트랜잭션(tx) 안에서 호출된다.
  */
 @Injectable()
 export class GameService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * 기록에서 스탯·스트릭·mood를 다시 계산한다. 날짜를 소급 입력하거나 수정해도
@@ -98,8 +105,8 @@ export class GameService {
       data: {
         userId,
         type: 'streak_protected',
-        title: '기록 보호권이 연속 기록을 지켰어요',
-        body: `${count}일 쉬어 간 자리를 보호권이 메웠어요. 오늘도 같이 움직여 봐요!`,
+        title: PROTECTED_TITLE,
+        body: protectedBody(count),
       },
     });
     return count;
@@ -133,6 +140,14 @@ export class GameService {
     if (!streak?.lastActiveDate || streak.current === 0) return 0;
     if (dayDiff(now, streak.lastActiveDate) <= 1) return 0;
     const result = await this.prisma.$transaction((tx) => this.rebuildWorkouts(tx, userId, now));
+    // 알림함 행은 트랜잭션 안에서 남겼고, 푸시는 커밋 후에 보낸다.
+    if (result.protectedDays > 0) {
+      this.notifications.pushLater(userId, {
+        title: PROTECTED_TITLE,
+        body: protectedBody(result.protectedDays),
+        data: { type: 'streak_protected' },
+      });
+    }
     return result.protectedDays;
   }
 

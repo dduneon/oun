@@ -43,3 +43,17 @@ export function kstWeekStart(d: Date): Date {
   const weekday = shifted.getUTCDay() || 7; // 월=1 … 일=7
   return new Date(dayStart.getTime() - (weekday - 1) * 86400000);
 }
+
+/** KST 기준 이번 달 'YYYY-MM'. */
+export function kstMonthKey(d: Date = new Date()): string {
+  return new Date(d.getTime() + KST_OFFSET_MS).toISOString().slice(0, 7);
+}
+
+/** 'YYYY-MM' → 해당 월의 [start, end) (KST 자정 경계). */
+export function kstMonthRange(month: string): { start: Date; end: Date } {
+  const [y, m] = month.split('-').map(Number);
+  return {
+    start: new Date(Date.UTC(y, m - 1, 1) - KST_OFFSET_MS),
+    end: new Date(Date.UTC(y, m, 1) - KST_OFFSET_MS),
+  };
+}
