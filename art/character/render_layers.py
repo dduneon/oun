@@ -2,6 +2,7 @@
 
 art/character/oun_villager.blend 를 연 Blender에서 실행한다.
   blender art/character/oun_villager.blend --background --python art/character/render_layers.py
+일부만 다시 뽑을 때(예: 표정만): ... render_layers.py -- body
 
 모든 레이어를 같은 정사영 카메라·같은 캔버스로 렌더해서 Flutter가 그대로 겹쳐 그린다.
 가려져야 하는 부분(예: 머리 뒤로 넘어간 포니테일, 몸 뒤쪽 후드)은 BODY를 홀드아웃으로
@@ -10,6 +11,7 @@ art/character/oun_villager.blend 를 연 Blender에서 실행한다.
 여자는 같은 몸에 얼굴 텍스처만 다른 body_f* 를 쓴다.
 """
 
+import sys
 from pathlib import Path
 
 import bpy
@@ -65,6 +67,9 @@ FACES = {
     "body": dict(),
     "body_blink": dict(closed=True),
     "body_happy": dict(closed=True, mouth="open"),
+    # 기분 표현(서버 mood): 오래 쉬면 졸림, 이틀쯤 쉬면 배고픔. 귀여운 시무룩까지만.
+    "body_sleepy": dict(sleepy=True, mouth="o"),
+    "body_hungry": dict(brows="worried", mouth="wavy"),
 }
 # 여자 얼굴: 속눈썹, 조금 진한 볼터치, 붉은 입.
 FEMALE = dict(lashes=True, blush=0.85, lip=(0.68, 0.22, 0.24))
@@ -72,7 +77,7 @@ FACES.update({f"body_f{k[4:]}": {**v, **FEMALE} for k, v in list(FACES.items())}
 
 
 def draw_face(eye_rx=0.031, eye_rz=0.040, eye_x=0.115, eye_z=0.682, mouth="smile", closed=False,
-              lashes=False, blush=0.6, lip=(0.50, 0.18, 0.16)):
+              sleepy=False, brows="normal", lashes=False, blush=0.6, lip=(0.50, 0.18, 0.16)):
     """머리 정면 투영 좌표(x: -0.33..0.33, z: 0.37..1.03)에 얼굴을 그린 RGBA 배열."""
     n, ss = 1024, 2
     m = n * ss
@@ -113,7 +118,13 @@ def draw_face(eye_rx=0.031, eye_rz=0.040, eye_x=0.115, eye_z=0.682, mouth="smile
     for s in (-1, 1):
         ex = s * eye_x
         over(soft(s * 0.192, eye_z - 0.055, 0.038, 0.022) * blush, (1.0, 0.50, 0.50))  # 볼터치
-        if closed:
+        if sleepy:
+            # 졸린 눈: 아래로 처진 감은 눈(∪)
+            arc = [(ex + t * eye_rx, eye_z - 0.010 - 0.010 * (1 - t * t)) for t in np.linspace(-1, 1, 13)]
+            over(polyline(arc, 0.0032), dark)
+            if lashes:
+                over(polyline([(ex + s * eye_rx, eye_z - 0.010), (ex + s * 1.4 * eye_rx, eye_z - 0.004)], 0.0026), dark)
+        elif closed:
             # 웃는 눈(∩)
             arc = [(ex + t * eye_rx, eye_z - 0.006 + 0.012 * (1 - t * t)) for t in np.linspace(-1, 1, 13)]
             over(polyline(arc, 0.0034), dark)
@@ -130,10 +141,21 @@ def draw_face(eye_rx=0.031, eye_rz=0.040, eye_x=0.115, eye_z=0.682, mouth="smile
             over(e * np.clip((eye_z - Z) / eye_rz + 0.15, 0, 1) * 0.5, (0.36, 0.21, 0.13))
             over(ellipse(ex - 0.32 * eye_rx, eye_z + 0.36 * eye_rz, 0.36 * eye_rx, 0.3 * eye_rz), (1, 1, 1))
             over(ellipse(ex + 0.3 * eye_rx, eye_z - 0.42 * eye_rz, 0.14 * eye_rx, 0.11 * eye_rz), (1, 1, 1))
-        over(ellipse(ex + s * 0.003, eye_z + eye_rz + 0.024, 0.017, 0.005, rot=-0.18 * s), (0.30, 0.19, 0.13))
+        if brows == "worried":
+            # 안쪽 끝이 올라간 눈썹(시무룩)
+            over(ellipse(ex - s * 0.002, eye_z + eye_rz + 0.030, 0.017, 0.005, rot=0.32 * s), (0.30, 0.19, 0.13))
+        else:
+            over(ellipse(ex + s * 0.003, eye_z + eye_rz + 0.024, 0.017, 0.005, rot=-0.18 * s), (0.30, 0.19, 0.13))
     if mouth == "smile":
         pts = [(x, 0.590 + 0.011 * (x / 0.024) ** 2) for x in np.linspace(-0.024, 0.024, 13)]
         over(polyline(pts, 0.0028), lip)
+    elif mouth == "o":  # 작게 벌린 입(하품)
+        o = ellipse(0, 0.588, 0.010, 0.012)
+        over(o, (0.55, 0.20, 0.20))
+        over(ellipse(0, 0.582, 0.006, 0.005) * o, (0.96, 0.56, 0.56))
+    elif mouth == "wavy":  # 오물오물 물결 입
+        pts = [(x, 0.588 + 0.004 * np.sin(x / 0.024 * 2 * np.pi)) for x in np.linspace(-0.022, 0.022, 25)]
+        over(polyline(pts, 0.0026), lip)
     else:  # 활짝 웃는 입(D)
         lower = ellipse(0, 0.593, 0.026, 0.024) * (Z < 0.593)
         over(lower, (0.55, 0.20, 0.20))
@@ -175,7 +197,11 @@ def main():
     scene.render.image_settings.compression = 90
     OUT.mkdir(parents=True, exist_ok=True)
 
+    # `-- body hair_short` 처럼 이름을 주면 그 레이어만 렌더한다.
+    only = set(sys.argv[sys.argv.index("--") + 1:]) if "--" in sys.argv else None
     for name, (visible, holdout) in LAYERS.items():
+        if only and name not in only:
+            continue
         show_only(visible, holdout)
         if name == "body":
             for face_name, face in FACES.items():
