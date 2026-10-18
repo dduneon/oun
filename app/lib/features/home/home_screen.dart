@@ -132,7 +132,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           top: safe.top + 64,
           bottom: safe.bottom + FloatingTabBar.reservedSpace + 150,
           child: Align(
-            alignment: const Alignment(0, 0.6),
+            // 인사줄과 오늘 카드 사이 가운데보다 살짝 위 — 말풍선 자리를 남긴다.
+            alignment: const Alignment(0, -0.25),
             child: ConstrainedBox(
               // 화면을 꽉 채우면 부담스럽다 — 카드 위에 아담하게 서 있도록.
               constraints: const BoxConstraints(maxWidth: 250, maxHeight: 312),
@@ -573,7 +574,8 @@ class _HomeBackdrop extends StatelessWidget {
         ),
       ),
       child: Align(
-        alignment: const Alignment(0, 0.42),
+        // 캐릭터 발밑에 잔디 언덕이 오도록(캐릭터 무대 위치와 같이 움직인다).
+        alignment: const Alignment(0, 0.24),
         child: FractionallySizedBox(
           widthFactor: 1.5,
           child: AspectRatio(
