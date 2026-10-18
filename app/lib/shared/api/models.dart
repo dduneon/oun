@@ -908,3 +908,113 @@ class ClaimResult {
   final int reward;
   final int balance;
 }
+
+/// GET /reports/monthly — 월말 감성 리포트 재료(문구는 앱이 만든다).
+class MonthlyReport {
+  const MonthlyReport({
+    required this.month,
+    required this.firstMonth,
+    required this.isCurrentMonth,
+    required this.daysInMonth,
+    required this.workoutDays,
+    required this.workouts,
+    required this.totalMinutes,
+    required this.totalDistanceM,
+    required this.restDays,
+    required this.protectedDays,
+    required this.longestStreak,
+    required this.bySport,
+    required this.topWeekday,
+    required this.topTimeOfDay,
+    required this.coinsEarned,
+    required this.cheersReceived,
+    required this.prevWorkoutDays,
+    required this.activeDates,
+  });
+
+  final String month; // YYYY-MM
+  final String firstMonth; // 가입한 달 — 이전 달 이동의 끝
+  final bool isCurrentMonth;
+  final int daysInMonth;
+  final int workoutDays;
+  final int workouts;
+  final int totalMinutes;
+  final int totalDistanceM;
+  final int restDays;
+  final int protectedDays;
+  final int longestStreak;
+  final List<SportShare> bySport; // 시간 많은 순
+  final int? topWeekday; // 월=0 … 일=6
+  final String? topTimeOfDay; // morning | afternoon | evening | night
+  final int coinsEarned;
+  final int cheersReceived;
+  final int prevWorkoutDays;
+  final Set<int> activeDates; // 운동한 날(일자)
+
+  factory MonthlyReport.fromJson(Map<String, dynamic> j) => MonthlyReport(
+    month: j['month'] as String,
+    firstMonth: j['firstMonth'] as String,
+    isCurrentMonth: j['isCurrentMonth'] as bool,
+    daysInMonth: j['daysInMonth'] as int,
+    workoutDays: j['workoutDays'] as int,
+    workouts: j['workouts'] as int,
+    totalMinutes: j['totalMinutes'] as int,
+    totalDistanceM: j['totalDistanceM'] as int,
+    restDays: j['restDays'] as int,
+    protectedDays: j['protectedDays'] as int,
+    longestStreak: j['longestStreak'] as int,
+    bySport: (j['bySport'] as List)
+        .map((e) => SportShare.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    topWeekday: j['topWeekday'] as int?,
+    topTimeOfDay: j['topTimeOfDay'] as String?,
+    coinsEarned: j['coinsEarned'] as int,
+    cheersReceived: j['cheersReceived'] as int,
+    prevWorkoutDays: j['prevWorkoutDays'] as int,
+    activeDates: (j['activeDates'] as List)
+        .map((d) => int.parse((d as String).substring(8, 10)))
+        .toSet(),
+  );
+}
+
+class SportShare {
+  const SportShare({required this.sport, required this.count, required this.minutes});
+  final String sport;
+  final int count;
+  final int minutes;
+
+  factory SportShare.fromJson(Map<String, dynamic> j) => SportShare(
+    sport: j['sport'] as String,
+    count: j['count'] as int,
+    minutes: j['minutes'] as int,
+  );
+}
+
+/// GET /me/notification-settings — 분류별 푸시 수신 여부.
+class NotificationSettings {
+  const NotificationSettings({
+    required this.friends,
+    required this.cheers,
+    required this.crew,
+    required this.care,
+  });
+
+  final bool friends;
+  final bool cheers;
+  final bool crew;
+  final bool care;
+
+  bool get allOn => friends && cheers && crew && care;
+  bool get allOff => !friends && !cheers && !crew && !care;
+
+  factory NotificationSettings.fromJson(Map<String, dynamic> j) =>
+      NotificationSettings(
+        friends: j['friends'] as bool,
+        cheers: j['cheers'] as bool,
+        crew: j['crew'] as bool,
+        care: j['care'] as bool,
+      );
+
+  Map<String, bool> toJson() =>
+      {'friends': friends, 'cheers': cheers, 'crew': crew, 'care': care};
+}

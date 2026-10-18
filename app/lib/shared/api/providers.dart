@@ -95,6 +95,12 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// 이름·닉네임을 바꾼 뒤 세션의 프로필도 갈아 끼운다.
+  void updateProfile(Profile profile) {
+    if (state.status != AuthStatus.loggedIn) return;
+    state = AuthState(AuthStatus.loggedIn, profile: profile);
+  }
+
   Future<void> logout() async {
     await _secureStorage.delete(key: _prefsKey);
     ref.read(apiClientProvider).clearSession();
@@ -150,6 +156,20 @@ final walletProvider = FutureProvider<int>((ref) async {
 final characterMoodProvider = FutureProvider<CharacterMoodState>((ref) async {
   final api = await _authed(ref);
   return api.characterMood();
+});
+
+/// 월말 리포트(YYYY-MM).
+final monthlyReportProvider =
+    FutureProvider.family<MonthlyReport, String>((ref, month) async {
+  final api = await _authed(ref);
+  return api.monthlyReport(month);
+});
+
+/// 분류별 푸시 수신 설정.
+final notificationSettingsProvider =
+    FutureProvider<NotificationSettings>((ref) async {
+  final api = await _authed(ref);
+  return api.notificationSettings();
 });
 
 /// 휴식일·기록 보호권 상태.
@@ -324,6 +344,7 @@ void invalidateAfterWorkout(WidgetRef ref) {
   ref.invalidate(recentWorkoutsProvider);
   ref.invalidate(calendarProvider);
   ref.invalidate(monthSummaryProvider);
+  ref.invalidate(monthlyReportProvider);
   ref.invalidate(questsProvider);
   ref.invalidate(achievementsProvider);
   ref.invalidate(crewsProvider);

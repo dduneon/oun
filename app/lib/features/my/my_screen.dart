@@ -9,6 +9,9 @@ import '../../theme/app_theme.dart';
 import '../quest/quest_screen.dart';
 import 'achievements_screen.dart';
 import 'care_screen.dart';
+import 'notification_settings_screen.dart';
+import 'report_screen.dart';
+import 'settings_screen.dart';
 import 'notifications_screen.dart';
 
 /// 마이룸·프로필·월말 리포트·설정. 프로필은 서버 값.
@@ -120,7 +123,14 @@ class MyScreen extends ConsumerWidget {
                 ),
               ),
               const _MenuItem(Icons.cottage_outlined, '마이룸 꾸미기'),
-              const _MenuItem(Icons.description_outlined, '월말 리포트'),
+              _MenuItem(
+                Icons.description_outlined,
+                '월말 리포트',
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(builder: (_) => const ReportScreen()),
+                ),
+              ),
               _MenuItem(
                 Icons.shield_outlined,
                 '쉬어 가기 · 보호권 ${profile?.streakProtectors ?? 0}개',
@@ -129,8 +139,25 @@ class MyScreen extends ConsumerWidget {
                   MaterialPageRoute<void>(builder: (_) => const CareScreen()),
                 ),
               ),
-              const _MenuItem(Icons.notifications_outlined, '알림 설정'),
-              const _MenuItem(Icons.settings_outlined, '설정', last: true),
+              _MenuItem(
+                Icons.notifications_outlined,
+                '알림 설정',
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const NotificationSettingsScreen()),
+                ),
+              ),
+              _MenuItem(
+                Icons.settings_outlined,
+                '설정',
+                last: true,
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const SettingsScreen()),
+                ),
+              ),
             ],
           ),
         ),

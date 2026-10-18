@@ -125,6 +125,45 @@ class ApiClient {
     return Profile.fromJson(res.data!);
   }
 
+  /// 이름·닉네임 수정. 바뀐 프로필을 돌려준다.
+  Future<Profile> updateMe({String? nickname, String? displayName}) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/me',
+      data: {'nickname': ?nickname, 'displayName': ?displayName},
+    );
+    return Profile.fromJson(res.data!);
+  }
+
+  /// 회원 탈퇴 — 계정과 모든 기록을 지운다.
+  Future<void> deleteAccount() async {
+    await _dio.delete<void>('/me');
+  }
+
+  Future<NotificationSettings> notificationSettings() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/me/notification-settings',
+    );
+    return NotificationSettings.fromJson(res.data!);
+  }
+
+  Future<NotificationSettings> updateNotificationSettings(
+    Map<String, bool> patch,
+  ) async {
+    final res = await _dio.put<Map<String, dynamic>>(
+      '/me/notification-settings',
+      data: patch,
+    );
+    return NotificationSettings.fromJson(res.data!);
+  }
+
+  Future<MonthlyReport> monthlyReport(String month) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/reports/monthly',
+      queryParameters: {'month': month},
+    );
+    return MonthlyReport.fromJson(res.data!);
+  }
+
   Future<int> wallet() async {
     final res = await _dio.get<Map<String, dynamic>>('/wallet');
     return res.data!['balance'] as int;
