@@ -237,6 +237,8 @@ class ShopItem {
     required this.owned,
     required this.equipped,
     this.colorHex,
+    this.rarity = 'common',
+    this.hasSpecialFx = false,
   });
 
   final String key;
@@ -246,6 +248,10 @@ class ShopItem {
   final bool owned;
   final bool equipped;
   final String? colorHex;
+  final String rarity; // common | rare | epic
+  final bool hasSpecialFx;
+
+  bool get isRare => rarity != 'common';
 
   factory ShopItem.fromJson(Map<String, dynamic> j) => ShopItem(
     key: j['key'] as String,
@@ -255,7 +261,20 @@ class ShopItem {
     owned: j['owned'] as bool,
     equipped: j['equipped'] as bool? ?? false,
     colorHex: j['colorHex'] as String?,
+    rarity: j['rarity'] as String? ?? 'common',
+    hasSpecialFx: j['hasSpecialFx'] as bool? ?? false,
   );
+}
+
+/// 내 장착 상태(GET /inventory 중 장착한 것).
+class Loadout {
+  const Loadout({required this.equipment, required this.specialFx});
+
+  /// 슬롯 → 아이템 키.
+  final Map<String, String> equipment;
+
+  /// 특수 효과가 있는 장착 아이템 키.
+  final Set<String> specialFx;
 }
 
 /// GET /achievements 한 개.
@@ -445,12 +464,17 @@ Map<String, String> equipmentFromJson(Object? raw) => raw is Map
     ? {for (final e in raw.entries) e.key as String: e.value as String}
     : const {};
 
+/// 서버 specialFx(특수 효과 장착 아이템 키). 예전 서버라 없으면 빈 집합.
+Set<String> specialFxFromJson(Object? raw) =>
+    raw is List ? raw.cast<String>().toSet() : const {};
+
 class FriendHome {
   const FriendHome({
     required this.nickname,
     required this.displayName,
     required this.gender,
     this.equipment = const {},
+    this.specialFx = const {},
     required this.level,
     required this.streakCurrent,
     required this.weekDone,
@@ -467,6 +491,7 @@ class FriendHome {
 
   /// 캐릭터가 입은 옷·헤어(슬롯 → 아이템 키).
   final Map<String, String> equipment;
+  final Set<String> specialFx;
   final int level;
   final int streakCurrent;
   final List<bool> weekDone; // 월~일
@@ -483,6 +508,7 @@ class FriendHome {
     displayName: j['displayName'] as String,
     gender: j['gender'] as String,
     equipment: equipmentFromJson(j['equipment']),
+    specialFx: specialFxFromJson(j['specialFx']),
     level: j['level'] as int,
     streakCurrent: j['streakCurrent'] as int,
     weekDone: (j['weekDone'] as List).cast<bool>(),
@@ -557,6 +583,7 @@ class CrewMemberData {
     required this.displayName,
     required this.gender,
     this.equipment = const {},
+    this.specialFx = const {},
     required this.role,
     required this.isMe,
   });
@@ -567,6 +594,7 @@ class CrewMemberData {
 
   /// 캐릭터가 입은 옷·헤어(슬롯 → 아이템 키).
   final Map<String, String> equipment;
+  final Set<String> specialFx;
   final String role; // leader | member
   final bool isMe;
 
@@ -577,6 +605,7 @@ class CrewMemberData {
     displayName: j['displayName'] as String,
     gender: j['gender'] as String,
     equipment: equipmentFromJson(j['equipment']),
+    specialFx: specialFxFromJson(j['specialFx']),
     role: j['role'] as String,
     isMe: j['isMe'] as bool,
   );

@@ -9,13 +9,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 레이어 PNG는 art/character/oun_villager.blend 에서 같은 카메라·같은 캔버스로
 /// 렌더한 것(art/character/render_layers.py)이라 그대로 겹치면 맞물린다.
 class CharacterLook {
-  const CharacterLook({required this.gender, this.equipment = const {}});
+  const CharacterLook({
+    required this.gender,
+    this.equipment = const {},
+    this.specialFx = const {},
+  });
 
   /// 'm' | 'f'. 얼굴(여자는 body_f*)과 기본 머리(남자 short, 여자 down)를 정한다.
   final String gender;
 
   /// 슬롯(clothing·bottom·shoes·hair·prop) → 장착 아이템 키. clothing = 상의.
   final Map<String, String> equipment;
+
+  /// 특수 효과가 있는 장착 아이템 키(서버 Item.hasSpecialFx). 희귀 아이템을 입으면
+  /// 캐릭터 둘레에 반짝임이, 이어폰을 끼면 음표가 떠오른다.
+  final Set<String> specialFx;
+
+  /// 그릴 효과 종류. 순수 치장 — 능력치와 무관하다.
+  Set<CharacterFx> get effects => {
+    for (final key in specialFx)
+      key == 'earbuds' ? CharacterFx.notes : CharacterFx.sparkles,
+  };
 
   bool get _female => gender == 'f';
 
@@ -94,15 +108,30 @@ class CharacterLook {
       other._bottom == _bottom &&
       other._shoe == _shoe &&
       other._hair == _hair &&
-      other._prop == _prop;
+      other._prop == _prop &&
+      _sameFx(other.effects, effects);
+
+  static bool _sameFx(Set<CharacterFx> a, Set<CharacterFx> b) =>
+      a.length == b.length && a.containsAll(b);
 
   @override
-  int get hashCode => Object.hash(gender, _top, _bottom, _shoe, _hair, _prop);
+  int get hashCode => Object.hash(
+    gender,
+    _top,
+    _bottom,
+    _shoe,
+    _hair,
+    _prop,
+    Object.hashAllUnordered(effects),
+  );
 }
 
 /// 얼굴 표정. 몸 레이어에 얼굴이 함께 그려져 있어 몸 PNG를 바꿔 끼운다.
 /// sleepy·hungry는 서버 mood(오래 쉼)를 보여 주는 평상시 얼굴이다.
 enum CharacterFace { normal, blink, happy, sleepy, hungry }
+
+/// 장착 아이템 특수 효과.
+enum CharacterFx { sparkles, notes }
 
 /// 캔버스 비율(렌더 800×1000).
 const double kCharacterAspect = 0.8;
@@ -130,6 +159,7 @@ class CharacterFigure extends StatelessWidget {
           if (shadow) const _GroundShadow(),
           _layer(look.body(face)),
           for (final l in look.overlayLayers) _layer(l),
+          if (look.effects.isNotEmpty) SpecialFx(effects: look.effects),
         ],
       ),
     );
@@ -386,4 +416,120 @@ class _LivingCharacterState extends ConsumerState<LivingCharacter>
       ),
     );
   }
+}
+
+/// 희귀 아이템 효과: 캐릭터 둘레에 반짝이는 별, 이어폰은 머리 옆으로 떠오르는 음표.
+/// 캐릭터 캔버스(800×1000) 비율 좌표로 그려 어떤 크기에서도 같은 자리에 뜬다.
+class SpecialFx extends StatefulWidget {
+  const SpecialFx({super.key, required this.effects});
+  final Set<CharacterFx> effects;
+
+  @override
+  State<SpecialFx> createState() => _SpecialFxState();
+}
+
+class _SpecialFxState extends State<SpecialFx>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _t = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3200),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _t.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _t,
+        builder: (context, _) => CustomPaint(
+          painter: _FxPainter(widget.effects, _t.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _FxPainter extends CustomPainter {
+  _FxPainter(this.effects, this.t);
+  final Set<CharacterFx> effects;
+  final double t;
+
+  static const _gold = Color(0xFFF2C14E);
+
+  /// 반짝임 자리(캔버스 비율 x, y, 크기, 박자 어긋남).
+  static const _stars = [
+    (0.17, 0.30, 0.055, 0.00),
+    (0.84, 0.22, 0.045, 0.35),
+    (0.10, 0.62, 0.040, 0.62),
+    (0.90, 0.55, 0.050, 0.18),
+    (0.78, 0.82, 0.035, 0.80),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (effects.contains(CharacterFx.sparkles)) _sparkles(canvas, size);
+    if (effects.contains(CharacterFx.notes)) _notes(canvas, size);
+  }
+
+  void _sparkles(Canvas canvas, Size size) {
+    for (final (x, y, r, phase) in _stars) {
+      // 한 바퀴에 한 번 반짝: 커졌다 사라진다.
+      final p = (t + phase) % 1.0;
+      final glow = math.sin(p * math.pi);
+      if (glow <= 0.02) continue;
+      final c = Offset(x * size.width, y * size.height);
+      final s = r * size.width * (0.5 + 0.5 * glow);
+      final star = Path()
+        ..moveTo(c.dx, c.dy - s)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx + s, c.dy)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy + s)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx - s, c.dy)
+        ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy - s)
+        ..close();
+      canvas.drawPath(
+        star,
+        Paint()..color = _gold.withValues(alpha: 0.9 * glow),
+      );
+      canvas.drawCircle(
+        c,
+        s * 0.22,
+        Paint()..color = Colors.white.withValues(alpha: glow),
+      );
+    }
+  }
+
+  void _notes(Canvas canvas, Size size) {
+    // 음표 셋이 귀 옆에서 박자를 달리해 위로 떠오르며 사라진다.
+    const glyphs = ['♪', '♫', '♪'];
+    for (var i = 0; i < glyphs.length; i++) {
+      final p = (t + i / glyphs.length) % 1.0;
+      final side = i.isEven ? 1.0 : -1.0;
+      final x = 0.5 + side * (0.37 + 0.05 * math.sin(p * math.pi * 2));
+      final y = 0.34 - 0.24 * p;
+      final alpha = math.sin(p * math.pi);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: glyphs[i],
+          style: TextStyle(
+            fontSize: size.width * 0.13,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFFC47A45).withValues(alpha: alpha),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(
+        canvas,
+        Offset(x * size.width - tp.width / 2, y * size.height - tp.height / 2),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FxPainter old) => old.t != t || old.effects != effects;
 }

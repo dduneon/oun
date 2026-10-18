@@ -119,6 +119,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final look = CharacterLook(
       gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
       equipment: ref.watch(equippedItemsProvider).value ?? const {},
+      specialFx: ref.watch(specialFxProvider).value ?? const {},
     );
     final safe = MediaQuery.viewPaddingOf(context);
 

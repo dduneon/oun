@@ -236,11 +236,21 @@ final shopItemsProvider =
   return api.shopItems(category: category);
 });
 
-/// 슬롯별 장착 아이템. 홈 캐릭터와 상점의 장착 표시가 함께 구독한다.
-final equippedItemsProvider = FutureProvider<Map<String, String>>((ref) async {
+/// 내 장착 상태(슬롯 → 아이템 + 특수 효과). 장착을 바꾸면 이걸 무효화한다.
+final loadoutProvider = FutureProvider<Loadout>((ref) async {
   final api = await _authed(ref);
-  return api.equippedItems();
+  return api.loadout();
 });
+
+/// 슬롯별 장착 아이템. 홈 캐릭터와 상점의 장착 표시가 함께 구독한다.
+final equippedItemsProvider = FutureProvider<Map<String, String>>(
+  (ref) async => (await ref.watch(loadoutProvider.future)).equipment,
+);
+
+/// 장착 중인 특수 효과 아이템 키(희귀 아이템 반짝임 등).
+final specialFxProvider = FutureProvider<Set<String>>(
+  (ref) async => (await ref.watch(loadoutProvider.future)).specialFx,
+);
 
 final friendsProvider = FutureProvider<List<Friend>>((ref) async {
   final api = await _authed(ref);
@@ -411,7 +421,7 @@ List<RefreshTarget> providersForTab(int index) => switch (index) {
           profileProvider,
           characterMoodProvider,
           careProvider,
-          equippedItemsProvider,
+          loadoutProvider,
           walletProvider,
           todayMinutesProvider,
           questsProvider,
@@ -428,7 +438,7 @@ List<RefreshTarget> providersForTab(int index) => switch (index) {
       2 => [
           walletProvider,
           shopItemsProvider,
-          equippedItemsProvider,
+          loadoutProvider,
           profileProvider,
         ],
       3 => socialProviders,

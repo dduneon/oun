@@ -342,14 +342,21 @@ class ApiClient {
 
   /// 현재 캐릭터에 슬롯별로 장착된 아이템 키.
   /// 서버 인벤토리가 source of truth라 앱 재시작 뒤에도 같은 모습으로 복원된다.
-  Future<Map<String, String>> equippedItems() async {
+  Future<Loadout> loadout() async {
     final res = await _dio.get<Map<String, dynamic>>('/inventory');
-    final items = res.data!['items'] as List;
-    return {
-      for (final raw in items)
-        if ((raw as Map<String, dynamic>)['equipped'] == true)
-          raw['category'] as String: raw['key'] as String,
-    };
+    final equipped = (res.data!['items'] as List)
+        .cast<Map<String, dynamic>>()
+        .where((raw) => raw['equipped'] == true)
+        .toList();
+    return Loadout(
+      equipment: {
+        for (final raw in equipped) raw['category'] as String: raw['key'] as String,
+      },
+      specialFx: {
+        for (final raw in equipped)
+          if (raw['hasSpecialFx'] == true) raw['key'] as String,
+      },
+    );
   }
 
   // ── 소셜: 친구/응원 ────────────────────────────────────

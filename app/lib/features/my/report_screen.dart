@@ -234,6 +234,7 @@ class _ReportCard extends ConsumerWidget {
     final look = CharacterLook(
       gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
       equipment: ref.watch(equippedItemsProvider).value ?? const {},
+      specialFx: ref.watch(specialFxProvider).value ?? const {},
     );
 
     final facts = <(IconData, String)>[

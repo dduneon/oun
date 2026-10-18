@@ -106,6 +106,7 @@ class FriendHomeScreen extends ConsumerWidget {
               look: CharacterLook(
                 gender: home.gender,
                 equipment: home.equipment,
+                specialFx: home.specialFx,
               ),
             ),
           ),

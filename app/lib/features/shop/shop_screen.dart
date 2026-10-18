@@ -51,7 +51,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
           await api.equipItem(it.key);
         }
         ref.invalidate(shopItemsProvider);
-        ref.invalidate(equippedItemsProvider);
+        ref.invalidate(loadoutProvider);
         if (mounted) {
           OunToast.show(
             context,
@@ -158,7 +158,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       }
       ref.invalidate(walletProvider);
       ref.invalidate(shopItemsProvider);
-      ref.invalidate(equippedItemsProvider);
+      ref.invalidate(loadoutProvider);
       ref.invalidate(achievementsProvider);
       if (mounted) {
         OunToast.show(
@@ -253,9 +253,17 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
       ...?ref.watch(equippedItemsProvider).value,
       for (final e in _tryOn.entries) e.key: e.value.key,
     };
+    // 효과: 지금 입은 효과 아이템(입어보기로 가려지지 않은 것) + 입어보는 효과 아이템.
+    final myFx = ref.watch(specialFxProvider).value ?? const <String>{};
     final look = CharacterLook(
       gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
       equipment: equipment,
+      specialFx: {
+        for (final key in equipment.values)
+          if (myFx.contains(key)) key,
+        for (final it in _tryOn.values)
+          if (it.hasSpecialFx) it.key,
+      },
     );
     final trying = _trying;
     return Container(
@@ -457,6 +465,33 @@ class _ShopScreenState extends ConsumerState<ShopScreen> {
                     ),
                   ),
                 ),
+                // 희귀 아이템: 입으면 캐릭터에 특수 효과가 붙는다는 표시.
+                if (it.isRare)
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFFFF4D6),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: const Color(0xFFF2C14E))),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.auto_awesome_rounded,
+                              size: 10, color: Color(0xFFD99A1E)),
+                          const SizedBox(width: 2),
+                          Text(it.hasSpecialFx ? '희귀 · 효과' : '희귀',
+                              style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFB07A12))),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (it.owned || _tryOn[it.category]?.key == it.key)
                   Positioned(
                     top: 6,
