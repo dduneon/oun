@@ -36,6 +36,13 @@ flutter test
 - `pod install` needs a UTF-8 locale: `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install`.
 - Release signing on Android reads `app/android/key.properties` (gitignored) and silently falls back to the debug key when absent. Firebase config files are gitignored too — see `BUILD.md`.
 
+### Releasing (TestFlight / APK) — details in BUILD.md E/F
+1. Bump the build number in `app/pubspec.yaml` (`version: x.y.z+N`, raise `N`) and commit — TestFlight rejects a reused build number (`-19232` / "빌드 버전은 이전에 업로드한 버전보다 상위"), including one uploaded earlier via Transporter.
+2. `flutter build ipa --release --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com --export-options-plist=ios/ExportOptions.plist` (from `app/`).
+3. Upload with the Xcode-signed-in account, no keys needed: copy `ios/ExportOptions.plist`, add `destination = upload`, then `xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive -exportOptionsPlist <copy> -exportPath <tmp> -allowProvisioningUpdates` → `Upload succeeded.` Uploading is irreversible — confirm with the user first.
+4. APK: `flutter build apk --release --dart-define=OUN_API_BASE_URL=https://oun-api.dduneon.com` → `app/build/app/outputs/flutter-apk/app-release.apk` (debug-signed without `key.properties`).
+- `PLA Update available` / `No signing certificate "iOS Distribution"` or `You do not have required contracts` = the user (Account Holder) must accept Apple's updated agreements; acceptance can take minutes to propagate.
+
 ### Changing the character art
 Layers come from `art/character/oun_villager.blend` (one collection per layer), rendered with the same orthographic camera onto an 800×1000 canvas by `art/character/render_layers.py` into `app/assets/character/`:
 ```bash

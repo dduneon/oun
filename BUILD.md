@@ -142,10 +142,10 @@ TestFlight로 확인한다. 시뮬레이터는 Apple ID로 로그인돼 있어�
   ```bash
   blender art/character/oun_villager.blend --background --python art/character/render_layers.py
   ```
-- 겹치는 순서: 몸(`body*.png`, 표정 3종) → 상의 → 타월 → 이어폰·모자.
+- 겹치는 순서: 몸(`body*.png`, 표정 3종) → 신발 → 하의 → 상의 → 타월 → 머리 → 이어폰·모자.
   가려져야 하는 부분은 렌더할 때 BODY를 홀드아웃으로 미리 뚫어 둔다.
-- **머리카락 레이어는 현재 앱에서 그리지 않는다.** `render_layers.py`는 아직 `hair_*` 레이어도
-  렌더하지만 그 PNG는 `app/assets/character/`에 두지 않는다.
+- 헤어 메시는 `build_hair.py`, 상점 의상 메시는 `build_outfits.py`가 만든다. 둘 다
+  `render_layers.py`보다 먼저 Blender에서 돌린다(자세한 규칙은 CLAUDE.md "Changing the character art").
 - 레이어 하나만 다시 렌더해도 되지만, **몸 모양을 바꿨다면 전 레이어를 다시 렌더**해야 맞물린다.
 - PNG만 바뀌면 앱 코드는 그대로다. 새 아이템을 추가할 때만 `CharacterLook`의 키 목록을 늘린다.
 
@@ -216,28 +216,67 @@ xcodebuild -exportArchive -archivePath build/Runner.xcarchive \
 
 ### F-3. 업로드
 
+#### 권장: xcodebuild로 바로 업로드 (키·암호 입력 없음)
+
+**Xcode에 로그인된 Apple 계정**(Xcode → Settings → Accounts, 팀 `A4YL85FB4L`)으로 F-2에서 만든
+아카이브를 App Store Connect에 그대로 올린다. API 키나 앱 암호가 필요 없고, 터미널에서 끝난다.
+
+`ExportOptions.plist`에 `destination = upload`만 더한 복사본을 쓴다(원본은 ipa 내보내기용으로 둔다).
+```bash
+cd app
+cp ios/ExportOptions.plist /tmp/ExportUpload.plist
+/usr/libexec/PlistBuddy -c "Add :destination string upload" /tmp/ExportUpload.plist
+
+# 올릴 아카이브의 버전/빌드번호 확인 — 이미 올라간 빌드번호면 거절된다
+/usr/libexec/PlistBuddy -c "Print :ApplicationProperties:CFBundleShortVersionString" \
+  -c "Print :ApplicationProperties:CFBundleVersion" build/ios/archive/Runner.xcarchive/Info.plist
+
+xcodebuild -exportArchive \
+  -archivePath build/ios/archive/Runner.xcarchive \
+  -exportOptionsPlist /tmp/ExportUpload.plist \
+  -exportPath /tmp/oun_upload -allowProvisioningUpdates
+```
+- 성공하면 `Upload succeeded.` / `** EXPORT SUCCEEDED **`가 찍힌다.
+- `flutter build ipa`가 만든 아카이브 경로는 `app/build/ios/archive/Runner.xcarchive`다
+  (F-2의 xcodebuild 경로로 만들었다면 `app/ios/build/Runner.xcarchive`).
+- **업로드는 되돌릴 수 없고 그 빌드번호는 다시 못 쓴다.** 올리기 전에 버전·API 주소를 확인한다.
+
+#### 그 밖의 방법
+
 | 방법 | 명령/도구 |
 | :--- | :--- |
-| Transporter 앱 | ipa를 끌어다 놓기(가장 단순) |
+| Transporter 앱 | `app/build/ios/ipa/*.ipa`를 끌어다 놓고 전송(Deliver) |
+| Xcode Organizer | `open app/build/ios/archive/Runner.xcarchive` → Distribute App → App Store Connect → Upload |
 | App Store Connect API 키 | `xcrun altool --upload-app -f <ipa> -t ios --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>` |
-| 앱 암호 | `xcrun altool --upload-app -f <ipa> -t ios -u <Apple ID> -p <app-specific password>` |
 
-> 업로드 전에 검증만 해보려면 `--validate-app`으로 같은 명령을 한 번 돌린다.
-> 처리(Processing)에 10~30분. 수출 규정(암호화) 문항은 `Info.plist`의
-> `ITSAppUsesNonExemptEncryption = false`로 이미 답해 둬서 매번 묻지 않는다.
+#### 올린 뒤
+
+1. 처리(Processing)에 10~30분. 끝나면 메일이 온다.
+   수출 규정(암호화) 문항은 `Info.plist`의 `ITSAppUsesNonExemptEncryption = false`로 이미 답해 둬서 묻지 않는다.
+2. App Store Connect → 앱 → 오운 → **TestFlight**에서 내부 테스트 그룹에 테스터(Apple ID)가 있는지 확인.
+3. 아이폰의 TestFlight 앱에서 새 빌드를 설치한다.
+
+#### 한 번에 (버전 올리기 → ipa → 업로드)
+
+1. `app/pubspec.yaml`의 `version: x.y.z+N`에서 `N`을 올리고 커밋한다.
+2. F-2의 `flutter build ipa ...` (배포 서버 `--dart-define` 포함).
+3. 위 xcodebuild 업로드.
 
 ### F-4. 자주 걸리는 것
 
 | 증상 | 원인 | 해결 |
 | :--- | :--- | :--- |
 | 올린 빌드가 옛 버전/옛 API 주소 | `--dart-define` 누락, 또는 xcodebuild 경로에서 `Generated.xcconfig` 미갱신 | F-2의 `--config-only` 실행 후 재빌드 |
-| `ITMS-90189` 중복 빌드번호 | 같은 빌드번호 재업로드 | `pubspec.yaml`의 `+n` 올리기 |
+| `ITMS-90189` 또는 `-19232 ... already been used` / "빌드 버전은 이전에 업로드한 버전보다 상위" | 같은 빌드번호 재업로드(Transporter·다른 경로로 이미 올라간 번호 포함) | `pubspec.yaml`의 `+n` 올리고 ipa를 다시 빌드 |
+| `exportArchive Unable to process request - PLA Update available` + `No signing certificate "iOS Distribution"` | Apple Developer 프로그램 약관(PLA) 갱신 미동의 | Account Holder가 developer.apple.com/account 상단 배너에서 동의 |
+| `You do not have required contracts to perform an operation` | App Store Connect 계약 미동의 또는 동의 반영 지연 | App Store Connect → 비즈니스 → 계약에서 무료 앱 계약이 "활성"인지 확인. 동의 직후면 수 분~1시간 뒤 재시도 |
 | TestFlight에서 푸시 안 옴 | `aps-environment`가 development | Release는 `RunnerRelease.entitlements`(C 참고) |
 | 프로파일에 Push capability 없음 | 자동 서명 갱신 안 됨 | `-allowProvisioningUpdates` 유지, ADC에서 App ID 확인 |
 | `pod install` 인코딩 에러 | Ruby ASCII-8BIT 로케일 | `LANG/LC_ALL=en_US.UTF-8` |
 
 ---
 
-## 상태 (2026-10-17)
+## 상태 (2026-10-20)
 - ✅ iOS 시뮬레이터: `flutter build ios --simulator`로 빌드, 2D 레이어 캐릭터 동작 확인
-- 🔶 Unity를 걷어낸 뒤 Android 빌드, iOS 아카이브·TestFlight 업로드는 아직 다시 확인하지 않았다
+- ✅ iOS: `flutter build ipa` → xcodebuild 업로드(F-3)로 1.0.1 (4) TestFlight 업로드 확인
+- ✅ Android: `flutter build apk --release` 빌드 확인. `key.properties`가 없어 debug 키 서명(Play 업로드 불가)
