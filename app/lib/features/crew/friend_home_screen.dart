@@ -75,7 +75,12 @@ class FriendHomeScreen extends ConsumerWidget {
                   '${relativeDay(w.performedAt)} · ${workoutMetric(w)}',
                   '${w.minutes}분',
                 ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
+            const _Label('받은 응원'),
+            const SizedBox(height: 10),
+            _CheersReceived(
+                total: home.cheersReceived, today: home.cheersReceivedToday),
+            const SizedBox(height: 14),
             _CheerButton(
               nickname: nickname,
               displayName: displayName,
@@ -277,6 +282,52 @@ class _Label extends StatelessWidget {
           fontSize: 13,
           fontWeight: FontWeight.w700,
           color: OunColors.textPrimary));
+}
+
+/// 이 친구가 받은 응원 수: 지금까지 / 오늘. 응원을 보내면 바로 갱신된다.
+class _CheersReceived extends StatelessWidget {
+  const _CheersReceived({required this.total, required this.today});
+  final int total;
+  final int today;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: OunColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: OunColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: OunColors.tabAccent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(Icons.favorite_rounded,
+                size: 18, color: OunColors.tabAccent),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text('지금까지 ${comma(total)}개',
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+          ),
+          Text('오늘 ${comma(today)}개',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: OunColors.tabAccent)),
+        ],
+      ),
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {

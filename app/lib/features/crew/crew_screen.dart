@@ -726,41 +726,27 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
               ),
             ),
           ),
-          Row(
-            children: [
-              for (final r in friend.reactions)
-                Container(
-                  margin: const EdgeInsets.only(left: 6),
+          // 응원 보내기 버튼
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(
+                  side: BorderSide(color: OunColors.cardBorder)),
+              child: InkWell(
+                onTap: _sending || soldOut ? null : () => _cheer(context),
+                customBorder: const CircleBorder(),
+                child: SizedBox(
                   width: 28,
                   height: 28,
-                  decoration: const BoxDecoration(
-                      color: OunColors.card, shape: BoxShape.circle),
-                  alignment: Alignment.center,
-                  child: Text(r, style: const TextStyle(fontSize: 13)),
-                ),
-              // 응원 보내기 버튼
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: Material(
-                  color: Colors.transparent,
-                  shape: const CircleBorder(
-                      side: BorderSide(color: OunColors.cardBorder)),
-                  child: InkWell(
-                    onTap: _sending || soldOut ? null : () => _cheer(context),
-                    customBorder: const CircleBorder(),
-                    child: SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: Icon(Icons.favorite_rounded,
-                          size: 15,
-                          color: _sending || soldOut
-                              ? OunColors.textFaint
-                              : OunColors.tabAccent),
-                    ),
-                  ),
+                  child: Icon(Icons.favorite_rounded,
+                      size: 15,
+                      color: _sending || soldOut
+                          ? OunColors.textFaint
+                          : OunColors.tabAccent),
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),

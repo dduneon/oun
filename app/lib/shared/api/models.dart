@@ -310,7 +310,6 @@ class Friend {
     required this.gender,
     required this.streakCurrent,
     required this.workedOutToday,
-    required this.reactions,
     required this.cheersLeftToday,
     this.latestWorkout,
   });
@@ -320,7 +319,6 @@ class Friend {
   final String gender;
   final int streakCurrent;
   final bool workedOutToday;
-  final List<String> reactions;
 
   /// 오늘 이 친구에게 더 보낼 수 있는 응원 횟수(0이면 버튼 비활성).
   final int cheersLeftToday;
@@ -332,7 +330,6 @@ class Friend {
     gender: j['gender'] as String,
     streakCurrent: j['streakCurrent'] as int,
     workedOutToday: j['workedOutToday'] as bool,
-    reactions: (j['reactions'] as List).cast<String>(),
     cheersLeftToday: j['cheersLeftToday'] as int? ?? 0,
     latestWorkout: j['latestWorkout'] == null
         ? null
@@ -483,6 +480,8 @@ class FriendHome {
     required this.recent,
     required this.cheersLeftToday,
     required this.cheerDailyLimit,
+    this.cheersReceived = 0,
+    this.cheersReceivedToday = 0,
   });
 
   final String nickname;
@@ -503,6 +502,10 @@ class FriendHome {
   final int cheersLeftToday;
   final int cheerDailyLimit;
 
+  /// 이 친구가 받은 응원 수(모든 사람에게서): 지금까지 / 오늘.
+  final int cheersReceived;
+  final int cheersReceivedToday;
+
   factory FriendHome.fromJson(Map<String, dynamic> j) => FriendHome(
     nickname: j['nickname'] as String,
     displayName: j['displayName'] as String,
@@ -519,6 +522,8 @@ class FriendHome {
         .toList(),
     cheersLeftToday: j['cheersLeftToday'] as int? ?? 0,
     cheerDailyLimit: j['cheerDailyLimit'] as int? ?? 0,
+    cheersReceived: j['cheersReceived'] as int? ?? 0,
+    cheersReceivedToday: j['cheersReceivedToday'] as int? ?? 0,
   );
 }
 
