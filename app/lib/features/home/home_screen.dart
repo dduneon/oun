@@ -14,6 +14,7 @@ import '../../theme/app_theme.dart';
 import '../character/character_avatar.dart';
 import '../character/character_mood.dart';
 import '../my/care_screen.dart';
+import '../my/coin_history_screen.dart';
 import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
 
@@ -354,7 +355,7 @@ class _QuestButton extends ConsumerWidget {
   }
 }
 
-/// 코인 잔액 필. 서버 `GET /wallet` 값 그대로 표시(로딩 중엔 '—').
+/// 코인 잔액 필. 서버 `GET /wallet` 값 그대로 표시(로딩 중엔 '—'). 누르면 코인 내역.
 class _CoinPill extends ConsumerWidget {
   const _CoinPill();
 
@@ -364,24 +365,30 @@ class _CoinPill extends ConsumerWidget {
           data: comma,
           orElse: () => '—',
         );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-      decoration: BoxDecoration(
-        color: OunColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: OunColors.cardBorder),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(builder: (_) => const CoinHistoryScreen()),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.paid_rounded, size: 15, color: OunColors.coin),
-          const SizedBox(width: 5),
-          Text(amount,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: OunColors.textPrimary)),
-        ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: OunColors.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: OunColors.cardBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.paid_rounded, size: 15, color: OunColors.coin),
+            const SizedBox(width: 5),
+            Text(amount,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: OunColors.textPrimary)),
+          ],
+        ),
       ),
     );
   }
