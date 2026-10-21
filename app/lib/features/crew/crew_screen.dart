@@ -751,11 +751,11 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
                     child: SizedBox(
                       width: 28,
                       height: 28,
-                      child: Icon(Icons.add_rounded,
-                          size: 16,
+                      child: Icon(Icons.favorite_rounded,
+                          size: 15,
                           color: _sending || soldOut
                               ? OunColors.textFaint
-                              : OunColors.textMuted),
+                              : OunColors.tabAccent),
                     ),
                   ),
                 ),
