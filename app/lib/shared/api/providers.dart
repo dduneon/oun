@@ -221,6 +221,13 @@ final walletProvider = FutureProvider<int>((ref) async {
   return api.wallet();
 });
 
+/// 코인 내역. 화면을 열 때마다 새로 받는다(autoDispose).
+final coinHistoryProvider =
+    FutureProvider.autoDispose<CoinHistory>((ref) async {
+  final api = await _authed(ref);
+  return api.coinHistory();
+});
+
 /// 홈 캐릭터의 기분(표정·말풍선).
 final characterMoodProvider = FutureProvider<CharacterMoodState>((ref) async {
   final api = await _authed(ref);

@@ -1091,3 +1091,68 @@ class PersonCard {
     streakCurrent: j['streakCurrent'] as int?,
   );
 }
+
+/// GET /wallet/history 한 줄 — 코인이 언제 왜 늘고 줄었는지.
+class CoinHistoryEntry {
+  const CoinHistoryEntry({
+    required this.id,
+    required this.delta,
+    required this.balanceAfter,
+    required this.reason,
+    required this.refType,
+    required this.createdAt,
+    this.sport,
+    this.customSportName,
+    this.title,
+    this.level,
+  });
+  final String id;
+  final int delta;
+  final int balanceAfter;
+
+  /// workout_reward | quest_reward | achievement | shop_purchase | rest_day | refund
+  final String reason;
+
+  /// workout_log | quest | crew_reward | shop_order | rest_day
+  final String? refType;
+  final DateTime createdAt;
+
+  /// 운동 보상/정정의 종목. 기록이 지워졌으면 null.
+  final String? sport;
+  final String? customSportName;
+
+  /// 퀘스트 제목 · 아이템 이름 · 크루 이름.
+  final String? title;
+
+  /// 크루 레벨 보상의 레벨.
+  final int? level;
+
+  factory CoinHistoryEntry.fromJson(Map<String, dynamic> j) =>
+      CoinHistoryEntry(
+        id: j['id'] as String,
+        delta: j['delta'] as int,
+        balanceAfter: j['balanceAfter'] as int,
+        reason: j['reason'] as String,
+        refType: j['refType'] as String?,
+        createdAt: DateTime.parse(j['createdAt'] as String).toLocal(),
+        sport: j['sport'] as String?,
+        customSportName: j['customSportName'] as String?,
+        title: j['title'] as String?,
+        level: j['level'] as int?,
+      );
+}
+
+/// GET /wallet/history — 현재 잔액 + 최근 내역(최신순).
+class CoinHistory {
+  const CoinHistory({required this.balance, required this.entries});
+  final int balance;
+  final List<CoinHistoryEntry> entries;
+
+  factory CoinHistory.fromJson(Map<String, dynamic> j) => CoinHistory(
+        balance: j['balance'] as int,
+        entries: [
+          for (final e in j['entries'] as List)
+            CoinHistoryEntry.fromJson(e as Map<String, dynamic>),
+        ],
+      );
+}

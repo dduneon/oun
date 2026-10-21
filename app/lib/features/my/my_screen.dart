@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../quest/quest_screen.dart';
 import 'achievements_screen.dart';
 import 'care_screen.dart';
+import 'coin_history_screen.dart';
 import 'notification_settings_screen.dart';
 import 'report_screen.dart';
 import 'settings_screen.dart';
@@ -79,7 +80,13 @@ class MyScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              CoinChip(amount: coin),
+              GestureDetector(
+                onTap: () => Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const CoinHistoryScreen()),
+                ),
+                child: CoinChip(amount: coin),
+              ),
             ],
           ),
         ),
@@ -101,6 +108,15 @@ class MyScreen extends ConsumerWidget {
                     Navigator.of(context, rootNavigator: true).push(
                   MaterialPageRoute<void>(
                       builder: (_) => const QuestScreen()),
+                ),
+              ),
+              _MenuItem(
+                Icons.paid_outlined,
+                '코인 내역',
+                onTap: (context) =>
+                    Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const CoinHistoryScreen()),
                 ),
               ),
               _MenuItem(

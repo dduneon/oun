@@ -195,6 +195,11 @@ class ApiClient {
     return res.data!['balance'] as int;
   }
 
+  Future<CoinHistory> coinHistory() async {
+    final res = await _dio.get<Map<String, dynamic>>('/wallet/history');
+    return CoinHistory.fromJson(res.data!);
+  }
+
   // ── 캐릭터 기분 · Care System ─────────────────────────
 
   Future<CharacterMoodState> characterMood() async {
