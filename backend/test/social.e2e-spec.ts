@@ -80,6 +80,9 @@ describe('오운 소셜·크루 (e2e)', () => {
     expect(res.body.weekDone).toHaveLength(7);
     expect(typeof res.body.equipment).toBe('object'); // 슬롯 → 아이템 키
     expect(res.body.recent.length).toBeGreaterThan(0);
+    // 바로 위 테스트에서 보낸 응원이 오늘·누적 받은 응원 수에 들어간다.
+    expect(res.body.cheersReceivedToday).toBeGreaterThanOrEqual(1);
+    expect(res.body.cheersReceived).toBeGreaterThanOrEqual(res.body.cheersReceivedToday);
   });
 
   it('크루 생성 → 초대 → 운동을 태그해 직접 피드에 올린다', async () => {

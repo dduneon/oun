@@ -336,7 +336,7 @@ export class SocialService {
     if (!user) throw new NotFoundException('해당 닉네임의 유저가 없어요');
 
     const weekStart = kstWeekStart(new Date());
-    const [weekLogs, recent] = await Promise.all([
+    const [weekLogs, recent, cheersReceived, cheersReceivedToday] = await Promise.all([
       this.prisma.workoutLog.findMany({
         where: { userId: user.id, verifyStatus: 'verified', performedAt: { gte: weekStart } },
         select: { performedAt: true, durationSec: true },
@@ -345,6 +345,10 @@ export class SocialService {
         where: { userId: user.id, verifyStatus: 'verified' },
         orderBy: { performedAt: 'desc' },
         take: 5,
+      }),
+      this.prisma.cheer.count({ where: { toUserId: user.id } }),
+      this.prisma.cheer.count({
+        where: { toUserId: user.id, createdAt: { gte: kstDateOnly(new Date()) } },
       }),
     ]);
 
@@ -374,6 +378,9 @@ export class SocialService {
           ? 0 // 나 자신은 응원할 수 없다
           : (await this.cheersLeftToday(viewerId, [user.id])).get(user.id) ?? 0,
       cheerDailyLimit: CHEER_DAILY_LIMIT_PER_TARGET,
+      // 이 친구가 받은 응원 수(모든 사람에게서): 지금까지 / 오늘(KST)
+      cheersReceived,
+      cheersReceivedToday,
     };
   }
 
