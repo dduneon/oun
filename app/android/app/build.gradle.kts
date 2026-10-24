@@ -31,8 +31,8 @@ android {
         applicationId = "com.dduneon.oun"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // flutter_secure_storage의 EncryptedSharedPreferences가 API 23+를 요구한다.
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        // Health Connect 플러그인이 API 26+를 요구한다.
+        minSdk = maxOf(flutter.minSdkVersion, 26)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -71,4 +71,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("androidx.health.connect:connect-client:1.1.0-rc03")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
 }

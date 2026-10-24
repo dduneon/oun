@@ -36,6 +36,7 @@ model User {
 
   ledger            CurrencyLedger[]
   workouts          WorkoutLog[]
+  healthImports     HealthWorkoutImport[]
   characterStat     CharacterStat?
   characterMood     CharacterMood?
   streak            Streak?
@@ -141,6 +142,7 @@ model WorkoutLog {
   exercises    WorkoutExercise[]
   photoRef     String?       @db.VarChar(512) // 운동 인증 사진 (S3 키 등, 현재는 존재 여부만)
   source       WorkoutSource @default(manual)
+  healthImport HealthWorkoutImport?
   verifyStatus VerifyStatus  @default(pending)
   rejectReason String?       @db.Text
   performedAt  DateTime // 운동 수행 시각 (mood/캘린더 기준)
@@ -625,4 +627,16 @@ model CrewRewardClaim {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([crewId, userId, level])
+}
+
+// Keep the source identity after deletion so re-import cannot award quests again.
+model HealthWorkoutImport {
+  id String @id @default(cuid())
+  userId String
+  source WorkoutSource
+  externalId String @db.VarChar(191)
+  workoutId String? @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout WorkoutLog? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  @@unique([userId, source, externalId])
 }

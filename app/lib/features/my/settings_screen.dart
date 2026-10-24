@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api/providers.dart';
+import '../health/health_import_screen.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
@@ -116,6 +117,12 @@ class SettingsScreen extends ConsumerWidget {
                       prefix: '@',
                       nickname: true),
             ),
+          ]),
+          const SizedBox(height: 18),
+          const _SectionLabel('건강 앱'),
+          _Group(children: [
+            _Row(title: '연결 및 운동 불러오기', last: true,
+              onTap: () => openHealthImport(context)),
           ]),
           const SizedBox(height: 18),
           const _SectionLabel('계정'),

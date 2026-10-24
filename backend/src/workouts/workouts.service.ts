@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  ConflictException,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -62,6 +63,13 @@ export class WorkoutsService {
 
   /** POST /workouts — 기록 제출 → 검증 → (승인 시) 보상·스탯·스트릭·mood·퀘스트·업적. */
   async create(userId: string, dto: CreateWorkoutDto) {
+    if (dto.source && dto.source !== 'manual') {
+      if (!dto.externalId?.trim() || !dto.performedAt) {
+        throw new BadRequestException('건강 앱의 원본 기록 정보가 필요해요');
+      }
+    } else if (dto.externalId != null) {
+      throw new BadRequestException('건강 앱 출처가 필요해요');
+    }
     checkDate(dto);
     const exercises = exerciseData(dto);
     const performedAt = dto.performedAt ? new Date(dto.performedAt) : new Date();
@@ -85,6 +93,9 @@ export class WorkoutsService {
           exercises: { create: exercises },
           photoRef: dto.photoRef,
           source: dto.source ?? 'manual',
+          healthImport: dto.externalId ? { create: {
+            userId, source: dto.source!, externalId: dto.externalId,
+          } } : undefined,
           verifyStatus: status,
           rejectReason: reason,
           verifiedAt: status === 'verified' ? new Date() : null,
@@ -127,6 +138,11 @@ export class WorkoutsService {
         balance: balanceAfter,
         streak,
       };
+    }).catch((error: unknown) => {
+      if (dto.externalId && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('이미 가져온 운동이에요. 삭제한 기록도 다시 가져올 수 없어요');
+      }
+      throw error;
     });
   }
 
@@ -176,6 +192,9 @@ export class WorkoutsService {
   /** PATCH /workouts/:id — 본인 기록 수정. 검증·코인 보상을 다시 계산해 맞춘다.
    *  스탯·스트릭은 재계산한다. 이미 지급된 퀘스트·업적 보상은 유지한다. */
   async update(userId: string, workoutId: string, dto: CreateWorkoutDto) {
+    if (dto.externalId != null || dto.source != null) {
+      throw new BadRequestException('기록의 원본 출처는 변경할 수 없어요');
+    }
     checkDate(dto);
     const exercises = exerciseData(dto);
     const existing = await this.prisma.workoutLog.findUnique({

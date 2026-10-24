@@ -53,6 +53,7 @@ class Workout {
     this.effort,
     this.customSportName,
     this.exercises = const [],
+    this.source = 'manual',
   });
 
   final String id;
@@ -70,6 +71,7 @@ class Workout {
   final int? effort;
   final String? customSportName;
   final List<WorkoutExercise> exercises;
+  final String source;
   double get volume => exercises.fold(
     0,
     (sum, e) => sum + e.sets.fold<double>(0, (n, s) => n + s.weightKg * s.reps),
@@ -80,6 +82,7 @@ class Workout {
   factory Workout.fromJson(Map<String, dynamic> j) => Workout(
     id: j['id'] as String,
     sport: j['sport'] as String,
+    source: j['source'] as String? ?? 'manual',
     durationSec: j['durationSec'] as int,
     performedAt: DateTime.parse(j['performedAt'] as String).toLocal(),
     distanceM: j['distanceM'] as int?,

@@ -47,6 +47,12 @@ export class WorkoutExerciseDto {
 export class CreateWorkoutDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
+  @MaxLength(191)
+  externalId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(2000)
   note?: string;
 

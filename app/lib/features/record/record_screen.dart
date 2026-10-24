@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'workout_editor.dart';
+import '../health/health_import_screen.dart';
 
 import '../../shared/api/models.dart';
 import '../../shared/api/providers.dart';
@@ -280,7 +281,7 @@ class _WorkoutDetail extends ConsumerWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        _detailDate(w.performedAt),
+                        '${_detailDate(w.performedAt)}${w.source == 'healthkit' ? ' · 애플 건강' : w.source == 'health_connect' ? ' · Health Connect' : ''}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: OunColors.textMuted,
@@ -554,6 +555,11 @@ class RecordScreen extends ConsumerWidget {
               style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
             ),
           ),
+        ),
+        TextButton.icon(
+          onPressed: () => openHealthImport(context),
+          icon: const Icon(Icons.favorite_outline),
+          label: const Text('건강 앱에서 최근 운동 불러오기'),
         ),
         Row(
           children: [

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>선택한 운동의 날짜, 소요 시간, 거리와 칼로리를 오운 기록에 불러옵니다. 저장을 누른 기록만 오운 서버에 보관합니다.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>운동 인증 사진을 촬영하려면 카메라 접근이 필요해요.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

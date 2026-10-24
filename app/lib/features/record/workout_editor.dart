@@ -9,15 +9,18 @@ import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
+import '../health/health_workout.dart';
 
 class WorkoutEditor extends ConsumerStatefulWidget {
   const WorkoutEditor({
     super.key,
     this.preset,
+    this.imported,
     this.editing,
     this.repeat = false,
   });
   final String? preset;
+  final HealthWorkout? imported;
   final Workout? editing;
   final bool repeat;
   @override
@@ -44,6 +47,10 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
   // 시트 안에 보여줄 오류. 토스트는 시트 뒤 화면에 떠서 가려진다.
   String? _error;
   XFile? _photo;
+  bool get _healthDefaults =>
+      widget.imported != null ||
+      widget.editing?.source == 'healthkit' ||
+      widget.editing?.source == 'health_connect';
   bool get _editing => widget.editing != null && !widget.repeat;
 
   @override
@@ -62,8 +69,8 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       _seconds.text = '${w.durationSec % 60}';
       _distance.text = w.distanceM == null ? '' : '${w.distanceM! / 1000}';
       _steps.text = w.steps?.toString() ?? '';
-      _sets.text = '${w.sets ?? 3}';
-      _body = w.bodyPart ?? 'upper';
+      _sets.text = w.sets?.toString() ?? (_healthDefaults ? '' : '3');
+      _body = w.bodyPart ?? (_healthDefaults ? '' : 'upper');
       _name.text = w.customSportName ?? '';
       _exercises.addAll(w.exercises.map(_ExerciseDraft.fromWorkout));
       if (!widget.repeat) {
@@ -72,6 +79,20 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
         _note.text = w.note ?? '';
         _effort = w.effort;
       }
+    }
+    final imported = widget.imported;
+    if (imported != null) {
+      _sport = imported.sport;
+      _date = imported.start;
+      _minutes.text = '${imported.durationSec ~/ 60}';
+      _seconds.text = '${imported.durationSec % 60}';
+      _distance.text = (imported.distanceM ?? 0) <= 0
+          ? ''
+          : '${imported.distanceM! / 1000}';
+      _calories.text = imported.calories?.toString() ?? '';
+      // No set count or body-part information is provided by these sources.
+      _sets.text = '';
+      _body = '';
     }
     _showDetails =
         _note.text.isNotEmpty || _effort != null || _calories.text.isNotEmpty;
@@ -252,6 +273,10 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
           : <WorkoutExercise>[];
       final details = <String, dynamic>{
         'performedAt': _date.toUtc().toIso8601String(),
+        if (widget.imported != null) ...{
+          'source': widget.imported!.source,
+          'externalId': widget.imported!.id,
+        },
         'calories': int.tryParse(_calories.text),
         'note': _note.text.trim(),
         'effort': _effort,
@@ -268,7 +293,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       final steps = _sport == 'walking' ? int.tryParse(_steps.text) : null;
       final sets = _sport == 'weight'
           ? (exercises.isEmpty
-                ? int.parse(_sets.text)
+                ? int.tryParse(_sets.text)
                 : exercises.fold<int>(0, (n, e) => n + e.sets.length))
           : null;
       final result = _editing
@@ -278,7 +303,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               durationSec: duration,
               distanceM: distance,
               steps: steps,
-              bodyPart: _sport == 'weight' ? _body : null,
+              bodyPart: _sport == 'weight' && _body.isNotEmpty ? _body : null,
               sets: exercises.isEmpty ? sets : null,
               photoRef: photoRef,
               details: details,
@@ -288,7 +313,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               durationSec: duration,
               distanceM: distance,
               steps: steps,
-              bodyPart: _sport == 'weight' ? _body : null,
+              bodyPart: _sport == 'weight' && _body.isNotEmpty ? _body : null,
               sets: exercises.isEmpty ? sets : null,
               photoRef: photoRef,
               details: details,
@@ -302,9 +327,9 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
         messenger,
         result.verified
             ? (_editing
-                ? '운동 기록을 수정했어요'
-                : '운동 기록 완료 · +${result.reward} 코인'
-                    '${result.protectorEarned ? ' · 기록 보호권 +1' : ''}')
+                  ? '운동 기록을 수정했어요'
+                  : '운동 기록 완료 · +${result.reward} 코인'
+                        '${result.protectorEarned ? ' · 기록 보호권 +1' : ''}')
             : '기록은 저장했지만 인증되지 않았어요',
       );
     } catch (e) {
@@ -360,6 +385,14 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   color: OunColors.textPrimary,
                 ),
               ),
+              if (widget.imported != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    '건강 앱에서 불러왔어요. 내용을 확인하고 저장해 주세요.',
+                    style: TextStyle(fontSize: 12, color: OunColors.textMuted),
+                  ),
+                ),
               const SizedBox(height: 4),
               Flexible(
                 child: AbsorbPointer(
@@ -432,7 +465,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                               ),
                             ),
                           _section(
-                            '운동 시간',
+                            '운동 소요 시간',
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -514,8 +547,14 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                             ),
                             if (_exercises.isEmpty)
                               _section(
-                                '총 세트 수',
-                                _number(_sets, suffix: '세트', min: 1, max: 50),
+                                !_healthDefaults ? '총 세트 수' : '총 세트 수 (선택)',
+                                _number(
+                                  _sets,
+                                  suffix: '세트',
+                                  min: 1,
+                                  max: 50,
+                                  optional: _healthDefaults,
+                                ),
                               )
                             else
                               _section(
