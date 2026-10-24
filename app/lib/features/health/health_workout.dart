@@ -14,6 +14,7 @@ class HealthWorkout {
     this.calories,
   });
   final String id, source, sport;
+  String get importKey => '$source:$id';
   final DateTime start;
   final int durationSec;
   final int? distanceM, calories;

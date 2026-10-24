@@ -267,6 +267,18 @@ export class WorkoutsService {
     });
   }
 
+  async healthImports(userId: string, after?: string) {
+    const rows = await this.prisma.healthWorkoutImport.findMany({
+      where: { userId, ...(after ? { id: { gt: after } } : {}) },
+      orderBy: { id: 'asc' }, take: 201,
+      select: { id: true, source: true, externalId: true, workoutId: true },
+    });
+    const items = rows.slice(0, 200);
+    return { items: items.map(r => ({ source: r.source, externalId: r.externalId,
+      status: r.workoutId ? 'recorded' : 'deleted' })),
+      next: rows.length > 200 ? items[199].id : null };
+  }
+
   /** GET /workouts?from=&to= — 최근 기록 리스트. */
   async list(userId: string, from?: string, to?: string, offset = 0) {
     if (!Number.isInteger(offset) || offset < 0) throw new BadRequestException('잘못된 페이지예요');

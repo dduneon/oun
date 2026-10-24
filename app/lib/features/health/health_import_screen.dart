@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/api/providers.dart';
 import '../../shared/format.dart';
 import '../../theme/app_theme.dart';
 import '../record/workout_editor.dart';
@@ -9,17 +11,17 @@ void openHealthImport(BuildContext context) => Navigator.of(
   rootNavigator: true,
 ).push(MaterialPageRoute<void>(builder: (_) => const HealthImportScreen()));
 
-class HealthImportScreen extends StatefulWidget {
+class HealthImportScreen extends ConsumerStatefulWidget {
   const HealthImportScreen({super.key, this.health});
   final HealthWorkouts? health;
   @override
-  State<HealthImportScreen> createState() => _HealthImportScreenState();
+  ConsumerState<HealthImportScreen> createState() => _HealthImportScreenState();
 }
 
-class _HealthImportScreenState extends State<HealthImportScreen>
+class _HealthImportScreenState extends ConsumerState<HealthImportScreen>
     with WidgetsBindingObserver {
   late final _health = widget.health ?? HealthWorkouts();
-  final Set<String> _saved = {};
+  Map<String, String> _saved = {};
   List<HealthWorkout> _items = [];
   bool _busy = false, _loaded = false, _unavailable = false;
   String? _error;
@@ -72,9 +74,12 @@ class _HealthImportScreenState extends State<HealthImportScreen>
         }
       }
       final items = await _health.readRecent();
+      if (!mounted) return;
+      final saved = await ref.refresh(healthImportStatesProvider.future);
       if (mounted) {
         setState(() {
           _items = items;
+          _saved = saved;
           _loaded = true;
         });
       }
@@ -97,7 +102,9 @@ class _HealthImportScreenState extends State<HealthImportScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => WorkoutEditor(imported: workout),
     );
-    if (saved == true && mounted) setState(() => _saved.add(workout.id));
+    if (saved == true && mounted) {
+      setState(() => _saved[workout.importKey] = 'recorded');
+    }
   }
 
   @override
@@ -177,10 +184,14 @@ class _HealthImportScreenState extends State<HealthImportScreen>
                 '${workout.start.month}월 ${workout.start.day}일 ${workout.start.hour}:${workout.start.minute.toString().padLeft(2, '0')}'
                 '${workout.distanceM == null ? '' : ' · ${(workout.distanceM! / 1000).toStringAsFixed(2)} km'}',
               ),
-              trailing: _saved.contains(workout.id)
-                  ? const Text('저장됨')
+              trailing: _saved.containsKey(workout.importKey)
+                  ? Text(
+                      _saved[workout.importKey] == 'deleted'
+                          ? '삭제한 기록'
+                          : '기록 완료',
+                    )
                   : const Icon(Icons.chevron_right),
-              onTap: _saved.contains(workout.id)
+              onTap: _saved.containsKey(workout.importKey)
                   ? null
                   : () => _select(workout),
             ),

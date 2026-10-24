@@ -279,6 +279,21 @@ class ApiClient {
     );
   }
 
+  /// Download our own saved identities; never upload unselected device records.
+  Future<Map<String, String>> healthImportStates() async {
+    final states = <String, String>{};
+    String? after;
+    do {
+      final response = await _dio.get<Map<String, dynamic>>('/workouts/health-imports',
+        queryParameters: {'after': ?after});
+      for (final row in response.data!['items'] as List) {
+        states['${row['source']}:${row['externalId']}'] = row['status'] as String;
+      }
+      after = response.data!['next'] as String?;
+    } while (after != null);
+    return states;
+  }
+
   Future<List<Workout>> workouts({
     DateTime? from,
     DateTime? to,

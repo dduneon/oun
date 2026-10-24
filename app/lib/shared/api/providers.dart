@@ -271,6 +271,11 @@ final todayMinutesProvider = FutureProvider<int>((ref) async {
   return items.fold<int>(0, (s, w) => s + w.minutes);
 });
 
+final healthImportStatesProvider = FutureProvider<Map<String, String>>((ref) async {
+  final api = await _authed(ref);
+  return api.healthImportStates();
+});
+
 /// 최근 운동 기록 — 기록 탭.
 final recentWorkoutsProvider = FutureProvider<List<Workout>>((ref) async {
   final api = await _authed(ref);
@@ -449,6 +454,7 @@ void invalidateAfterWorkout(WidgetRef ref) {
   ref.invalidate(careProvider);
   ref.invalidate(todayMinutesProvider);
   ref.invalidate(recentWorkoutsProvider);
+  ref.invalidate(healthImportStatesProvider);
   ref.invalidate(calendarProvider);
   ref.invalidate(monthSummaryProvider);
   ref.invalidate(monthlyReportProvider);

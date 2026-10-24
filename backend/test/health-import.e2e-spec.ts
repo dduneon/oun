@@ -40,6 +40,12 @@ describe('건강 앱 운동 가져오기', () => {
     expect(await db.currencyLedger.count({ where: { refId: id, reason: 'workout_reward' } })).toBe(1);
     await request(app.getHttpServer()).delete(`/workouts/${id}`).set('Authorization', `Bearer ${token}`).expect(200);
     await create(data).expect(409);
+    const states = await request(app.getHttpServer()).get('/workouts/health-imports')
+      .set('Authorization', `Bearer ${token}`).expect(200);
+    expect(states.body.items).toEqual([{ source: 'healthkit', externalId: 'same-workout', status: 'deleted' }]);
+    const others = await request(app.getHttpServer()).get('/workouts/health-imports')
+      .set('Authorization', `Bearer ${otherToken}`).expect(200);
+    expect(others.body.items).toEqual([]);
     expect(await db.healthWorkoutImport.findFirst({ where: { userId } })).toMatchObject({ workoutId: null });
     const ledger = await db.currencyLedger.findMany({ where: { refId: id } });
     expect(ledger.reduce((sum, row) => sum + row.delta, 0)).toBe(0);

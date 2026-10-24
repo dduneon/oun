@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oun_app/shared/api/providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oun_app/features/health/health_import_screen.dart';
 import 'package:oun_app/features/health/health_workout.dart';
@@ -36,7 +38,10 @@ class FakeHealth extends HealthWorkouts {
 void main() {
   Future<void> open(WidgetTester tester, FakeHealth health) async {
     await tester.pumpWidget(
-      MaterialApp(home: HealthImportScreen(health: health)),
+      ProviderScope(
+        overrides: [healthImportStatesProvider.overrideWith((ref) async => {})],
+        child: MaterialApp(home: HealthImportScreen(health: health)),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -95,5 +100,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(health.reads, 2);
     expect(health.requests, 0);
+  });
+  testWidgets('서버에 저장하거나 삭제한 운동은 다시 선택할 수 없다', (tester) async {
+    final health = FakeHealth();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          healthImportStatesProvider.overrideWith(
+            (ref) async => {'healthkit:one': 'recorded'},
+          ),
+        ],
+        child: MaterialApp(home: HealthImportScreen(health: health)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('기록 완료'), findsOneWidget);
+    expect(tester.widget<ListTile>(find.byType(ListTile)).onTap, isNull);
   });
 }

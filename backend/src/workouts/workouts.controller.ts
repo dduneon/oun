@@ -49,6 +49,11 @@ export class WorkoutsController {
     return this.workouts.remove(user.userId, id);
   }
 
+  @Get('health-imports')
+  healthImports(@CurrentUser() user: AuthUser, @Query('after') after?: string) {
+    return this.workouts.healthImports(user.userId, after);
+  }
+
   @Get('calendar')
   calendar(@CurrentUser() user: AuthUser, @Query('month') month?: string) {
     return this.workouts.calendar(user.userId, month ?? kstMonthKey());
