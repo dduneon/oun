@@ -36,7 +36,8 @@ class AuthState {
   final Profile? profile;
   final String? error;
 
-  /// 소셜 로그인으로 방금 가입 — 캐릭터·닉네임 고르기를 먼저 보여 준다.
+  /// 소셜 가입 후 아직 @아이디를 안 정함 — 캐릭터·아이디·닉네임 고르기를 먼저 보여 준다.
+  /// (앱을 껐다 켜도 정할 때까지 다시 나온다)
   final bool needsOnboarding;
 }
 
@@ -59,7 +60,11 @@ class AuthController extends Notifier<AuthState> {
         return;
       }
       final profile = await ref.read(apiClientProvider).restore(refreshToken);
-      state = AuthState(AuthStatus.loggedIn, profile: profile);
+      state = AuthState(
+        AuthStatus.loggedIn,
+        profile: profile,
+        needsOnboarding: !profile.handleConfirmed,
+      );
     } catch (_) {
       // 저장소 접근 실패/refresh 만료/서버 연결 실패 → 로그인 화면으로.
       // (스플래시에서 멈추지 않도록 어떤 예외든 여기서 흡수한다)
@@ -70,17 +75,17 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// 회원가입: 아이디 + 비밀번호 + 닉네임 + 캐릭터(성별).
+  /// 회원가입: 아이디(=@아이디) + 비밀번호 + 닉네임 + 캐릭터(성별).
   Future<bool> signUp({
     required String username,
     required String password,
-    required String nickname,
+    required String displayName,
     required String gender,
   }) async {
     return _run(() => ref.read(apiClientProvider).register(
           username: username,
           password: password,
-          nickname: nickname,
+          displayName: displayName,
           gender: gender,
         ));
   }
@@ -134,7 +139,7 @@ class AuthController extends Notifier<AuthState> {
     }, onboarding: () => isNew);
   }
 
-  /// 첫 가입 화면에서 캐릭터·닉네임을 정하고 나면 홈으로.
+  /// 첫 가입 화면에서 캐릭터·아이디·닉네임을 정하고 나면 홈으로.
   void completeOnboarding(Profile profile) {
     state = AuthState(AuthStatus.loggedIn, profile: profile);
   }
@@ -151,7 +156,8 @@ class AuthController extends Notifier<AuthState> {
       state = AuthState(
         AuthStatus.loggedIn,
         profile: profile,
-        needsOnboarding: onboarding?.call() ?? false,
+        needsOnboarding:
+            (onboarding?.call() ?? false) || !profile.handleConfirmed,
       );
       return true;
     } catch (e) {
@@ -163,7 +169,7 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// 이름·닉네임을 바꾼 뒤 세션의 프로필도 갈아 끼운다.
+  /// 닉네임을 바꾼 뒤 세션의 프로필도 갈아 끼운다.
   void updateProfile(Profile profile) {
     if (state.status != AuthStatus.loggedIn) return;
     state = AuthState(AuthStatus.loggedIn, profile: profile);

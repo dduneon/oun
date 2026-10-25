@@ -21,8 +21,6 @@ class SettingsScreen extends ConsumerWidget {
     required String title,
     required String initial,
     required String hint,
-    String prefix = '',
-    required bool nickname,
   }) async {
     final value = await showModalBottomSheet<String>(
       context: context,
@@ -33,16 +31,13 @@ class SettingsScreen extends ConsumerWidget {
         title: title,
         initial: initial,
         hint: hint,
-        prefix: prefix,
       ),
     );
     if (value == null || value == initial || !context.mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final profile = await ref.read(apiClientProvider).updateMe(
-            nickname: nickname ? value : null,
-            displayName: nickname ? null : value,
-          );
+      final profile =
+          await ref.read(apiClientProvider).updateMe(displayName: value);
       ref.read(authProvider.notifier).updateProfile(profile);
       ref.invalidate(profileProvider);
       OunToast.showWith(messenger, '$title을 바꿨어요', kind: OunToastKind.success);
@@ -94,28 +89,20 @@ class SettingsScreen extends ConsumerWidget {
           const _SectionLabel('프로필'),
           _Group(children: [
             _Row(
-              title: '이름',
+              title: '닉네임',
               value: profile?.displayName ?? '…',
               onTap: profile == null
                   ? null
                   : () => _edit(context, ref,
-                      title: '이름',
+                      title: '닉네임',
                       initial: profile.displayName,
-                      hint: '친구들에게 보일 이름',
-                      nickname: false),
+                      hint: '친구들에게 보일 이름'),
             ),
+            // @아이디는 가입 때 정하면 바꿀 수 없다 — 보여 주기만 한다.
             _Row(
-              title: '닉네임',
+              title: '아이디',
               value: profile == null ? '…' : '@${profile.nickname}',
               last: true,
-              onTap: profile == null
-                  ? null
-                  : () => _edit(context, ref,
-                      title: '닉네임',
-                      initial: profile.nickname,
-                      hint: '한글·영문·숫자·밑줄 20자 이내',
-                      prefix: '@',
-                      nickname: true),
             ),
           ]),
           const SizedBox(height: 18),
@@ -223,7 +210,7 @@ class _Row extends StatelessWidget {
                 Text(value!,
                     style: const TextStyle(
                         fontSize: 13, color: OunColors.textMuted)),
-              if (!destructive) ...[
+              if (!destructive && onTap != null) ...[
                 const SizedBox(width: 4),
                 const Icon(Icons.chevron_right_rounded,
                     size: 20, color: OunColors.textFaint),
@@ -236,19 +223,17 @@ class _Row extends StatelessWidget {
   }
 }
 
-/// 한 줄 입력 시트(이름·닉네임). 저장하면 다듬은 값을 돌려준다.
+/// 한 줄 입력 시트(닉네임). 저장하면 다듬은 값을 돌려준다.
 class _TextEditSheet extends StatefulWidget {
   const _TextEditSheet({
     required this.title,
     required this.initial,
     required this.hint,
-    this.prefix = '',
   });
 
   final String title;
   final String initial;
   final String hint;
-  final String prefix;
 
   @override
   State<_TextEditSheet> createState() => _TextEditSheetState();
@@ -281,7 +266,6 @@ class _TextEditSheetState extends State<_TextEditSheet> {
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             hintText: widget.hint,
-            prefixText: widget.prefix.isEmpty ? null : widget.prefix,
             hintStyle: const TextStyle(color: OunColors.textFaint),
             filled: true,
             fillColor: OunColors.surface,

@@ -453,7 +453,7 @@ class _MembersTab extends ConsumerWidget {
     final nickname = await showNicknameInputSheet(
       context,
       title: '크루원 초대하기',
-      hint: '@닉네임 입력',
+      hint: '@아이디 입력',
       action: '초대',
     );
     if (nickname == null || nickname.isEmpty) return;
@@ -466,7 +466,7 @@ class _MembersTab extends ConsumerWidget {
       }
     } catch (_) {
       if (context.mounted) {
-        OunToast.show(context, '초대에 실패했어요. 닉네임을 확인해 주세요');
+        OunToast.show(context, '초대에 실패했어요. 아이디를 확인해 주세요');
       }
     }
   }
@@ -842,7 +842,7 @@ class _MemberRow extends StatelessWidget {
   }
 }
 
-/// 닉네임 입력 바텀시트(친구 추가/크루 초대 공용).
+/// @아이디 입력 바텀시트(친구 추가/크루 초대 공용).
 Future<String?> showNicknameInputSheet(
   BuildContext context, {
   required String title,

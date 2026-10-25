@@ -12,10 +12,17 @@ class Profile {
     required this.streakCurrent,
     required this.streakLongest,
     required this.streakProtectors,
+    this.handleConfirmed = true,
   });
 
+  /// @아이디(영문 소문자, 가입 후 변경 불가).
   final String nickname;
+
+  /// 닉네임(화면에 보이는 이름).
   final String displayName;
+
+  /// false면 소셜 가입 직후 임시 아이디 — 첫 화면에서 아이디를 정해야 한다.
+  final bool handleConfirmed;
   final String gender; // 'f' | 'm'
   final int level;
   final int coin;
@@ -32,6 +39,7 @@ class Profile {
     streakCurrent: (j['streak'] as Map<String, dynamic>)['current'] as int,
     streakLongest: (j['streak'] as Map<String, dynamic>)['longest'] as int,
     streakProtectors: j['streakProtectors'] as int,
+    handleConfirmed: j['handleConfirmed'] as bool? ?? true,
   );
 }
 

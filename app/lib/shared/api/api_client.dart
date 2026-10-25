@@ -66,11 +66,11 @@ class ApiClient {
 
   // ── 인증 ──────────────────────────────────────────────
 
-  /// 회원가입: 아이디·비밀번호·닉네임·캐릭터로 계정을 만든다.
+  /// 회원가입: 아이디(=@아이디)·비밀번호·닉네임·캐릭터로 계정을 만든다.
   Future<Profile> register({
     required String username,
     required String password,
-    required String nickname,
+    required String displayName,
     required String gender,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
@@ -78,7 +78,7 @@ class ApiClient {
       data: {
         'username': username,
         'password': password,
-        'nickname': nickname,
+        'displayName': displayName,
         'gender': gender,
       },
     );
@@ -97,7 +97,7 @@ class ApiClient {
   }
 
   /// 카카오 로그인: 카카오 SDK가 준 access token을 서버가 검증한다.
-  /// isNew면 방금 만든 계정 — 캐릭터·닉네임 고르기를 보여 준다.
+  /// isNew면 방금 만든 계정 — 캐릭터·아이디·닉네임 고르기를 보여 준다.
   Future<(Profile, bool)> kakaoLogin(String accessToken) =>
       _social('/auth/kakao', {'accessToken': accessToken});
 

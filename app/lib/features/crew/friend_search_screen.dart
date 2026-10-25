@@ -101,7 +101,7 @@ class _FriendSearchScreenState extends ConsumerState<FriendSearchScreen> {
               style:
                   const TextStyle(fontSize: 15, color: OunColors.textPrimary),
               decoration: InputDecoration(
-                hintText: '닉네임이나 이름',
+                hintText: '아이디나 닉네임',
                 hintStyle: const TextStyle(color: OunColors.textFaint),
                 counterText: '',
                 prefixText: '@ ',
@@ -132,7 +132,7 @@ class _FriendSearchScreenState extends ConsumerState<FriendSearchScreen> {
 
   Widget _results() {
     if (_query.isEmpty) {
-      return const _Hint('친구의 @닉네임이나 이름을 입력해 보세요');
+      return const _Hint('친구의 @아이디나 닉네임을 입력해 보세요');
     }
     final async = ref.watch(userSearchProvider(_query));
     return async.when(

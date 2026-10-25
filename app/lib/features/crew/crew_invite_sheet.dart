@@ -7,7 +7,7 @@ import '../../theme/app_theme.dart';
 import 'crew_feed.dart';
 
 /// 크루원 초대: 내 친구 목록에서 골라 보낸다. 친구가 아닌 사람은
-/// 아래 '닉네임으로 초대하기'로 보낸다([onInviteByNickname]).
+/// 아래 '@아이디로 초대하기'로 보낸다([onInviteByNickname]).
 Future<void> showCrewInviteSheet(
   BuildContext context, {
   required CrewDetail crew,
@@ -112,7 +112,7 @@ class _CrewInviteSheetState extends ConsumerState<_CrewInviteSheet> {
               error: (_, _) => const _Hint('친구 목록을 불러오지 못했어요'),
               data: (list) {
                 if (list.isEmpty) {
-                  return const _Hint('아직 친구가 없어요.\n닉네임으로 초대해 보세요.');
+                  return const _Hint('아직 친구가 없어요.\n@아이디로 초대해 보세요.');
                 }
                 // 아직 크루원이 아닌 친구를 위로.
                 final sorted = [...list]
@@ -148,7 +148,7 @@ class _CrewInviteSheetState extends ConsumerState<_CrewInviteSheet> {
               },
               icon: const Icon(Icons.alternate_email_rounded, size: 16),
               label: const Text(
-                '친구가 아닌 사람은 닉네임으로 초대하기',
+                '친구가 아닌 사람은 @아이디로 초대하기',
                 style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
             ),

@@ -85,7 +85,7 @@ void main() {
     expect(api.invited, ['seoyeon']);
     expect(find.text('보냈어요'), findsOneWidget);
 
-    await tester.tap(find.text('친구가 아닌 사람은 닉네임으로 초대하기'));
+    await tester.tap(find.text('친구가 아닌 사람은 @아이디로 초대하기'));
     await tester.pumpAndSettle();
     expect(byNickname, isTrue);
   });

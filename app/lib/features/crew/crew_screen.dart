@@ -108,7 +108,7 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
                     Icon(Icons.person_add_alt,
                         size: 17, color: OunColors.textMuted),
                     SizedBox(width: 8),
-                    Text('@닉네임으로 친구 찾기',
+                    Text('@아이디로 친구 찾기',
                         style:
                             TextStyle(fontSize: 13, color: OunColors.textMuted)),
                   ],
@@ -133,7 +133,7 @@ class _CrewScreenState extends ConsumerState<CrewScreen> {
               return const Padding(
                 padding: EdgeInsets.only(top: 40),
                 child: Center(
-                  child: Text('아직 친구가 없어요 · @닉네임으로 추가해 보세요',
+                  child: Text('아직 친구가 없어요 · @아이디로 추가해 보세요',
                       style: TextStyle(
                           fontSize: 12.5, color: OunColors.textFaint)),
                 ),

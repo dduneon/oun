@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/api/providers.dart';
 import '../../shared/auth/social_sign_in.dart';
+import '../../shared/handle.dart';
 import '../../shared/widgets/oun_toast.dart';
 import '../../theme/app_theme.dart';
 
@@ -11,7 +12,7 @@ import '../../theme/app_theme.dart';
 /// 걷어낸다.
 ///
 /// 아이디·비밀번호 가입/로그인과 소셜 로그인(카카오, iOS는 Apple)을 함께 제공한다.
-/// 소셜로 처음 들어온 사람은 [OnboardingScreen]에서 캐릭터·닉네임을 고른다.
+/// 소셜로 처음 들어온 사람은 [OnboardingScreen]에서 캐릭터·@아이디·닉네임을 고른다.
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
@@ -192,11 +193,11 @@ class _SocialButton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 소셜 첫 가입: 함께할 캐릭터 + 닉네임
+// 소셜 첫 가입: 함께할 캐릭터 + @아이디 + 닉네임
 // ─────────────────────────────────────────────────────────────
 
 /// 소셜 로그인으로 방금 가입한 사람에게 한 번 보여 준다(app.dart 인증 게이트).
-/// 닉네임은 카카오·애플 이름으로 미리 채워 두고, 캐릭터는 여기서 고른다.
+/// 닉네임은 카카오·애플 이름으로 미리 채워 두고, @아이디(이후 변경 불가)와 캐릭터는 여기서 고른다.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -205,27 +206,31 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  late final _nickname = TextEditingController(
-    text: ref.read(authProvider).profile?.nickname ?? '',
+  // 서버가 붙인 임시 아이디(oun_…)는 비워 두고 직접 정하게 한다.
+  final _handle = TextEditingController();
+  late final _name = TextEditingController(
+    text: ref.read(authProvider).profile?.displayName ?? '',
   );
   String _gender = 'f';
   bool _busy = false;
 
   @override
   void dispose() {
-    _nickname.dispose();
+    _handle.dispose();
+    _name.dispose();
     super.dispose();
   }
 
   bool get _valid =>
-      RegExp(r'^[a-zA-Z0-9_가-힣]{1,20}$').hasMatch(_nickname.text.trim());
+      isValidHandle(_handle.text) && _name.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
     if (!_valid || _busy) return;
     setState(() => _busy = true);
     try {
       final profile = await ref.read(apiClientProvider).updateMe(
-            nickname: _nickname.text.trim(),
+            nickname: _handle.text.trim(),
+            displayName: _name.text.trim(),
             gender: _gender,
           );
       ref.invalidate(profileProvider);
@@ -254,7 +259,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       color: OunColors.textPrimary,
                       letterSpacing: -0.5)),
               const SizedBox(height: 6),
-              const Text('함께할 캐릭터와 친구들이 찾을 닉네임을 정해 주세요',
+              const Text('함께할 캐릭터와 아이디·닉네임을 정해 주세요',
                   style: TextStyle(fontSize: 13, color: OunColors.textMuted)),
               const SizedBox(height: 26),
               const _SectionLabel('함께할 캐릭터'),
@@ -281,21 +286,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ],
               ),
               const SizedBox(height: 22),
+              const _SectionLabel('아이디'),
+              const SizedBox(height: 8),
+              _AuthField(
+                controller: _handle,
+                hint: '영문 소문자·숫자·_ . 3~20자',
+                handle: true,
+                onChanged: () => setState(() {}),
+                onSubmitted: _submit,
+              ),
+              const SizedBox(height: 6),
+              const _FieldHint('친구들이 @아이디로 나를 찾아요. 정하고 나면 바꿀 수 없어요.'),
+              const SizedBox(height: 16),
               const _SectionLabel('닉네임'),
               const SizedBox(height: 8),
               _AuthField(
-                controller: _nickname,
-                hint: '한글·영문·숫자·밑줄 20자 이내',
+                controller: _name,
+                hint: '예: 오운러버',
                 textInputAction: TextInputAction.done,
                 onChanged: () => setState(() {}),
                 onSubmitted: _submit,
               ),
               const SizedBox(height: 6),
-              const Padding(
-                padding: EdgeInsets.only(left: 4),
-                child: Text('친구들이 @닉네임으로 나를 찾아요. 나중에 설정에서 바꿀 수 있어요.',
-                    style: TextStyle(fontSize: 11.5, color: OunColors.textFaint)),
-              ),
+              const _FieldHint('친구들에게 보이는 이름이에요. 언제든 바꿀 수 있어요.'),
               const SizedBox(height: 26),
               _PrimaryButton(
                 label: '시작하기',
@@ -311,7 +324,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 회원가입: 함께할 캐릭터 선택 + 닉네임
+// 회원가입: 함께할 캐릭터 + 아이디(=@아이디) + 비밀번호 + 닉네임
 // ─────────────────────────────────────────────────────────────
 
 class _SignupScreen extends ConsumerStatefulWidget {
@@ -324,7 +337,7 @@ class _SignupScreen extends ConsumerStatefulWidget {
 class _SignupScreenState extends ConsumerState<_SignupScreen> {
   final _username = TextEditingController();
   final _password = TextEditingController();
-  final _nickname = TextEditingController();
+  final _name = TextEditingController();
   String _gender = 'f';
   bool _busy = false;
 
@@ -332,16 +345,14 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
   void dispose() {
     _username.dispose();
     _password.dispose();
-    _nickname.dispose();
+    _name.dispose();
     super.dispose();
   }
 
-  bool get _valid {
-    final id = _username.text.trim();
-    return RegExp(r'^[a-zA-Z0-9_]{4,20}$').hasMatch(id) &&
-        _password.text.length >= 6 &&
-        _nickname.text.trim().isNotEmpty;
-  }
+  bool get _valid =>
+      isValidHandle(_username.text) &&
+      _password.text.length >= 6 &&
+      _name.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
     if (!_valid || _busy) return;
@@ -349,7 +360,7 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
     final ok = await ref.read(authProvider.notifier).signUp(
           username: _username.text.trim(),
           password: _password.text,
-          nickname: _nickname.text.trim(),
+          displayName: _name.text.trim(),
           gender: _gender,
         );
     if (!mounted) return;
@@ -394,10 +405,13 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
         const SizedBox(height: 8),
         _AuthField(
           controller: _username,
-          hint: '영문·숫자·밑줄 4~20자',
+          hint: '영문 소문자·숫자·_ . 3~20자',
+          handle: true,
           onChanged: () => setState(() {}),
           onSubmitted: _submit,
         ),
+        const SizedBox(height: 6),
+        const _FieldHint('로그인 아이디이자 친구들이 나를 찾는 @아이디예요. 가입 후에는 바꿀 수 없어요.'),
         const SizedBox(height: 16),
         const _SectionLabel('비밀번호'),
         const SizedBox(height: 8),
@@ -413,18 +427,14 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
         const _SectionLabel('닉네임'),
         const SizedBox(height: 8),
         _AuthField(
-          controller: _nickname,
+          controller: _name,
           hint: '예: 오운러버',
           textInputAction: TextInputAction.done,
           onChanged: () => setState(() {}),
           onSubmitted: _submit,
         ),
         const SizedBox(height: 6),
-        const Padding(
-          padding: EdgeInsets.only(left: 4),
-          child: Text('친구들이 찾을 이름이에요. 아이디와 달라도 돼요.',
-              style: TextStyle(fontSize: 11.5, color: OunColors.textFaint)),
-        ),
+        const _FieldHint('친구들에게 보이는 이름이에요. 언제든 바꿀 수 있어요.'),
         const SizedBox(height: 26),
         _PrimaryButton(
           label: '가입하고 시작하기',
@@ -437,7 +447,7 @@ class _SignupScreenState extends ConsumerState<_SignupScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 로그인: 기존 닉네임
+// 로그인: 아이디 + 비밀번호
 // ─────────────────────────────────────────────────────────────
 
 class _LoginScreen extends ConsumerStatefulWidget {
@@ -625,6 +635,7 @@ class _AuthField extends StatelessWidget {
     this.obscure = false,
     this.maxLength = 20,
     this.textInputAction = TextInputAction.next,
+    this.handle = false,
   });
   final TextEditingController controller;
   final String hint;
@@ -633,6 +644,9 @@ class _AuthField extends StatelessWidget {
   final bool obscure;
   final int maxLength;
   final TextInputAction textInputAction;
+
+  /// @아이디 입력: @ 접두어, 소문자 영문만, 자동 수정 끔.
+  final bool handle;
 
   @override
   Widget build(BuildContext context) {
@@ -643,8 +657,14 @@ class _AuthField extends StatelessWidget {
       obscureText: obscure,
       maxLength: maxLength,
       textInputAction: textInputAction,
+      inputFormatters: handle ? [HandleInputFormatter()] : null,
+      keyboardType: handle ? TextInputType.visiblePassword : null,
+      autocorrect: !handle,
+      enableSuggestions: !handle,
       style: const TextStyle(fontSize: 15, color: OunColors.textPrimary),
       decoration: InputDecoration(
+        prefixText: handle ? '@ ' : null,
+        prefixStyle: const TextStyle(fontSize: 15, color: OunColors.textMuted),
         hintText: hint,
         hintStyle: const TextStyle(color: OunColors.textFaint),
         counterText: '',
@@ -663,6 +683,19 @@ class _AuthField extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 입력칸 아래 작은 안내 문구.
+class _FieldHint extends StatelessWidget {
+  const _FieldHint(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text(text,
+            style: const TextStyle(fontSize: 11.5, color: OunColors.textFaint)),
+      );
 }
 
 class _CharacterCard extends StatelessWidget {
