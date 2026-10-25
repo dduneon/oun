@@ -522,7 +522,41 @@ export class CrewsService {
     const post = await this.prisma.crewPost.create({
       data: { crewId, userId, workoutLogId, message },
     });
+    await this.notifyNewPost(crewId, userId, post.id, message);
     return { id: post.id };
+  }
+
+  /** 새 글 → 글쓴이를 뺀 크루원 모두에게 알림(푸시는 '크루' 설정을 따른다). */
+  private async notifyNewPost(
+    crewId: string,
+    authorId: string,
+    postId: string,
+    message: string | null,
+  ) {
+    const [crew, author, members] = await Promise.all([
+      this.prisma.crew.findUniqueOrThrow({ where: { id: crewId } }),
+      this.prisma.user.findUniqueOrThrow({ where: { id: authorId } }),
+      this.prisma.crewMember.findMany({
+        where: { crewId, userId: { not: authorId } },
+        select: { userId: true },
+      }),
+    ]);
+    await Promise.all(
+      members.map((m) =>
+        this.notifications.notify(m.userId, authorId, {
+          type: 'crew_post',
+          title: `${crew.name}에 새 글이 올라왔어요`,
+          body: `${author.displayName}: ${message ?? '운동 기록을 공유했어요'}`,
+          data: {
+            crewId,
+            crewName: crew.name,
+            postId,
+            fromNickname: author.nickname,
+            fromDisplayName: author.displayName,
+          },
+        }),
+      ),
+    );
   }
 
   /** PATCH /crews/posts/:postId — 본인 글의 한마디 + 운동 태그(사진) 수정. */

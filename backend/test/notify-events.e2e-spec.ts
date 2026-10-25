@@ -111,6 +111,25 @@ describe('오운 알림 트리거 (e2e)', () => {
     expect(notis[0].data.accepted).toBe('true');
   });
 
+  it('크루원이 새 글을 쓰면 다른 크루원에게 알림이 오고 글쓴이에게는 오지 않는다', async () => {
+    const post = await request(app.getHttpServer())
+      .post(`/crews/${crewId}/posts`)
+      .set(asLeader())
+      .send({ message: '새 글 알림 테스트' })
+      .expect(201);
+
+    const forMember = (await notisOf(asMember(), 'crew_post')).filter(
+      (n: any) => n.data.postId === post.body.id,
+    );
+    expect(forMember).toHaveLength(1);
+    expect(forMember[0].body).toContain('새 글 알림 테스트');
+    expect(forMember[0].data.crewId).toBe(crewId);
+    const forLeader = (await notisOf(asLeader(), 'crew_post')).filter(
+      (n: any) => n.data.postId === post.body.id,
+    );
+    expect(forLeader).toHaveLength(0);
+  });
+
   it('내 글에 댓글이 달리면 글쓴이에게 알림이 온다', async () => {
     const post = await request(app.getHttpServer())
       .post(`/crews/${crewId}/posts`)
