@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/my/notifications_screen.dart';
 import '../api/providers.dart';
 import '../global_keys.dart';
-import '../widgets/oun_toast.dart';
 
 /// FCM 푸시 등록·수신.
 ///
@@ -23,6 +23,16 @@ class PushMessaging {
   String? _token;
   bool _started = false;
   final _subs = <StreamSubscription<Object?>>[];
+
+  // Android는 앱 사용 중 FCM 배너를 OS가 띄우지 않아서 로컬 알림으로 직접 띄운다.
+  // (iOS는 setForegroundNotificationPresentationOptions로 OS가 띄운다)
+  final _local = FlutterLocalNotificationsPlugin();
+  static const _channel = AndroidNotificationChannel(
+    'oun_default',
+    '오운 알림',
+    description: '응원·친구·크루 소식',
+    importance: Importance.high,
+  );
 
   bool get enabled => _token != null;
 
@@ -47,11 +57,22 @@ class PushMessaging {
       final token = await messaging.getToken();
       if (token != null) await _register(token);
 
+      if (Platform.isIOS) {
+        // 앱을 쓰는 중에도 OS 배너·소리·배지를 그대로 보여 준다.
+        await messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } else {
+        await _setUpAndroidBanner();
+      }
+
       // 토큰은 재설치·복원 등으로 갱신된다. 갱신될 때마다 다시 등록.
       // 리스너는 stop()에서 끊는다 — 안 그러면 재로그인마다 쌓여 토스트가 겹친다.
       _subs.addAll([
         messaging.onTokenRefresh.listen(_register),
-        // 포그라운드 수신: OS 배너가 안 뜨므로 앱 안에서 직접 알린다.
+        // 포그라운드 수신: 목록 갱신 + (Android) OS 배너 띄우기.
         FirebaseMessaging.onMessage.listen(_onForegroundMessage),
         // 푸시 배너를 탭해 앱으로 들어온 경우 → 알림함을 연다.
         FirebaseMessaging.onMessageOpenedApp.listen(_openInbox),
@@ -116,17 +137,32 @@ class PushMessaging {
   ///
   /// 배너를 탭해 들어온 경우엔 백그라운드에 있던 동안 쌓인 게 더 있을 수
   /// 있으니, 해당 알림뿐 아니라 알림함·소셜 목록을 통째로 다시 읽는다.
-  void _openInbox(RemoteMessage? message) {
+  void _openInbox(RemoteMessage? message, {String? type}) {
     _refresh([
       ...inboxProviders,
       ...socialProviders,
-      ...providersForNotification(message?.data['type'] as String?),
+      ...providersForNotification(type ?? message?.data['type'] as String?),
     ]);
     final context = rootMessengerKey.currentContext;
     if (context == null) return;
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(builder: (_) => const NotificationsScreen()),
     );
+  }
+
+  Future<void> _setUpAndroidBanner() async {
+    await _local.initialize(
+      settings: const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+      // 배너를 탭하면 백그라운드 푸시와 똑같이 알림함으로.
+      onDidReceiveNotificationResponse: (r) => _openInbox(null, type: r.payload),
+    );
+    await _local
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(_channel);
   }
 
   void _onForegroundMessage(RemoteMessage message) {
@@ -138,10 +174,24 @@ class PushMessaging {
       ...providersForNotification(message.data['type'] as String?),
     ]);
 
-    final body = message.notification?.body;
-    final context = rootMessengerKey.currentContext;
-    if (body != null && body.isNotEmpty && context != null) {
-      OunToast.show(context, body, kind: OunToastKind.cheer);
+    // 앱 안 토스트 대신 OS 배너로만 알린다. iOS는 OS가 이미 띄웠다.
+    final n = message.notification;
+    if (Platform.isAndroid && n != null) {
+      _local.show(
+        id: message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+        title: n.title,
+        body: n.body,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channel.id,
+            _channel.name,
+            channelDescription: _channel.description,
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        payload: message.data['type'] as String?,
+      );
     }
   }
 }

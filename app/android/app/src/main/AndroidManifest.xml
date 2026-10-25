@@ -7,6 +7,10 @@
         android:label="오운"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- 백그라운드 FCM 배너도 앱 사용 중 배너와 같은 채널(PushMessaging._channel)을 쓴다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="oun_default" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
