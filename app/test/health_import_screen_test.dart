@@ -115,6 +115,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('기록 완료'), findsOneWidget);
-    expect(tester.widget<ListTile>(find.byType(ListTile)).onTap, isNull);
+    final row = find.ancestor(
+      of: find.text('러닝 · 30분'),
+      matching: find.byType(InkWell),
+    );
+    expect(tester.widget<InkWell>(row).onTap, isNull);
   });
 }

@@ -281,7 +281,11 @@ class _WorkoutDetail extends ConsumerWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${_detailDate(w.performedAt)}${w.source == 'healthkit' ? ' · 애플 건강' : w.source == 'health_connect' ? ' · Health Connect' : ''}',
+                        '${_detailDate(w.performedAt)}${w.source == 'healthkit'
+                            ? ' · 애플 건강'
+                            : w.source == 'health_connect'
+                            ? ' · Health Connect'
+                            : ''}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: OunColors.textMuted,
@@ -556,10 +560,29 @@ class RecordScreen extends ConsumerWidget {
             ),
           ),
         ),
-        TextButton.icon(
-          onPressed: () => openHealthImport(context),
-          icon: const Icon(Icons.favorite_outline),
-          label: const Text('건강 앱에서 최근 운동 불러오기'),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: OunColors.textMuted,
+              backgroundColor: OunColors.card,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: () => openHealthImport(context),
+            icon: const Icon(
+              Icons.favorite_rounded,
+              size: 17,
+              color: OunColors.tabAccent,
+            ),
+            label: const Text(
+              '건강 앱에서 최근 운동 불러오기',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
         ),
         Row(
           children: [

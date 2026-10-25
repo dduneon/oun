@@ -17,6 +17,7 @@ import '../my/care_screen.dart';
 import '../my/coin_history_screen.dart';
 import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
+import '../health/pending_health_card.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
 /// 상단은 인사·코인으로 최소화해 캐릭터에 무대를 내주고,
@@ -30,7 +31,21 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(healthImportStatesProvider);
+      ref.invalidate(pendingHealthWorkoutsProvider);
+    }
+  }
+
   /// 이번 세션에서 응원 반응을 이미 재생했는지. 홈은 IndexedStack으로 계속
   /// 살아있어서, 이 플래그가 없으면 리빌드마다 캐릭터가 다시 반응한다.
   bool _cheerHandled = false;
@@ -54,6 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _bubbleTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -201,6 +217,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               children: [
                 _TopRow(greeting: _greeting()),
+                const PendingHealthCard(),
                 const Spacer(),
                 _TodayCard(
                   onRecord: () => context.go('/record'),

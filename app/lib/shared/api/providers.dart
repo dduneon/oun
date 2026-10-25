@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../auth/social_sign_in.dart';
 import '../push/push_messaging.dart';
 import 'api_client.dart';
+import '../../features/health/health_workout.dart';
 import 'models.dart';
 
 /// refresh 토큰 보관소. iOS는 Keychain, Android는 EncryptedSharedPreferences.
@@ -271,6 +272,18 @@ final todayMinutesProvider = FutureProvider<int>((ref) async {
   return items.fold<int>(0, (s, w) => s + w.minutes);
 });
 
+final healthWorkoutsServiceProvider = Provider<HealthWorkouts>((ref) => HealthWorkouts());
+
+/// Foreground only, never requests permissions from the home screen.
+final pendingHealthWorkoutsProvider = FutureProvider<List<HealthWorkout>>((ref) async {
+  await _authed(ref);
+  final health = ref.watch(healthWorkoutsServiceProvider);
+  if (!await health.available() || await health.needsAuthorization()) return [];
+  final saved = await ref.watch(healthImportStatesProvider.future);
+  final workouts = await health.readRecent();
+  return workouts.where((w) => !saved.containsKey(w.importKey)).toList();
+});
+
 final healthImportStatesProvider = FutureProvider<Map<String, String>>((ref) async {
   final api = await _authed(ref);
   return api.healthImportStates();
@@ -525,6 +538,8 @@ List<RefreshTarget> providersForTab(int index) => switch (index) {
           loadoutProvider,
           walletProvider,
           todayMinutesProvider,
+          pendingHealthWorkoutsProvider,
+          healthImportStatesProvider,
           questsProvider,
           receivedCheersProvider,
           unreadNotificationsProvider,
