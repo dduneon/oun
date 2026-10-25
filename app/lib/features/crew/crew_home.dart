@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../character/character_avatar.dart';
 import 'crew_create_sheet.dart';
 import 'crew_feed.dart';
+import 'crew_invite_sheet.dart';
 import 'friend_home_screen.dart';
 import 'crew_level.dart';
 
@@ -441,7 +442,14 @@ class _MembersTab extends ConsumerWidget {
   const _MembersTab({required this.crew});
   final CrewDetail crew;
 
-  Future<void> _invite(BuildContext context, WidgetRef ref) async {
+  /// 친구 목록에서 골라 초대. 친구가 아닌 사람은 닉네임 입력으로.
+  void _invite(BuildContext context, WidgetRef ref) => showCrewInviteSheet(
+        context,
+        crew: crew,
+        onInviteByNickname: () => _inviteByNickname(context, ref),
+      );
+
+  Future<void> _inviteByNickname(BuildContext context, WidgetRef ref) async {
     final nickname = await showNicknameInputSheet(
       context,
       title: '크루원 초대하기',
