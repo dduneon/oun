@@ -285,7 +285,7 @@ class _WorkoutDetail extends ConsumerWidget {
                         '${_detailDate(w.performedAt)}${w.source == 'healthkit'
                             ? ' · 애플 건강'
                             : w.source == 'health_connect'
-                            ? ' · Health Connect'
+                            ? ' · 삼성 헬스'
                             : ''}',
                         style: const TextStyle(
                           fontSize: 12,

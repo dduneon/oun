@@ -120,7 +120,7 @@ class _HealthImportScreenState extends ConsumerState<HealthImportScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isHealthConnect = HealthWorkouts.name == 'Health Connect';
+    final isHealthConnect = HealthWorkouts.viaHealthConnect;
     return Scaffold(
       backgroundColor: OunColors.background,
       appBar: AppBar(
@@ -150,8 +150,9 @@ class _HealthImportScreenState extends ConsumerState<HealthImportScreen>
           if (_unavailable)
             _Notice(
               icon: Icons.phonelink_erase_rounded,
-              text:
-                  '이 기기에서 건강 앱을 사용할 수 없어요. Android 9 이상에서는 Health Connect 설치 또는 업데이트를 확인해 주세요.',
+              text: isHealthConnect
+                  ? '이 기기에서 건강 앱을 사용할 수 없어요. Android 9 이상에서는 Health Connect 설치 또는 업데이트를 확인해 주세요.'
+                  : '이 기기에서는 건강 앱을 사용할 수 없어요.',
               action: HealthWorkouts.supported && isHealthConnect
                   ? _SoftButton(
                       label: 'Health Connect 설치 / 업데이트',
@@ -335,10 +336,15 @@ class _ConnectCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        for (final (icon, text) in const [
+        for (final (icon, text) in [
           (Icons.directions_run_rounded, '운동 종류·시간·거리·칼로리를 읽어 목록을 보여드려요.'),
           (Icons.cloud_done_outlined, '저장을 누른 운동만 오운 서버에 보관해요.'),
           (Icons.lock_outline_rounded, '건강 앱의 원본 기록은 변경하지 않아요.'),
+          if (HealthWorkouts.viaHealthConnect)
+            (
+              Icons.link_rounded,
+              'Health Connect를 통해 불러와요. Google Fit 등 Health Connect에 연결된 앱의 기록도 함께 보여요.',
+            ),
         ])
           Padding(
             padding: const EdgeInsets.only(bottom: 7),
@@ -622,9 +628,10 @@ class _SoftButton extends StatelessWidget {
 
 /// 권한 변경·데이터 보관 안내. 다른 확인 시트와 같은 바텀시트 톤.
 void _showDataInfo(BuildContext context) {
-  const sections = [
-    ('아이폰', '건강 앱 → 프로필 → 앱 → 오운에서 읽기 권한을 변경할 수 있어요.'),
-    ('안드로이드', '설정 → Health Connect → 앱 권한 → 오운에서 권한을 변경할 수 있어요.'),
+  final sections = [
+    HealthWorkouts.viaHealthConnect
+        ? ('권한 변경', '설정 → Health Connect → 앱 권한 → 오운에서 권한을 변경할 수 있어요.')
+        : ('권한 변경', '건강 앱 → 프로필 → 앱 → 오운에서 읽기 권한을 변경할 수 있어요.'),
     (
       '저장한 기록',
       '권한을 해제해도 저장한 오운 기록은 남아요. 기록 상세에서 삭제할 수 있으며, 중복 지급 방지를 위해 원본 기록 식별자는 회원 탈퇴까지 보관해요. 삭제한 운동은 다시 불러올 수 없어요.',

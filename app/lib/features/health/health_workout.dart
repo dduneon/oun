@@ -60,7 +60,9 @@ class HealthWorkouts {
   final Health _health = Health();
   static const _channel = MethodChannel('oun/health_workouts');
   static bool get supported => Platform.isIOS || Platform.isAndroid;
-  static String get name => Platform.isIOS ? '애플 건강' : 'Health Connect';
+  /// Android는 Health Connect를 통해 읽지만, 사용자에게는 익숙한 삼성 헬스로 부른다.
+  static String get name => Platform.isIOS ? '애플 건강' : '삼성 헬스';
+  static bool get viaHealthConnect => Platform.isAndroid;
   List<HealthDataType> get _types => [
     HealthDataType.WORKOUT,
     if (Platform.isAndroid) ...[
