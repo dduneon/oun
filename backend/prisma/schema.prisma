@@ -28,8 +28,9 @@ model User {
   appleId      String?  @unique // 애플 로그인 식별자(identity token의 sub)
   username     String?  @unique // 자격 로그인 아이디 (카카오/dev 유저는 null)
   passwordHash String? // bcrypt 해시 (자격 로그인 유저만)
-  nickname     String   @unique // @nickname (친구 추가·프로필)
-  displayName  String
+  nickname     String   @unique // @아이디: 영문 소문자 고유값, 가입 후 변경 불가(친구 추가·프로필)
+  displayName  String // 닉네임: 화면에 보이는 이름, 자유롭게 변경
+  handleConfirmed Boolean @default(true) // 소셜 가입 직후 임시 아이디면 false — 첫 화면에서 정한다
   gender       Gender   @default(f)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

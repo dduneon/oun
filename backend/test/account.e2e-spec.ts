@@ -76,14 +76,15 @@ describe('리포트·알림 설정·계정 (e2e)', () => {
     expect(await push.allowed(id, 'something_new')).toBe(true);
   });
 
-  it('프로필: 이름·닉네임을 바꾸고, 겹치거나 형식이 틀리면 막는다', async () => {
+  it('프로필: 닉네임은 바꿀 수 있고, 정해진 @아이디는 바꿀 수 없다', async () => {
     const a = await login(`pa_${stamp}`);
-    await login(`pb_${stamp}`);
 
-    const res = await http().patch('/me').set(a.auth).send({ displayName: '  새 이름 ', nickname: `pc_${stamp}` }).expect(200);
-    expect(res.body).toMatchObject({ displayName: '새 이름', nickname: `pc_${stamp}` });
+    const res = await http().patch('/me').set(a.auth).send({ displayName: '  새 닉네임 ' }).expect(200);
+    expect(res.body).toMatchObject({ displayName: '새 닉네임', nickname: `pa_${stamp}` });
 
-    await http().patch('/me').set(a.auth).send({ nickname: `pb_${stamp}` }).expect(409);
+    await http().patch('/me').set(a.auth).send({ nickname: `pc_${stamp}` }).expect(403);
+    // 같은 값은 그대로 통과(바뀌는 게 없다).
+    await http().patch('/me').set(a.auth).send({ nickname: `pa_${stamp}` }).expect(200);
     await http().patch('/me').set(a.auth).send({ nickname: 'has space' }).expect(400);
   });
 

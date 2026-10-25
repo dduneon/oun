@@ -7,6 +7,8 @@ import {
   Matches,
 } from 'class-validator';
 import { Gender } from '@prisma/client';
+import { Transform } from 'class-transformer';
+import { HANDLE_MESSAGE, HANDLE_RE, normalizeHandle } from '../users/handle';
 
 export class KakaoLoginDto {
   // 앱이 카카오 SDK로 받은 access token. 서버가 카카오 API로 검증한다.
@@ -27,26 +29,27 @@ export class AppleLoginDto {
 }
 
 export class RegisterDto {
-  // 로그인 아이디: 영문/숫자/밑줄 4~20자.
+  // 아이디: 로그인 아이디이자 @아이디(친구 찾기). 가입 후 변경 불가.
+  @Transform(({ value }) => normalizeHandle(value))
   @IsString()
-  @Matches(/^[a-zA-Z0-9_]{4,20}$/, {
-    message: '아이디는 영문·숫자·밑줄 4~20자예요',
-  })
+  @Matches(HANDLE_RE, { message: HANDLE_MESSAGE })
   username!: string;
 
   @IsString()
   @Length(6, 72)
   password!: string;
 
+  // 닉네임: 화면에 보이는 이름(자유).
   @IsString()
   @Length(1, 20)
-  nickname!: string;
+  displayName!: string;
 
   @IsEnum(Gender)
   gender!: Gender;
 }
 
 export class LoginDto {
+  @Transform(({ value }) => normalizeHandle(value))
   @IsString()
   username!: string;
 

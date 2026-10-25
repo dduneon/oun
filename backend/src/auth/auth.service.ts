@@ -52,24 +52,28 @@ export class AuthService {
     };
   }
 
-  /** 회원가입: 아이디 + 비밀번호 + 닉네임 + 캐릭터. 아이디·닉네임 중복 거부. */
+  /**
+   * 회원가입: 아이디 + 비밀번호 + 닉네임 + 캐릭터.
+   * 아이디는 로그인 아이디이자 @아이디(username = nickname)라 둘 다 겹치면 안 된다.
+   */
   async register(input: {
     username: string;
     password: string;
-    nickname: string;
+    displayName: string;
     gender: Gender;
   }) {
-    if (await this.users.findByUsername(input.username)) {
+    if (
+      (await this.users.findByUsername(input.username)) ||
+      (await this.users.findByNickname(input.username))
+    ) {
       throw new ConflictException('이미 사용 중인 아이디예요');
-    }
-    if (await this.users.findByNickname(input.nickname)) {
-      throw new ConflictException('이미 사용 중인 닉네임이에요');
     }
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await this.users.provision({
       username: input.username,
       passwordHash,
-      nickname: input.nickname,
+      nickname: input.username,
+      displayName: input.displayName.trim(),
       gender: input.gender,
     });
     return this.authResult(user);
@@ -109,11 +113,13 @@ export class AuthService {
 
     const existing = await this.users.findByKakaoId(kakaoId);
     if (existing) return this.authResult(existing);
-    const unique = await this.users.ensureUniqueNickname(nickname || `oun_${kakaoId.slice(-6)}`);
+    // 임시 아이디로 만들고, 첫 화면(온보딩)에서 직접 정한다.
+    const unique = await this.users.ensureUniqueNickname(`oun_${kakaoId.slice(-6)}`);
     const user = await this.users.provision({
       nickname: unique,
       displayName: nickname?.trim().slice(0, 20) || unique,
       kakaoId,
+      handleConfirmed: false,
     });
     return this.authResult(user, true);
   }
@@ -127,11 +133,12 @@ export class AuthService {
     const existing = await this.users.findByAppleId(sub);
     if (existing) return this.authResult(existing);
     const name = displayName?.trim().slice(0, 20);
-    const unique = await this.users.ensureUniqueNickname(name || `oun_${sub.replace(/\W/g, '').slice(-6)}`);
+    const unique = await this.users.ensureUniqueNickname(`oun_${sub.replace(/\W/g, '').slice(-6)}`);
     const user = await this.users.provision({
       nickname: unique,
       displayName: name || unique,
       appleId: sub,
+      handleConfirmed: false,
     });
     return this.authResult(user, true);
   }

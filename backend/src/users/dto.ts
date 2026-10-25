@@ -1,13 +1,14 @@
 import { IsEnum, IsOptional, IsString, Length, Matches } from 'class-validator';
 import { Gender } from '@prisma/client';
+import { Transform } from 'class-transformer';
+import { HANDLE_MESSAGE, HANDLE_RE, normalizeHandle } from './handle';
 
 export class UpdateMeDto {
-  // @닉네임은 친구 검색·멘션에 쓰여 공백·기호를 막는다.
+  // @아이디. 소셜 가입 직후 첫 화면에서만 정할 수 있다(이후 403).
   @IsOptional()
+  @Transform(({ value }) => normalizeHandle(value))
   @IsString()
-  @Matches(/^[a-zA-Z0-9_가-힣]{1,20}$/, {
-    message: '닉네임은 한글·영문·숫자·밑줄 20자 이내예요',
-  })
+  @Matches(HANDLE_RE, { message: HANDLE_MESSAGE })
   nickname?: string;
 
   @IsOptional()

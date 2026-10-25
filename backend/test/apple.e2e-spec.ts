@@ -41,20 +41,27 @@ describe('애플 로그인 (e2e)', () => {
 
   const http = () => request(app.getHttpServer());
 
-  it('처음이면 계정을 만들고 isNew, 닉네임은 규칙에 맞게 다듬는다', async () => {
+  it('처음이면 임시 아이디로 만들고, 첫 화면에서 @아이디를 한 번 정한다', async () => {
     const res = await http()
       .post('/auth/apple')
       .send({ identityToken: token(), displayName: '애플 오운!' })
       .expect(201);
     expect(res.body.isNew).toBe(true);
-    expect(res.body.user.nickname).toMatch(/^애플오운/);
+    expect(res.body.user.nickname).toMatch(/^oun_[a-z0-9_]+$/);
 
     const auth = { Authorization: `Bearer ${res.body.accessToken}` };
     const me = await http().get('/me').set(auth).expect(200);
-    expect(me.body.displayName).toBe('애플 오운!');
-    // 첫 가입 화면에서 캐릭터를 고른다.
-    const updated = await http().patch('/me').set(auth).send({ gender: 'm' }).expect(200);
-    expect(updated.body.gender).toBe('m');
+    expect(me.body).toMatchObject({ displayName: '애플 오운!', handleConfirmed: false });
+    // 첫 가입 화면에서 캐릭터와 아이디를 고른다.
+    const handle = `apple_${Date.now().toString().slice(-8)}`;
+    const updated = await http()
+      .patch('/me')
+      .set(auth)
+      .send({ gender: 'm', nickname: handle.toUpperCase() })
+      .expect(200);
+    expect(updated.body).toMatchObject({ gender: 'm', nickname: handle, handleConfirmed: true });
+    // 정한 뒤로는 바꿀 수 없다.
+    await http().patch('/me').set(auth).send({ nickname: `${handle}_x` }).expect(403);
   });
 
   it('두 번째부터는 같은 계정으로 들어온다', async () => {

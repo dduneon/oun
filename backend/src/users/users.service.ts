@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Gender, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
@@ -23,6 +28,7 @@ export class UsersService {
     appleId?: string;
     username?: string;
     passwordHash?: string;
+    handleConfirmed?: boolean;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -34,6 +40,7 @@ export class UsersService {
           appleId: input.appleId,
           username: input.username,
           passwordHash: input.passwordHash,
+          handleConfirmed: input.handleConfirmed ?? true,
           characterStat: { create: {} },
           characterMood: { create: {} },
           streak: { create: {} },
@@ -60,11 +67,11 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { username } });
   }
 
-  /** 닉네임 중복 시 뒤에 숫자를 붙여 유니크한 닉네임을 만든다. */
+  /** 소셜 가입용 임시 @아이디. 겹치면 뒤에 숫자를 붙인다(첫 화면에서 다시 정한다). */
   async ensureUniqueNickname(base: string): Promise<string> {
-    // @닉네임 규칙(한글·영문·숫자·밑줄)에 맞게 다듬는다 — 카카오·애플 이름엔 공백·기호가 섞인다.
-    // 뒤에 _n을 붙일 자리를 남긴다.
-    const clean = base.replace(/[^a-zA-Z0-9_가-힣]/g, '').slice(0, 16) || 'oun';
+    // 아이디 규칙(영문 소문자·숫자·밑줄)에 맞게 다듬고, 뒤에 _n을 붙일 자리를 남긴다.
+    const cleaned = base.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 16);
+    const clean = cleaned.length >= 3 ? cleaned : 'oun';
     let candidate = clean;
     let n = 1;
     while (await this.prisma.user.findUnique({ where: { nickname: candidate } })) {
@@ -92,6 +99,7 @@ export class UsersService {
       id: user.id,
       nickname: user.nickname,
       displayName: user.displayName,
+      handleConfirmed: user.handleConfirmed,
       gender: user.gender,
       level,
       coin: balance,
@@ -106,16 +114,29 @@ export class UsersService {
   async update(userId: string, data: { nickname?: string; displayName?: string; gender?: Gender }) {
     const displayName = data.displayName?.trim();
     if (data.displayName !== undefined && !displayName) {
-      throw new ConflictException('이름을 입력해 주세요');
+      throw new ConflictException('닉네임을 입력해 주세요');
+    }
+    // @아이디는 소셜 가입 직후 한 번만 정한다. 같은 값을 다시 보내는 건 허용.
+    let handle: { nickname: string; handleConfirmed: true } | undefined;
+    if (data.nickname !== undefined) {
+      const me = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+      if (me.handleConfirmed && me.nickname !== data.nickname) {
+        throw new ForbiddenException('아이디는 바꿀 수 없어요');
+      }
+      handle = { nickname: data.nickname, handleConfirmed: true };
     }
     try {
       await this.prisma.user.update({
         where: { id: userId },
-        data: { ...data, ...(displayName ? { displayName } : {}) },
+        data: {
+          ...(data.gender ? { gender: data.gender } : {}),
+          ...(displayName ? { displayName } : {}),
+          ...handle,
+        },
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('이미 사용 중인 닉네임이에요');
+        throw new ConflictException('이미 사용 중인 아이디예요');
       }
       throw e;
     }
