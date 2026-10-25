@@ -49,6 +49,11 @@ export class WorkoutsController {
     return this.workouts.remove(user.userId, id);
   }
 
+  @Get('weekly-review')
+  weeklyReview(@CurrentUser() user: AuthUser, @Query('week') week?: string) {
+    return this.workouts.weeklyReview(user.userId, week);
+  }
+
   @Get('health-imports')
   healthImports(@CurrentUser() user: AuthUser, @Query('after') after?: string) {
     return this.workouts.healthImports(user.userId, after);

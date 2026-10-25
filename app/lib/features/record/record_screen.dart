@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'workout_editor.dart';
 import 'recent_workout_shortcuts.dart';
+import 'weekly_review_screen.dart';
 import '../health/health_import_screen.dart';
 
 import '../../shared/api/models.dart';
@@ -505,6 +506,11 @@ class RecordScreen extends ConsumerWidget {
       ),
       children: [
         const _MonthSection(),
+        Align(alignment: Alignment.centerRight, child: TextButton.icon(
+          onPressed: () => openWeeklyReview(context),
+          icon: const Icon(Icons.calendar_view_week_rounded, size: 17),
+          label: const Text('주간 운동 회고'),
+        )),
         const RecentWorkoutShortcuts(),
         const _SectionHeader('오늘 기록하기', showAll: false),
         Row(

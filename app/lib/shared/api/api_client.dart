@@ -279,6 +279,12 @@ class ApiClient {
     );
   }
 
+  Future<WeeklyReview> weeklyReview({String? week}) async {
+    final response = await _dio.get<Map<String, dynamic>>('/workouts/weekly-review',
+      queryParameters: {'week': ?week});
+    return WeeklyReview.fromJson(response.data!);
+  }
+
   /// Download our own saved identities; never upload unselected device records.
   Future<Map<String, String>> healthImportStates() async {
     final states = <String, String>{};

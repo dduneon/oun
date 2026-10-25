@@ -12,7 +12,7 @@ import { GameService } from '../game/game.service';
 import { QuestsService } from '../quests/quests.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { workoutReward } from '../game/leveling';
-import { kstDayKey, kstMonthRange } from '../common/time';
+import { kstDayKey, kstMonthRange, kstWeekStart } from '../common/time';
 import { StorageService } from '../storage/storage.service';
 import { CreateWorkoutDto } from './dto';
 import { verifyWorkout } from './verify';
@@ -265,6 +265,55 @@ export class WorkoutsService {
         balance,
       };
     });
+  }
+
+  /** KST Monday-Sunday; current week compares equal elapsed periods. */
+  async weeklyReview(userId: string, week?: string) {
+    const now = new Date();
+    const currentStart = kstWeekStart(now);
+    let start = currentStart;
+    if (week !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new BadRequestException('올바른 주 시작일이 필요해요');
+      start = new Date(`${week}T00:00:00+09:00`);
+      if (!Number.isFinite(start.getTime()) || kstDayKey(start) !== week ||
+          kstWeekStart(start).getTime() !== start.getTime() || start > currentStart) {
+        throw new BadRequestException('이번 주 이전의 월요일을 선택해 주세요');
+      }
+    }
+    const dayMs = 86400000;
+    const end = new Date(start.getTime() + 7 * dayMs);
+    const previousStart = new Date(start.getTime() - 7 * dayMs);
+    const isCurrentWeek = start.getTime() === currentStart.getTime();
+    const cutoff = isCurrentWeek ? now : end;
+    const previousCutoff = new Date(cutoff.getTime() - 7 * dayMs);
+    const rows = await this.prisma.workoutLog.findMany({
+      where: { userId, verifyStatus: 'verified', performedAt: { gte: previousStart, lt: cutoff } },
+      select: { performedAt: true, durationSec: true, sport: true },
+    });
+    const current = rows.filter(r => r.performedAt >= start);
+    const previous = rows.filter(r => r.performedAt < previousCutoff);
+    const summarize = (items: typeof rows) => ({
+      days: new Set(items.map(r => kstDayKey(r.performedAt))).size,
+      sessions: items.length,
+      minutes: Math.floor(items.reduce((sum, r) => sum + r.durationSec, 0) / 60),
+    });
+    const bySport = new Map<string, { sport: string; seconds: number; sessions: number }>();
+    for (const row of current) {
+      const entry = bySport.get(row.sport) ?? { sport: row.sport, seconds: 0, sessions: 0 };
+      entry.seconds += row.durationSec;
+      entry.sessions++;
+      bySport.set(row.sport, entry);
+    }
+    const sports = [...bySport.values()].sort((a, b) => b.seconds - a.seconds || a.sport.localeCompare(b.sport))
+      .map(({ sport, seconds, sessions }) => ({ sport, minutes: Math.floor(seconds / 60), sessions }));
+    const daily = Array.from({ length: 7 }, (_, i) => {
+      const date = kstDayKey(new Date(start.getTime() + i * dayMs));
+      const items = current.filter(r => kstDayKey(r.performedAt) === date);
+      return { date, ...summarize(items), future: date > kstDayKey(now) };
+    });
+    return { weekStart: kstDayKey(start), weekEnd: kstDayKey(new Date(end.getTime() - 1)),
+      isCurrentWeek, comparison: isCurrentWeek ? '지난주 같은 시점' : '이전 주',
+      current: summarize(current), previous: summarize(previous), daily, sports };
   }
 
   async healthImports(userId: string, after?: string) {

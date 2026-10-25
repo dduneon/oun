@@ -235,6 +235,11 @@ final characterMoodProvider = FutureProvider<CharacterMoodState>((ref) async {
   return api.characterMood();
 });
 
+final weeklyReviewProvider = FutureProvider.family<WeeklyReview, String?>((ref, week) async {
+  final api = await _authed(ref);
+  return api.weeklyReview(week: week);
+});
+
 /// 월말 리포트(YYYY-MM).
 final monthlyReportProvider =
     FutureProvider.family<MonthlyReport, String>((ref, month) async {
@@ -471,6 +476,7 @@ void invalidateAfterWorkout(WidgetRef ref) {
   ref.invalidate(calendarProvider);
   ref.invalidate(monthSummaryProvider);
   ref.invalidate(monthlyReportProvider);
+  ref.invalidate(weeklyReviewProvider);
   ref.invalidate(questsProvider);
   ref.invalidate(achievementsProvider);
   ref.invalidate(crewsProvider);
@@ -538,6 +544,7 @@ List<RefreshTarget> providersForTab(int index) => switch (index) {
           loadoutProvider,
           walletProvider,
           todayMinutesProvider,
+          weeklyReviewProvider,
           pendingHealthWorkoutsProvider,
           healthImportStatesProvider,
           questsProvider,

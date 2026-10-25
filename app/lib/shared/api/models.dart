@@ -1164,3 +1164,40 @@ class CoinHistory {
         ],
       );
 }
+
+
+class WeeklyTotals {
+  const WeeklyTotals({required this.days, required this.sessions, required this.minutes});
+  final int days, sessions, minutes;
+  factory WeeklyTotals.fromJson(Map<String, dynamic> json) => WeeklyTotals(
+    days: json['days'] as int, sessions: json['sessions'] as int, minutes: json['minutes'] as int);
+}
+class WeeklyDay {
+  const WeeklyDay({required this.date, required this.minutes, required this.sessions, required this.future});
+  final String date;
+  final int minutes, sessions;
+  final bool future;
+}
+class WeeklySport {
+  const WeeklySport({required this.sport, required this.minutes, required this.sessions});
+  final String sport;
+  final int minutes, sessions;
+}
+class WeeklyReview {
+  const WeeklyReview({required this.weekStart, required this.weekEnd, required this.isCurrentWeek,
+    required this.comparison, required this.current, required this.previous, required this.daily, required this.sports});
+  final String weekStart, weekEnd, comparison;
+  final bool isCurrentWeek;
+  final WeeklyTotals current, previous;
+  final List<WeeklyDay> daily;
+  final List<WeeklySport> sports;
+  factory WeeklyReview.fromJson(Map<String, dynamic> json) => WeeklyReview(
+    weekStart: json['weekStart'] as String, weekEnd: json['weekEnd'] as String,
+    isCurrentWeek: json['isCurrentWeek'] as bool, comparison: json['comparison'] as String,
+    current: WeeklyTotals.fromJson(json['current'] as Map<String, dynamic>),
+    previous: WeeklyTotals.fromJson(json['previous'] as Map<String, dynamic>),
+    daily: (json['daily'] as List).map((d) => WeeklyDay(date: d['date'] as String,
+      minutes: d['minutes'] as int, sessions: d['sessions'] as int, future: d['future'] as bool)).toList(),
+    sports: (json['sports'] as List).map((s) => WeeklySport(sport: s['sport'] as String,
+      minutes: s['minutes'] as int, sessions: s['sessions'] as int)).toList());
+}

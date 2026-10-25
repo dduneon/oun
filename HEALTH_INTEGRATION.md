@@ -52,3 +52,15 @@
 - https://developer.apple.com/documentation/healthkit/setting-up-healthkit
 - https://developer.android.com/health-and-fitness/health-connect/publish
 - https://developer.samsung.com/health/blog/en/accessing-samsung-health-data-through-health-connect
+
+## 기록을 줄이는 추가 기능
+
+- 홈: 연결된 건강 앱의 최근 30일 운동 중 아직 오운에 가져오지 않은 운동을 자동 표시한다.
+  홈에서는 권한을 새로 요청하지 않는다. 앱 복귀/홈 탭 재진입/기록 저장 시 새로 확인한다.
+  미기록 운동 카드를 누르면 해당 운동의 편집 화면이 바로 열리고, 여러 건이면 목록으로 이동한다.
+- 기록: 최근 운동 3개에서 바로 오늘의 새 수동 기록을 시작한다. 운동 내용은 복사하고
+  원본 날짜, 사진, 메모, 칼로리, 건강 앱 ID는 복사하지 않는다.
+- 홈/기록 → 주간 운동 회고: KST 월요일~일요일 기준 인증된 운동의 일수·횟수·총 시간,
+  요일별 기록 및 종목별 합계를 표시한다. 이번 주는 지난주 같은 시점까지 비교하며,
+  끝난 주는 이전 주 전체와 비교한다. 이전 주 탐색, 빈 주, 새로고침을 지원한다.
+- 주간 집계는 서버에서 전체 기록을 조회하므로 목록의 50개 페이지 제한에 영향을 받지 않는다.

@@ -18,6 +18,7 @@ import '../my/coin_history_screen.dart';
 import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
 import '../health/pending_health_card.dart';
+import '../record/weekly_review_screen.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
 /// 상단은 인사·코인으로 최소화해 캐릭터에 무대를 내주고,
@@ -43,6 +44,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) {
       ref.invalidate(healthImportStatesProvider);
       ref.invalidate(pendingHealthWorkoutsProvider);
+      ref.invalidate(weeklyReviewProvider);
     }
   }
 
@@ -502,6 +504,7 @@ class _TodayCard extends ConsumerWidget {
                   ),
                 ],
               ),
+              const WeeklyReviewLink(),
               // 휴식일: 오늘 쉬는 중이면 안내, 아직 선언할 수 있으면 조용한 링크.
               if (care != null && (care.restToday || care.canDeclareRest))
                 _RestDayRow(care: care),
