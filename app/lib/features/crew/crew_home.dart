@@ -238,25 +238,24 @@ class _CrewHomeScreenState extends ConsumerState<CrewHomeScreen> {
             height: _stageHeight,
             child: Stack(
               children: [
+                // 캐릭터 발밑에 이름표가 붙으므로 인원 수 문구는 로딩 중에만 쓴다.
                 if (crew != null)
                   Positioned.fill(
-                    bottom: 26,
+                    bottom: 6,
                     child: CrewStage(members: crew.members),
+                  )
+                else
+                  const Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text('크루원을 불러오는 중…',
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: OunColors.textMuted)),
+                    ),
                   ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                        crew == null
-                            ? '크루원을 불러오는 중…'
-                            : '크루원 ${crew.members.length}명이 모여 있어요',
-                        style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: OunColors.textMuted)),
-                  ),
-                ),
               ],
             ),
           ),
@@ -963,12 +962,18 @@ class _NicknameSheetState extends State<_NicknameSheet> {
 
 
 /// 크루원들이 나란히 서 있는 무대. 가운데부터 좌우로 번갈아 세우고,
-/// 앞뒤로 살짝 엇갈리게 해 모여 있는 느낌을 낸다.
+/// 앞뒤로 살짝 엇갈리게 해 모여 있는 느낌을 낸다. 발밑에 이름표를 붙인다.
 class CrewStage extends StatelessWidget {
   const CrewStage({super.key, required this.members});
   final List<CrewMemberData> members;
 
   static const _maxShown = 6;
+  static const _tagHeight = 18.0;
+  // 캔버스에서 신발 바닥이 끝나는 높이(800×1000 중 y≈957).
+  static const _feet = 0.957;
+  // 뒷줄 크기. 이웃 자리는 항상 앞/뒷줄이 엇갈려서, 이 차이만큼 이름표도
+  // 위아래로 엇갈려 겹치지 않는다.
+  static const _backScale = 0.9;
 
   @override
   Widget build(BuildContext context) {
@@ -978,25 +983,36 @@ class CrewStage extends StatelessWidget {
       for (var i = 0; i < shown.length; i++)
         i == 0 ? 0 : (i.isOdd ? (i + 1) ~/ 2 : -(i ~/ 2)),
     ];
+    bool back(int i) => order[i].abs().isOdd;
     return LayoutBuilder(
       builder: (context, c) {
-        final h = c.maxHeight;
+        final h = c.maxHeight - _tagHeight - 4;
         final w = h * kCharacterAspect;
         final gap = shown.length <= 1
             ? 0.0
             : ((c.maxWidth - w) / (shown.length - 1)).clamp(0.0, w * 0.62);
-        // 뒷줄이 먼저 그려지도록 바깥 자리부터.
+        double left(int i) => c.maxWidth / 2 - w / 2 + order[i] * gap;
+        double top(int i) => back(i) ? 0 : 4;
+        double height(int i) => h * (back(i) ? _backScale : 1.0);
+        // 같은 줄 이웃은 2칸 떨어져 있으니 그 폭 안에서 줄인다.
+        final tagWidth = shown.length <= 1
+            ? w
+            : (gap * 2 - 6).clamp(48.0, w);
+        // 뒷줄 → 앞줄, 각 줄 안에서는 바깥 자리부터 그린다.
         final indices = List.generate(shown.length, (i) => i)
-          ..sort((a, b) => order[b].abs().compareTo(order[a].abs()));
+          ..sort((a, b) {
+            if (back(a) != back(b)) return back(a) ? -1 : 1;
+            return order[b].abs().compareTo(order[a].abs());
+          });
         return Stack(
           clipBehavior: Clip.none,
           children: [
             for (final i in indices)
               Positioned(
-                left: c.maxWidth / 2 - w / 2 + order[i] * gap,
-                top: order[i].abs().isOdd ? 0 : 6,
+                left: left(i),
+                top: top(i),
                 width: w,
-                height: h * (order[i].abs().isOdd ? 0.94 : 1.0),
+                height: height(i),
                 child: LivingCharacter(
                   look: CharacterLook(
                     gender: shown[i].gender,
@@ -1006,9 +1022,62 @@ class CrewStage extends StatelessWidget {
                   seed: i + 1,
                 ),
               ),
+            // 이름표는 캐릭터 위에 따로 그려 다른 캐릭터에 가리지 않게 한다.
+            for (final i in indices)
+              Positioned(
+                left: left(i) + w / 2 - tagWidth / 2,
+                top: top(i) + height(i) * _feet + 2,
+                width: tagWidth,
+                height: _tagHeight,
+                child: Center(child: _NameTag(member: shown[i])),
+              ),
           ],
         );
       },
+    );
+  }
+}
+
+/// 캐릭터 발밑 이름표. 내 캐릭터는 테라코타, 방장은 작은 왕관.
+class _NameTag extends StatelessWidget {
+  const _NameTag({required this.member});
+  final CrewMemberData member;
+
+  @override
+  Widget build(BuildContext context) {
+    final me = member.isMe;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: me
+            ? OunColors.tabAccent
+            : OunColors.surface.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(9),
+        border: me ? null : Border.all(color: OunColors.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (member.isLeader) ...[
+            Icon(Icons.workspace_premium_rounded,
+                size: 11, color: me ? OunColors.onTabAccent : OunColors.coin),
+            const SizedBox(width: 2),
+          ],
+          Flexible(
+            child: Text(
+              me ? '나' : member.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                color: me ? OunColors.onTabAccent : OunColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
