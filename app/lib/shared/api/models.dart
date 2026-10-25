@@ -630,6 +630,7 @@ class CrewDetail {
     required this.pendingRequestCount,
     required this.members,
     required this.level,
+    this.mySharedWorkoutIds = const {},
   });
 
   final String id;
@@ -640,6 +641,7 @@ class CrewDetail {
   final int pendingRequestCount; // 방장에게 온 대기중 가입 신청 수
   final List<CrewMemberData> members;
   final CrewLevel level;
+  final Set<String> mySharedWorkoutIds; // 내가 이 크루에 이미 공유한 운동(다시 태그 불가)
 
   factory CrewDetail.fromJson(Map<String, dynamic> j) => CrewDetail(
     id: j['id'] as String,
@@ -652,6 +654,10 @@ class CrewDetail {
         .map((e) => CrewMemberData.fromJson(e as Map<String, dynamic>))
         .toList(),
     level: CrewLevel.fromJson(j['level'] as Map<String, dynamic>),
+    mySharedWorkoutIds: {
+      for (final id in (j['mySharedWorkoutIds'] as List? ?? const []))
+        id as String,
+    },
   );
 }
 

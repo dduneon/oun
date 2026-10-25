@@ -105,6 +105,11 @@ class _PostComposerState extends ConsumerState<_PostComposer> {
     final recent = (tagged != null && !recentBase.any((w) => w.id == tagged.id))
         ? <Workout>[tagged, ...recentBase]
         : recentBase;
+    // 이미 이 크루에 공유한 운동은 다시 태그할 수 없다(수정 중인 글의 운동은 예외).
+    final shared =
+        ref.watch(crewDetailProvider(widget.crewId)).value?.mySharedWorkoutIds ??
+            const <String>{};
+    bool isShared(Workout w) => shared.contains(w.id) && w.id != tagged?.id;
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
@@ -177,11 +182,16 @@ class _PostComposerState extends ConsumerState<_PostComposer> {
                   itemBuilder: (_, i) {
                     final w = recent[i];
                     final selected = _taggedId == w.id;
+                    final done = isShared(w);
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(
-                          () => _taggedId = selected ? null : w.id),
-                      child: Container(
+                      onTap: done
+                          ? null
+                          : () => setState(
+                              () => _taggedId = selected ? null : w.id),
+                      child: Opacity(
+                        opacity: done ? 0.45 : 1,
+                        child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
@@ -216,7 +226,10 @@ class _PostComposerState extends ConsumerState<_PostComposer> {
                                         color: selected
                                             ? OunColors.onTabAccent
                                             : OunColors.textPrimary)),
-                                Text(relativeDay(w.performedAt),
+                                Text(
+                                    done
+                                        ? '이미 공유했어요'
+                                        : relativeDay(w.performedAt),
                                     style: TextStyle(
                                         fontSize: 9.5,
                                         color: selected
@@ -226,6 +239,7 @@ class _PostComposerState extends ConsumerState<_PostComposer> {
                             ),
                           ],
                         ),
+                      ),
                       ),
                     );
                   },
