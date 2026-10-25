@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'workout_editor.dart';
+import 'recent_workout_shortcuts.dart';
 import '../health/health_import_screen.dart';
 
 import '../../shared/api/models.dart';
@@ -504,6 +505,7 @@ class RecordScreen extends ConsumerWidget {
       ),
       children: [
         const _MonthSection(),
+        const RecentWorkoutShortcuts(),
         const _SectionHeader('오늘 기록하기', showAll: false),
         Row(
           children: [

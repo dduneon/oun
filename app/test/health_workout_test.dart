@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:health/health.dart';
 import 'package:oun_app/features/health/health_workout.dart';
 import 'package:oun_app/features/record/workout_editor.dart';
+import 'package:oun_app/features/record/recent_workout_shortcuts.dart';
 import 'package:oun_app/shared/api/api_client.dart';
 import 'package:oun_app/shared/api/models.dart';
 import 'package:oun_app/shared/api/providers.dart';
@@ -115,6 +116,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.submitted, isNotNull);
     expect(api.submitted!['sets'], isNull);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('최근 운동에서 상세 진입 없이 오늘의 새 기록을 만든다', (tester) async {
+    final api = CapturingApi();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          apiClientProvider.overrideWithValue(api),
+          recentWorkoutsProvider.overrideWith(
+            (ref) async => [
+              Workout(
+                id: 'old',
+                sport: 'running',
+                durationSec: 1810,
+                distanceM: 5000,
+                performedAt: DateTime(2020, 1, 1),
+                source: 'healthkit',
+                note: '예전 메모',
+                calories: 200,
+                photoUrl: 'https://example.com/old.jpg',
+              ),
+            ],
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: RecentWorkoutShortcuts()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('러닝'));
+    await tester.pumpAndSettle();
+    expect(find.text('다시 기록하기'), findsOneWidget);
+    expect(find.text('예전 메모'), findsNothing);
+    await tester.tap(find.text('저장하기'));
+    await tester.pumpAndSettle();
+    final data = api.submitted!;
+    expect(data['durationSec'], 1810);
+    expect(data['distanceM'], 5000);
+    expect(data.containsKey('externalId'), isFalse);
+    expect(data.containsKey('source'), isFalse);
+    expect(data['calories'], isNull);
+    expect(data['note'], '');
+    expect(
+      DateTime.parse(
+        data['performedAt'] as String,
+      ).difference(DateTime.now()).abs().inSeconds,
+      lessThan(10),
+    );
     expect(tester.takeException(), isNull);
   });
 }
