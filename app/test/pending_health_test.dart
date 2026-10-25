@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oun_app/features/health/health_workout.dart';
-import 'package:oun_app/features/health/pending_health_card.dart';
+import 'package:oun_app/features/health/pending_health.dart';
 import 'package:oun_app/shared/api/providers.dart';
 
 class LoggedIn extends AuthController {
@@ -62,16 +61,15 @@ void main() {
     expect(await container.read(pendingHealthWorkoutsProvider.future), isEmpty);
     expect(health.reads, 1);
   });
-  testWidgets('미기록 운동이 없으면 홈 카드를 숨긴다', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          pendingHealthWorkoutsProvider.overrideWith((ref) async => []),
-        ],
-        child: const MaterialApp(home: Scaffold(body: PendingHealthCard())),
-      ),
+  test('캐릭터 말풍선은 하나면 운동을, 여러 개면 개수를 말한다', () {
+    HealthWorkout w(String id) => HealthWorkout(
+      id: id,
+      source: 'healthkit',
+      sport: 'running',
+      start: DateTime.now(),
+      durationSec: 1800,
     );
-    await tester.pumpAndSettle();
-    expect(find.textContaining('기록할까요?'), findsNothing);
+    expect(pendingHealthLine([w('a')]), '오늘 러닝 30분 했지? 기록해 줄까?');
+    expect(pendingHealthLine([w('a'), w('b')]), contains('2개'));
   });
 }

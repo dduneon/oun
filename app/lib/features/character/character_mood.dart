@@ -61,71 +61,110 @@ class MoodLook {
 
 /// 캐릭터 머리 위에 잠깐 떴다 사라지는 말풍선.
 class MoodBubble extends StatelessWidget {
-  const MoodBubble({super.key, required this.text, required this.visible});
+  const MoodBubble({
+    super.key,
+    required this.text,
+    required this.visible,
+    this.onTap,
+  });
 
   final String text;
   final bool visible;
 
+  /// 있으면 말풍선을 누를 수 있고, 아래에 '눌러서 기록하기' 힌트가 붙는다.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 220),
-        child: AnimatedScale(
-          scale: visible ? 1 : 0.9,
-          alignment: Alignment.bottomCenter,
+      ignoring: onTap == null || !visible,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
           duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutBack,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 9,
-                ),
-                decoration: BoxDecoration(
-                  color: OunColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: OunColors.cardBorder),
-                  boxShadow: [
-                    BoxShadow(
-                      color: OunColors.textPrimary.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: OunColors.textPrimary,
+          child: AnimatedScale(
+            scale: visible ? 1 : 0.9,
+            alignment: Alignment.bottomCenter,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: OunColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: OunColors.cardBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: OunColors.textPrimary.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        text,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: OunColors.textPrimary,
+                        ),
+                      ),
+                      if (onTap != null) ...[
+                        const SizedBox(height: 3),
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '눌러서 기록하기',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: OunColors.tabAccent,
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 15,
+                              color: OunColors.tabAccent,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ),
-              // 말꼬리
-              Transform.translate(
-                offset: const Offset(0, -5),
-                child: Transform.rotate(
-                  angle: math.pi / 4,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: OunColors.surface,
-                      border: Border(
-                        right: BorderSide(color: OunColors.cardBorder),
-                        bottom: BorderSide(color: OunColors.cardBorder),
+                // 말꼬리
+                Transform.translate(
+                  offset: const Offset(0, -5),
+                  child: Transform.rotate(
+                    angle: math.pi / 4,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: OunColors.surface,
+                        border: Border(
+                          right: BorderSide(color: OunColors.cardBorder),
+                          bottom: BorderSide(color: OunColors.cardBorder),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

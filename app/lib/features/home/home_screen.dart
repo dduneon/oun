@@ -17,7 +17,7 @@ import '../my/care_screen.dart';
 import '../my/coin_history_screen.dart';
 import '../my/notifications_screen.dart';
 import '../quest/quest_screen.dart';
-import '../health/pending_health_card.dart';
+import '../health/pending_health.dart';
 import '../record/weekly_review_screen.dart';
 
 /// 캐릭터 우선 홈(A안 · 차분한 무대).
@@ -102,6 +102,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     }
   }
 
+  /// 말풍선이 캐릭터 상자 위·옆으로 넘치는 만큼(누를 수 있게 상자에 포함).
+  static const double _bubbleSpace = 44;
+  static const double _bubbleSide = 40;
+
   static String _greeting() {
     final h = DateTime.now().hour;
     if (h < 5) return '늦은 밤이에요';
@@ -135,6 +139,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     });
     final mood = MoodLook.of(ref.watch(characterMoodProvider).value);
 
+    // 건강 앱에 아직 기록하지 않은 운동이 새로 보이면 캐릭터가 한 번 반응한다.
+    ref.listen(pendingHealthWorkoutsProvider, (prev, next) {
+      final before = prev?.value ?? const [];
+      final now = next.value ?? const [];
+      if (before.isEmpty && now.isNotEmpty) {
+        ref.read(characterReactionProvider.notifier).play();
+      }
+    });
+    final pending = ref.watch(pendingHealthWorkoutsProvider).value ?? const [];
+    // 캐릭터를 탭하면 잠깐 기분 한마디, 그 외엔 미기록 운동 말풍선이 머문다.
+    final showPending =
+        pending.isNotEmpty && (!_bubbleVisible || mood.lines.isEmpty);
+
     final look = CharacterLook(
       gender: ref.watch(authProvider.select((a) => a.profile?.gender)) ?? 'f',
       equipment: ref.watch(equippedItemsProvider).value ?? const {},
@@ -154,35 +171,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           child: Align(
             // 인사줄과 오늘 카드 사이 가운데보다 살짝 위 — 말풍선 자리를 남긴다.
             alignment: const Alignment(0, 0.175),
-            child: ConstrainedBox(
-              // 화면을 꽉 채우면 부담스럽다 — 카드 위에 아담하게 서 있도록.
-              constraints: const BoxConstraints(maxWidth: 250, maxHeight: 312),
-              child: LayoutBuilder(
-                builder: (context, c) => Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    LivingCharacter(
-                      look: look,
-                      restFace: mood.face,
-                      reactToProvider: true,
-                      onTap: mood.lines.isEmpty
-                          ? null
-                          : () => _showBubble(next: true),
-                    ),
-                    // 말꼬리 끝이 정수리(캔버스 위 9%) 바로 위에 오도록.
-                    if (mood.lines.isNotEmpty)
-                      Positioned(
-                        left: -40,
-                        right: -40,
-                        bottom: c.maxHeight * 0.91,
-                        child: Center(
-                          child: MoodBubble(
-                            text: mood.line(_bubbleTurn),
-                            visible: _bubbleVisible,
-                          ),
+            // 말풍선 자리(_bubbleSpace)까지 상자에 포함해야 말풍선을 누를 수 있다.
+            // 늘린 만큼 위로 반 올려서 캐릭터 위치는 그대로 둔다.
+            child: Transform.translate(
+              offset: const Offset(0, -_bubbleSpace / 2),
+              child: ConstrainedBox(
+                // 화면을 꽉 채우면 부담스럽다 — 카드 위에 아담하게 서 있도록.
+                constraints: const BoxConstraints(
+                  maxWidth: 250 + _bubbleSide * 2,
+                  maxHeight: 312 + _bubbleSpace,
+                ),
+                child: LayoutBuilder(
+                  builder: (context, c) => Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            _bubbleSide, _bubbleSpace, _bubbleSide, 0),
+                        child: LivingCharacter(
+                          look: look,
+                          restFace: mood.face,
+                          reactToProvider: true,
+                          onTap: mood.lines.isEmpty
+                              ? null
+                              : () => _showBubble(next: true),
                         ),
                       ),
-                  ],
+                      // 말꼬리 끝이 정수리(캔버스 위 9%) 바로 위에 오도록.
+                      if (mood.lines.isNotEmpty || pending.isNotEmpty)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: (c.maxHeight - _bubbleSpace) * 0.91,
+                          child: Center(
+                            child: MoodBubble(
+                              text: showPending
+                                  ? pendingHealthLine(pending)
+                                  : mood.line(_bubbleTurn),
+                              visible: _bubbleVisible || pending.isNotEmpty,
+                              onTap: showPending
+                                  ? () =>
+                                      openPendingHealth(context, ref, pending)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -219,7 +254,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             child: Column(
               children: [
                 _TopRow(greeting: _greeting()),
-                const PendingHealthCard(),
                 const Spacer(),
                 _TodayCard(
                   onRecord: () => context.go('/record'),
@@ -444,26 +478,38 @@ class _TodayCard extends ConsumerWidget {
           ),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                      child: _Stat(
-                          value: profile == null
-                              ? '—'
-                              : '${profile.streakCurrent}일',
-                          label: '연속 기록')),
-                  const _StatDivider(),
-                  Expanded(
-                      child: _Stat(
-                          value: todayMin == null ? '—' : '$todayMin분',
-                          label: '오늘 운동')),
-                  const _StatDivider(),
-                  Expanded(
-                      child: _Stat(
-                          value:
-                              profile == null ? '—' : 'Lv.${profile.level}',
-                          label: '지구력')),
-                ],
+              // 스탯 줄을 누르면 이번 주 회고. (홈에 링크 줄을 따로 두지 않는다)
+              Semantics(
+                button: true,
+                label: '주간 운동 회고 보기',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => openWeeklyReview(context),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                        children: [
+                          Expanded(
+                              child: _Stat(
+                                  value: profile == null
+                                      ? '—'
+                                      : '${profile.streakCurrent}일',
+                                  label: '연속 기록')),
+                          const _StatDivider(),
+                          Expanded(
+                              child: _Stat(
+                                  value: todayMin == null ? '—' : '$todayMin분',
+                                  label: '오늘 운동')),
+                          const _StatDivider(),
+                          Expanded(
+                              child: _Stat(
+                                  value:
+                                      profile == null ? '—' : 'Lv.${profile.level}',
+                                  label: '지구력')),
+                        ],
+                      ),
+                  ),
+                ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -504,7 +550,6 @@ class _TodayCard extends ConsumerWidget {
                   ),
                 ],
               ),
-              const WeeklyReviewLink(),
               // 휴식일: 오늘 쉬는 중이면 안내, 아직 선언할 수 있으면 조용한 링크.
               if (care != null && (care.restToday || care.canDeclareRest))
                 _RestDayRow(care: care),

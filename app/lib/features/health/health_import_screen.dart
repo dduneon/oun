@@ -6,12 +6,14 @@ import '../../theme/app_theme.dart';
 import '../record/workout_editor.dart';
 import 'health_workout.dart';
 
-void openHealthImport(BuildContext context, {bool onlyUnrecorded = false}) =>
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => HealthImportScreen(onlyUnrecorded: onlyUnrecorded),
-      ),
-    );
+Future<void> openHealthImport(
+  BuildContext context, {
+  bool onlyUnrecorded = false,
+}) => Navigator.of(context, rootNavigator: true).push(
+  MaterialPageRoute<void>(
+    builder: (_) => HealthImportScreen(onlyUnrecorded: onlyUnrecorded),
+  ),
+);
 
 class HealthImportScreen extends ConsumerStatefulWidget {
   const HealthImportScreen({
