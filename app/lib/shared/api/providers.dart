@@ -304,7 +304,9 @@ final recentWorkoutsProvider = FutureProvider<List<Workout>>((ref) async {
 final recentBySportProvider =
     FutureProvider.family<List<Workout>, String>((ref, sport) async {
   final api = await _authed(ref);
-  return api.workouts(sport: sport, limit: 3);
+  final items = await api.workouts(sport: sport, limit: 3);
+  // sport 조건을 모르는 이전 서버는 전체를 돌려주므로 앱에서도 한 번 거른다.
+  return items.where((w) => w.sport == sport).take(3).toList();
 });
 
 /// 월별 캘린더(도트). family 인자: 'YYYY-MM'.
