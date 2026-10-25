@@ -31,8 +31,13 @@ export class WorkoutsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('offset') offset?: string,
+    @Query('sport') sport?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.workouts.list(user.userId, from, to, offset === undefined ? 0 : Number(offset));
+    return this.workouts.list(
+      user.userId, from, to, offset === undefined ? 0 : Number(offset),
+      sport, limit === undefined ? 50 : Number(limit),
+    );
   }
 
   @Patch(':id')

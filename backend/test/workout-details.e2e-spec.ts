@@ -60,4 +60,15 @@ describe('운동 상세 기록', () => {
     const next = await request(server).get('/workouts?offset=1').set(auth()).expect(200);
     expect(next.body.items).toHaveLength(0);
   });
+  it('종목별 최근 기록을 개수 제한과 함께 돌려주고 잘못된 값은 거부한다', async () => {
+    const server = app.getHttpServer();
+    await request(server).post('/workouts').set(auth()).send({ sport: 'cycling', durationSec: 900 }).expect(201);
+    await request(server).post('/workouts').set(auth()).send({ sport: 'cycling', durationSec: 1500 }).expect(201);
+    await request(server).post('/workouts').set(auth()).send({ sport: 'yoga', durationSec: 1200 }).expect(201);
+    const res = await request(server).get('/workouts?sport=cycling&limit=1').set(auth()).expect(200);
+    expect(res.body.items).toHaveLength(1);
+    expect(res.body.items[0]).toMatchObject({ sport: 'cycling', durationSec: 1500 });
+    await request(server).get('/workouts?sport=swimming').set(auth()).expect(400);
+    await request(server).get('/workouts?limit=0').set(auth()).expect(400);
+  });
 });

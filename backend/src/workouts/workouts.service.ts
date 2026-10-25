@@ -5,7 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Sport } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { GameService } from '../game/game.service';
@@ -328,10 +328,17 @@ export class WorkoutsService {
       next: rows.length > 200 ? items[199].id : null };
   }
 
-  /** GET /workouts?from=&to= — 최근 기록 리스트. */
-  async list(userId: string, from?: string, to?: string, offset = 0) {
+  /** GET /workouts?from=&to=&sport=&limit= — 최근 기록 리스트. sport는 기록 창의 '지난 운동으로 채우기'용. */
+  async list(userId: string, from?: string, to?: string, offset = 0, sport?: string, limit = 50) {
     if (!Number.isInteger(offset) || offset < 0) throw new BadRequestException('잘못된 페이지예요');
-    const where: { userId: string; performedAt?: { gte?: Date; lte?: Date } } = { userId };
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new BadRequestException('잘못된 개수예요');
+    if (sport !== undefined && !(Object.values(Sport) as string[]).includes(sport)) {
+      throw new BadRequestException('알 수 없는 종목이에요');
+    }
+    const where: { userId: string; sport?: Sport; performedAt?: { gte?: Date; lte?: Date } } = {
+      userId,
+      ...(sport ? { sport: sport as Sport } : {}),
+    };
     if (from || to) {
       where.performedAt = {};
       if (from) where.performedAt.gte = new Date(from);
@@ -340,7 +347,7 @@ export class WorkoutsService {
     const items = await this.prisma.workoutLog.findMany({
       where,
       orderBy: [{ performedAt: 'desc' }, { id: 'desc' }],
-      take: 50,
+      take: limit,
       skip: offset,
       include: workoutInclude,
     });
