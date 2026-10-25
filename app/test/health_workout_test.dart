@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:health/health.dart';
 import 'package:oun_app/features/health/health_workout.dart';
 import 'package:oun_app/features/record/workout_editor.dart';
-import 'package:oun_app/features/record/recent_workout_shortcuts.dart';
 import 'package:oun_app/shared/api/api_client.dart';
 import 'package:oun_app/shared/api/models.dart';
 import 'package:oun_app/shared/api/providers.dart';
@@ -118,7 +117,7 @@ void main() {
     expect(api.submitted!['sets'], isNull);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('최근 운동에서 상세 진입 없이 오늘의 새 기록을 만든다', (tester) async {
+  testWidgets('최근 운동 다시 기록은 오늘 날짜의 새 기록을 만든다', (tester) async {
     final api = CapturingApi();
     await tester.pumpWidget(
       ProviderScope(
@@ -140,13 +139,37 @@ void main() {
             ],
           ),
         ],
-        child: const MaterialApp(
-          home: Scaffold(body: RecentWorkoutShortcuts()),
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showModalBottomSheet<bool>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => WorkoutEditor(
+                    editing: Workout(
+                      id: 'old',
+                      sport: 'running',
+                      durationSec: 1810,
+                      distanceM: 5000,
+                      performedAt: DateTime(2020, 1, 1),
+                      source: 'healthkit',
+                      note: '예전 메모',
+                      calories: 200,
+                      photoUrl: 'https://example.com/old.jpg',
+                    ),
+                    repeat: true,
+                  ),
+                ),
+                child: const Text('다시'),
+              ),
+            ),
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('러닝'));
+    await tester.tap(find.text('다시'));
     await tester.pumpAndSettle();
     expect(find.text('다시 기록하기'), findsOneWidget);
     expect(find.text('예전 메모'), findsNothing);

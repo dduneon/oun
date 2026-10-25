@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'workout_editor.dart';
-import 'recent_workout_shortcuts.dart';
 import 'weekly_review_screen.dart';
 import '../health/health_import_screen.dart';
 
@@ -299,7 +298,7 @@ class _WorkoutDetail extends ConsumerWidget {
               ],
             ),
           ),
-          const _SectionHeader('기록', showAll: false),
+          const _SectionHeader('기록'),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: _listCard,
@@ -336,7 +335,7 @@ class _WorkoutDetail extends ConsumerWidget {
             ),
           ),
           if (w.exercises.isNotEmpty) ...[
-            const _SectionHeader('운동 · 세트', showAll: false),
+            const _SectionHeader('운동 · 세트'),
             for (final e in w.exercises)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -401,7 +400,7 @@ class _WorkoutDetail extends ConsumerWidget {
               ),
           ],
           if (w.note?.isNotEmpty == true) ...[
-            const _SectionHeader('메모', showAll: false),
+            const _SectionHeader('메모'),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: _listCard,
@@ -416,7 +415,7 @@ class _WorkoutDetail extends ConsumerWidget {
             ),
           ],
           if (w.photoUrl != null) ...[
-            const _SectionHeader('사진', showAll: false),
+            const _SectionHeader('사진'),
             GestureDetector(
               onTap: () => showPhotoViewer(context, w.photoUrl!),
               child: ClipRRect(
@@ -506,13 +505,7 @@ class RecordScreen extends ConsumerWidget {
       ),
       children: [
         const _MonthSection(),
-        Align(alignment: Alignment.centerRight, child: TextButton.icon(
-          onPressed: () => openWeeklyReview(context),
-          icon: const Icon(Icons.calendar_view_week_rounded, size: 17),
-          label: const Text('주간 운동 회고'),
-        )),
-        const RecentWorkoutShortcuts(),
-        const _SectionHeader('오늘 기록하기', showAll: false),
+        const _SectionHeader('오늘 기록하기'),
         Row(
           children: [
             Expanded(
@@ -548,59 +541,27 @@ class RecordScreen extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: OunColors.tabAccent,
-              side: const BorderSide(color: OunColors.cardBorder),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            onPressed: () => _openSheet(context, null, null),
-            icon: const Icon(Icons.add_rounded, size: 19),
-            label: const Text(
-              '다른 운동 기록하기',
-              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: TextButton.icon(
-            style: TextButton.styleFrom(
-              foregroundColor: OunColors.textMuted,
-              backgroundColor: OunColors.card,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            onPressed: () => openHealthImport(context),
-            icon: const Icon(
-              Icons.favorite_rounded,
-              size: 17,
-              color: OunColors.tabAccent,
-            ),
-            label: const Text(
-              '건강 앱에서 최근 운동 불러오기',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
+        const SizedBox(height: 9),
         Row(
           children: [
-            const Expanded(child: _SectionHeader('최근 기록', showAll: false)),
-            TextButton(
-              onPressed: () => _openHistory(context),
-              child: const Text('전체 보기'),
+            Expanded(
+              child: _SecondaryStart(
+                Icons.add_rounded,
+                '다른 운동',
+                onTap: () => _openSheet(context, null, null),
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _SecondaryStart(
+                Icons.favorite_rounded,
+                '건강 앱에서 불러오기',
+                onTap: () => openHealthImport(context),
+              ),
             ),
           ],
         ),
+        _SectionHeader('최근 기록', onAll: () => _openHistory(context)),
         const _RecentRecords(),
       ],
     );
@@ -763,6 +724,43 @@ class _MonthSectionState extends ConsumerState<_MonthSection> {
                 ),
                 TextSpan(text: ' 운동 · 연속 ${profile?.streakCurrent ?? 0}일'),
               ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 이번 주 요약 바로 옆에서 회고로 이어진다.
+          Material(
+            color: OunColors.card,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => openWeeklyReview(context),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 14,
+                      color: OunColors.tabAccent,
+                    ),
+                    SizedBox(width: 5),
+                    Text(
+                      '주간 회고 보기',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: OunColors.tabAccent,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: OunColors.tabAccent,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           if (_expanded) _monthly(),
@@ -1098,10 +1096,53 @@ class _QuickStart extends StatelessWidget {
   }
 }
 
+/// 종목 퀵스타트 아래 보조 진입(다른 운동 / 건강 앱). 같은 크기로 나란히.
+class _SecondaryStart extends StatelessWidget {
+  const _SecondaryStart(this.icon, this.label, {required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: OunColors.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+      side: const BorderSide(color: OunColors.cardBorder),
+    ),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: OunColors.tabAccent),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: OunColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text, {this.showAll = true});
+  const _SectionHeader(this.text, {this.onAll});
   final String text;
-  final bool showAll;
+  final VoidCallback? onAll;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1118,9 +1159,10 @@ class _SectionHeader extends StatelessWidget {
             ),
           ),
         ),
-        if (showAll)
+        if (onAll != null)
           GestureDetector(
-            onTap: () {},
+            behavior: HitTestBehavior.opaque,
+            onTap: onAll,
             child: const Text(
               '전체 보기',
               style: TextStyle(fontSize: 11.5, color: OunColors.textMuted),
