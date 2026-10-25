@@ -165,6 +165,15 @@ describe('오운 수정·삭제 (e2e)', () => {
       .expect(200);
     expect(feed.body.items[0].workout).not.toBeNull();
 
+    // 크루 상세는 이미 공유한 운동을 알려 주고, 같은 운동으로는 다시 쓸 수 없다
+    let detail = await request(app.getHttpServer()).get(`/crews/${crewId}`).set(auth()).expect(200);
+    expect(detail.body.mySharedWorkoutIds).toEqual([workoutId]);
+    await request(app.getHttpServer())
+      .post(`/crews/${crewId}/posts`)
+      .set(auth())
+      .send({ workoutLogId: workoutId })
+      .expect(409);
+
     // 운동 태그 제거(workoutLogId '') + 한마디 유지
     await request(app.getHttpServer())
       .patch(`/crews/posts/${post.body.id}`)
@@ -178,6 +187,8 @@ describe('오운 수정·삭제 (e2e)', () => {
       .expect(200);
     expect(feed.body.items[0].workout).toBeNull();
     expect(feed.body.items[0].message).toBe('한강 러닝');
+    detail = await request(app.getHttpServer()).get(`/crews/${crewId}`).set(auth()).expect(200);
+    expect(detail.body.mySharedWorkoutIds).toEqual([]);
   });
 
   it('남의 글은 수정·삭제할 수 없다', async () => {

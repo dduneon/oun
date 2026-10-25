@@ -175,6 +175,14 @@ export class CrewsService {
         })
       : 0;
 
+    // 글쓰기에서 이미 공유한 운동을 고를 수 없게(크루당 운동 1회) 내가 태그한 운동 id.
+    const mySharedWorkoutIds = (
+      await client.crewPost.findMany({
+        where: { crewId, userId, workoutLogId: { not: null } },
+        select: { workoutLogId: true },
+      })
+    ).map((p) => p.workoutLogId!);
+
     return {
       id: crew.id,
       name: crew.name,
@@ -182,6 +190,7 @@ export class CrewsService {
       isPublic: crew.isPublic,
       isLeader,
       pendingRequestCount,
+      mySharedWorkoutIds,
       members,
       level: crewLevelOf(crew._count.posts),
     };
