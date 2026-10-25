@@ -248,7 +248,10 @@ void _openTarget(BuildContext context, WidgetRef ref, NotificationItem n) {
     // 대상 화면으로
     case 'cheer' || 'friend_accepted':
       pushFriend();
-    case 'crew_comment' || 'crew_post_cheer' || 'crew_join_request':
+    case 'crew_post' ||
+        'crew_comment' ||
+        'crew_post_cheer' ||
+        'crew_join_request':
       pushCrew();
     case 'crew_join_result':
       // 거절이면 갈 크루가 없다.
@@ -264,6 +267,7 @@ IconData _iconFor(String type) => switch (type) {
   'crew_join_result' ||
   'crew_invite' => Icons.groups_rounded,
   'crew_comment' => Icons.mode_comment_rounded,
+  'crew_post' => Icons.edit_note_rounded,
   _ => Icons.notifications_rounded,
 };
 

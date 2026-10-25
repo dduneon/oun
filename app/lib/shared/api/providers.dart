@@ -604,7 +604,7 @@ List<RefreshTarget> providersForNotification(String? type) => switch (type) {
           crewInvitationsProvider,
           crewJoinRequestsProvider,
         ],
-      'crew_comment' || 'crew_post_cheer' => [
+      'crew_post' || 'crew_comment' || 'crew_post_cheer' => [
           crewFeedProvider,
           crewDetailProvider,
         ],
