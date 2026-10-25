@@ -300,6 +300,13 @@ final recentWorkoutsProvider = FutureProvider<List<Workout>>((ref) async {
   return api.workouts();
 });
 
+/// 종목별 최근 기록 3개 — 기록 창의 '지난 운동으로 채우기'. family 인자: sport.
+final recentBySportProvider =
+    FutureProvider.family<List<Workout>, String>((ref, sport) async {
+  final api = await _authed(ref);
+  return api.workouts(sport: sport, limit: 3);
+});
+
 /// 월별 캘린더(도트). family 인자: 'YYYY-MM'.
 final calendarProvider =
     FutureProvider.family<List<CalendarDay>, String>((ref, month) async {
@@ -472,6 +479,7 @@ void invalidateAfterWorkout(WidgetRef ref) {
   ref.invalidate(careProvider);
   ref.invalidate(todayMinutesProvider);
   ref.invalidate(recentWorkoutsProvider);
+  ref.invalidate(recentBySportProvider);
   ref.invalidate(healthImportStatesProvider);
   ref.invalidate(calendarProvider);
   ref.invalidate(monthSummaryProvider);

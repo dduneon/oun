@@ -47,6 +47,8 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
   // 시트 안에 보여줄 오류. 토스트는 시트 뒤 화면에 떠서 가려진다.
   String? _error;
   XFile? _photo;
+  // '지난 운동으로 채우기'에서 고른 기록 id(선택 표시용).
+  String? _filledFrom;
   bool get _healthDefaults =>
       widget.imported != null ||
       widget.editing?.source == 'healthkit' ||
@@ -151,6 +153,160 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
     },
   );
 
+  /// 지난 기록의 내용으로 폼을 채운다. 날짜는 그대로(오늘), 사진·메모·
+  /// 칼로리·강도·건강 앱 연결은 복사하지 않는다 — '다시 기록'과 같은 규칙.
+  void _fillFrom(Workout w) {
+    setState(() {
+      _filledFrom = w.id;
+      _minutes.text = '${w.durationSec ~/ 60}';
+      _seconds.text = '${w.durationSec % 60}';
+      _distance.text = w.distanceM == null ? '' : '${w.distanceM! / 1000}';
+      _steps.text = w.steps?.toString() ?? '';
+      if (w.sets != null) _sets.text = '${w.sets}';
+      if (w.bodyPart != null) _body = w.bodyPart!;
+      _name.text = w.customSportName ?? '';
+      for (final e in _exercises) {
+        e.dispose();
+      }
+      _exercises
+        ..clear()
+        ..addAll(w.exercises.map(_ExerciseDraft.fromWorkout));
+      _error = null;
+    });
+  }
+
+  int get _durationSec =>
+      (int.tryParse(_minutes.text) ?? 0) * 60 +
+      (int.tryParse(_seconds.text) ?? 0);
+
+  /// 초까지 고르는 종목: 페이스·속도 계산에 쓰이는 거리 종목만.
+  bool get _withSeconds =>
+      const ['running', 'walking', 'cycling'].contains(_sport);
+
+  String _durationLabel() {
+    final total = _durationSec;
+    final h = total ~/ 3600, m = total % 3600 ~/ 60, sec = total % 60;
+    final parts = [
+      if (h > 0) '$h시간',
+      if (m > 0 || h == 0) '$m분',
+      if (_withSeconds && sec > 0) '$sec초',
+    ];
+    return parts.join(' ');
+  }
+
+  void _setDuration(int sec) => setState(() {
+    _minutes.text = '${sec ~/ 60}';
+    _seconds.text = '${sec % 60}';
+    _filledFrom = null;
+  });
+
+  /// 운동 소요 시간을 빠른 선택 + iOS 휠 피커 시트로 고른다.
+  Future<void> _pickDuration() async {
+    final withSeconds = _withSeconds;
+    // 시·분만 고르는 종목은 숨은 초 값을 그대로 둔다(건강 앱 기록 보존).
+    final keptSeconds = withSeconds ? 0 : _durationSec % 60;
+    var picked = Duration(
+      seconds: withSeconds ? _durationSec : _durationSec - keptSeconds,
+    );
+    const quick = [15, 30, 45, 60, 90];
+    String quickLabel(int m) => m < 60
+        ? '$m분'
+        : m % 60 == 0
+        ? '${m ~/ 60}시간'
+        : '${m ~/ 60}시간 ${m % 60}분';
+    final result = await showModalBottomSheet<Duration>(
+      context: context,
+      useRootNavigator: true,
+      // 기본 높이 제한(화면 9/16)에 걸리면 작은 폰에서 휠이 잘린다.
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: const BoxDecoration(
+          color: OunColors.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _GrabHandle(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        '얼마나 운동했나요?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: OunColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetContext, picked),
+                      style: TextButton.styleFrom(
+                        foregroundColor: OunColors.tabAccent,
+                      ),
+                      child: const Text(
+                        '완료',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final m in quick)
+                      _QuickChip(
+                        label: quickLabel(m),
+                        onTap: () =>
+                            Navigator.pop(sheetContext, Duration(minutes: m)),
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 216,
+                child: CupertinoTheme(
+                  data: const CupertinoThemeData(
+                    textTheme: CupertinoTextThemeData(
+                      pickerTextStyle: TextStyle(
+                        fontSize: 19,
+                        color: OunColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  child: CupertinoTimerPicker(
+                    mode: withSeconds
+                        ? CupertinoTimerPickerMode.hms
+                        : CupertinoTimerPickerMode.hm,
+                    initialTimerDuration: picked,
+                    onTimerDurationChanged: (d) => picked = d,
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: _Hint('최대 6시간까지 기록할 수 있어요'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      _setDuration(result.inSeconds + keptSeconds);
+    }
+  }
+
   /// 운동한 날짜·시간을 iOS 휠 피커 시트로 고른다.
   Future<void> _pickDate() async {
     final now = DateTime.now();
@@ -244,7 +400,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       setState(() => _error = '입력값을 확인해 주세요');
       return;
     }
-    final duration = int.parse(_minutes.text) * 60 + int.parse(_seconds.text);
+    final duration = _durationSec;
     if (duration < 1 || duration > 21600) {
       setState(() => _error = '운동 시간은 1초부터 6시간까지 입력해 주세요');
       return;
@@ -347,9 +503,8 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
   @override
   Widget build(BuildContext context) {
     final distance = double.tryParse(_distance.text) ?? 0;
-    final duration =
-        (int.tryParse(_minutes.text) ?? 0) * 60 +
-        (int.tryParse(_seconds.text) ?? 0);
+    final duration = _durationSec;
+    final showRecent = !_editing && widget.imported == null;
     final pace = distance > 0 ? (duration / distance).round() : 0;
     final media = MediaQuery.of(context);
     return PopScope(
@@ -414,11 +569,15 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                                     icon: sportIcons[e.key],
                                     label: e.value,
                                     selected: _sport == e.key,
-                                    onTap: () => setState(() => _sport = e.key),
+                                    onTap: () => setState(() {
+                                      _sport = e.key;
+                                      _filledFrom = null;
+                                    }),
                                   ),
                               ],
                             ),
                           ),
+                          if (showRecent) _recentSection(),
                           _section(
                             '언제',
                             _SoftButton(
@@ -466,25 +625,33 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                             ),
                           _section(
                             '운동 소요 시간',
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: _number(
-                                    _minutes,
-                                    suffix: '분',
-                                    max: 360,
+                            _SoftButton(
+                              key: const ValueKey('duration'),
+                              onTap: _pickDuration,
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.timer_outlined,
+                                    size: 18,
+                                    color: OunColors.tabAccent,
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _number(
-                                    _seconds,
-                                    suffix: '초',
-                                    max: 59,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _durationLabel(),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: OunColors.textPrimary,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: OunColors.textFaint,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           if ([
@@ -638,6 +805,92 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                       ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 고른 종목의 최근 기록 3개. 누르면 그 내용으로 폼을 채운다.
+  Widget _recentSection() {
+    final items = ref.watch(recentBySportProvider(_sport)).value ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    final label = sportLabels[_sport] ?? '운동';
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        decoration: BoxDecoration(
+          color: OunColors.card,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '지난 $label 내용으로 채우기',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: OunColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 6),
+            for (final w in items) _recentRow(w),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _recentRow(Workout w) {
+    final selected = _filledFrom == w.id;
+    final metric = workoutMetric(w);
+    final name = w.customSportName?.isNotEmpty == true
+        ? '${w.customSportName} · '
+        : '';
+    final text = [
+      relativeDay(w.performedAt),
+      '$name${w.minutes}분',
+      if (metric != '${w.minutes}분') metric,
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: selected ? OunColors.surface : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: selected ? OunColors.tabAccent : Colors.transparent,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => _fillFrom(w),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+            child: Row(
+              children: [
+                Icon(
+                  selected ? Icons.check_circle_rounded : Icons.history_rounded,
+                  size: 17,
+                  color: selected ? OunColors.tabAccent : OunColors.textMuted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: OunColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1139,7 +1392,7 @@ class _Hint extends StatelessWidget {
 
 /// 밝은 카드 + 웜톤 테두리의 탭 영역(날짜 선택 · 운동 추가 등).
 class _SoftButton extends StatelessWidget {
-  const _SoftButton({required this.child, required this.onTap});
+  const _SoftButton({super.key, required this.child, required this.onTap});
   final Widget child;
   final VoidCallback? onTap;
 
@@ -1160,6 +1413,37 @@ class _SoftButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           alignment: Alignment.center,
           child: child,
+        ),
+      ),
+    ),
+  );
+}
+
+/// 시간 시트의 빠른 선택 칩.
+class _QuickChip extends StatelessWidget {
+  const _QuickChip({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: OunColors.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+      side: const BorderSide(color: OunColors.cardBorder),
+    ),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: OunColors.tabAccent,
+          ),
         ),
       ),
     ),

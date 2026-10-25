@@ -304,6 +304,8 @@ class ApiClient {
     DateTime? from,
     DateTime? to,
     int offset = 0,
+    String? sport,
+    int? limit,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/workouts',
@@ -311,6 +313,8 @@ class ApiClient {
         'from': ?from?.toUtc().toIso8601String(),
         'to': ?to?.toUtc().toIso8601String(),
         'offset': offset,
+        'sport': ?sport,
+        'limit': ?limit,
       },
     );
     return (res.data!['items'] as List)
